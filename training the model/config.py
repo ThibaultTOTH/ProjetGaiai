@@ -93,7 +93,7 @@ class ModelConfig:
     score_dropout: float = 0.05
     score_activation: str = "silu"  # 'silu', 'gelu', 'mish', 'relu'
     score_loss_type: str = "huber"  # 'huber', 'mse', 'smooth_l1'
-    score_lr: float = 3e-4
+    score_lr: float = 5e-5  # Réduit pour empêcher l'overfitting précoce de la Baseline
     score_weight_decay: float = 1e-4
 
     # Action Optimizer (Policy Network) - Large Pro ResNet
