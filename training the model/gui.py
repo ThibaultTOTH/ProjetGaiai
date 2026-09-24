@@ -411,6 +411,9 @@ class GaiaRLStudioGUI:
         self.var_layers = tk.StringVar(value=default_layers)
         ttk.Combobox(sec_arch, textvariable=self.var_layers, values=["512, 512, 512, 256", "512, 512, 256", "256, 256, 128", "128, 128"], width=22).grid(row=1, column=1, columnspan=2, sticky=tk.W, padx=4)
 
+        self.var_finetune = tk.BooleanVar(value=getattr(c.model, "finetune_mode", False))
+        ttk.Checkbutton(sec_arch, text="Mode Fine-Tuning (Gèle le Shared Backbone)", variable=self.var_finetune).grid(row=1, column=3, columnspan=3, sticky=tk.W, padx=12)
+
         # 3. Spatial HexGNN Map Encoder
         sec_gnn = ttk.LabelFrame(scrollable_frame, text="3. Encodeur Spatial HexGNN (Plateau Hexagonal 200 hexes)", padding=8)
         sec_gnn.pack(fill=tk.X, pady=4)
@@ -663,6 +666,7 @@ class GaiaRLStudioGUI:
         self.var_activation.set(c.model.policy_activation)
         self.var_dropout.set(c.model.policy_dropout)
         self.var_layers.set(", ".join(str(x) for x in c.model.policy_hidden_layers))
+        self.var_finetune.set(getattr(c.model, "finetune_mode", False))
 
         self.var_gnn_map.set(c.model.use_gnn_map)
         self.var_gnn_layers.set(c.model.gnn_layers)
@@ -765,6 +769,8 @@ class GaiaRLStudioGUI:
         if layers:
             c.model.policy_hidden_layers = layers
             c.model.score_hidden_layers = layers
+            
+        c.model.finetune_mode = self.var_finetune.get()
 
         c.model.use_gnn_map = self.var_gnn_map.get()
         c.model.gnn_layers = self.var_gnn_layers.get()
