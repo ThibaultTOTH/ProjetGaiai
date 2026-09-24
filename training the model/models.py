@@ -364,6 +364,11 @@ class ScorePredictorNet(nn.Module):
                     nn.init.constant_(m.bias, 0.0)
         if hasattr(self, "head") and len(self.head) > 0 and isinstance(self.head[-1], nn.Linear):
             nn.init.orthogonal_(self.head[-1].weight, gain=1.0)
+            if self.head[-1].bias is not None:
+                # Optimistic Initialization : Force l'agent à croire que la partie vaut 500 VP par défaut.
+                # Cela génère un Avantage massivement négatif (75 - 500 = -425) sur les actions médiocres,
+                # ce qui détruit leur probabilité et force le réseau de politique à tout explorer.
+                nn.init.constant_(self.head[-1].bias, 500.0)
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         feat = self.backbone(obs)
