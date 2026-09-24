@@ -153,13 +153,13 @@ class TrainingConfig:
     # Dynamic Annealed Reward Shaping (Potential-based milestone exploration)
     shaping_enabled: bool = True
     shaping_initial_weight: float = 1.0
-    shaping_decay_rate: float = 0.96  # Exponential annealing: w(t) = w0 * (decay_rate ** t)
+    shaping_decay_rate: float = 0.998  # Ralenti drastiquement pour s'adapter à 2000 époques
     shaping_min_weight: float = 0.0
 
     # Random Network Distillation (RND) Intrinsic Curiosity
     rnd_enabled: bool = True
     rnd_initial_weight: float = 0.05
-    rnd_decay_rate: float = 0.98
+    rnd_decay_rate: float = 0.998
     rnd_learning_rate: float = 1e-4
 
     # Opponent Modeling Auxiliary Task
