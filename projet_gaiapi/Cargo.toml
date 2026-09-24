@@ -1,0 +1,22 @@
+﻿[package]
+name = "gaiapi"
+version = "0.1.0"
+edition = "2024"
+description = "Deterministic Gaia Project reinforcement-learning environment"
+license = "MIT"
+
+[lib]
+name = "gaiapi"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "gaiapi_server"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+dashmap = "6"
+serde_json = "1.0"
+
