@@ -311,31 +311,38 @@ class RLTrainer:
                     if regret >= getattr(self.config.training, "rgsc_regret_threshold", 0.40):
                         self.state_buffer.add(env, regret=regret, round_num=getattr(env, "round", 1))
 
-                # Dynamic Annealed Reward Shaping (Milestone exploration)
+                # Dynamic Annealed Reward Shaping (Milestone exploration on 3130 flat action space)
                 shaping_w = self.compute_scheduled_shaping_weight()
                 if shaping_w > 1e-4:
                     milestone_bonus = 0.0
-                    if action in (6, 7, 8):  # Lab, PI, Academy
-                        milestone_bonus = 0.5
-                    elif action == 9:  # FormFederation
-                        milestone_bonus = 1.0
-                    elif action == 10:  # AdvanceResearch
-                        milestone_bonus = 0.5
-                    elif action == 11:  # ClaimTechTile
-                        milestone_bonus = 0.4
-                    elif action == 13:  # ExploreSpaceship
-                        milestone_bonus = 0.5
-                    elif action == 5:  # UpgradeTradingStation
+                    if 400 <= action < 600:       # UpgradeTradingStation
                         milestone_bonus = 0.2
-                    elif action == 4:  # StartGaiaProject
+                    elif 600 <= action < 800:     # UpgradeResearchLab
+                        milestone_bonus = 0.5
+                    elif 800 <= action < 1000:    # UpgradePlanetaryInstitute
+                        milestone_bonus = 0.5
+                    elif 1000 <= action < 1200:   # UpgradeAcademy
+                        milestone_bonus = 0.5
+                    elif 1400 <= action < 1406:   # FormFederation
+                        milestone_bonus = 1.0
+                    elif 1406 <= action < 1412:   # AdvanceResearch
+                        milestone_bonus = 0.5
+                    elif 1444 <= action < 1498:   # ClaimTechTile
+                        milestone_bonus = 0.4
+                    elif 1498 <= action < 2308:   # ClaimAdvTechTile
+                        milestone_bonus = 0.6
+                    elif 2308 <= action < 3108:   # ExploreSpaceship
+                        milestone_bonus = 0.5
+                    elif 200 <= action < 400:     # StartGaiaProject
                         milestone_bonus = 0.3
                     reward += shaping_w * milestone_bonus
 
-                # RND Intrinsic Curiosity Reward
+                # RND Intrinsic Curiosity Reward (safely bounded in [0, 1])
                 rnd_w = self.compute_scheduled_rnd_weight()
                 if rnd_w > 1e-4 and self.rnd is not None:
                     int_reward = self.rnd.compute_intrinsic_reward(obs_tensor)
-                    reward += rnd_w * int_reward
+                    clamped_int = float(np.clip(int_reward, 0.0, 1.0))
+                    reward += rnd_w * clamped_int
 
                 last_p0_idx = self.buffer.ptr
                 self.buffer.add(

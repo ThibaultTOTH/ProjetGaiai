@@ -114,6 +114,7 @@ class RNDModel(nn.Module):
 
         self.optimizer = torch.optim.AdamW(self.predictor.parameters(), lr=lr, weight_decay=1e-5)
         self.normalizer = RunningMeanStd()
+        self.last_intrinsic_reward: float = 0.0
 
     def compute_raw_error(self, obs: torch.Tensor) -> torch.Tensor:
         """Computes raw squared error per sample in batch: ||f_pred(s) - f_target(s)||^2."""
@@ -133,6 +134,7 @@ class RNDModel(nn.Module):
         raw_val = float(err.squeeze().item())
         self.normalizer.update(np.array([raw_val]))
         norm_val = float(self.normalizer.normalize(raw_val))
+        self.last_intrinsic_reward = norm_val
         return norm_val
 
     def compute_loss(self, obs: torch.Tensor) -> torch.Tensor:

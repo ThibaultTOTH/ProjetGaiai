@@ -39,9 +39,10 @@ import torch
 
 from analytics import generate_strategy_pdf
 from config import AppConfig, get_training_preset
-from environment import make_gaia_env
+from environment import format_flat_action, make_gaia_env
 from hyperopt import HyperoptTrial, HyperparameterOptimizer
 from mcts import MultiPlayerMCTS
+from async_trainer import AsyncRLTrainer
 from models import DualGaiaAgent
 from trainer import RLTrainer, TrainingMetrics
 
@@ -51,6 +52,11 @@ matplotlib.use("TkAgg")
 class GaiaRLStudioGUI:
     """Main Application Window for Gaia Project RL Training, MCTS Analysis & Tuning."""
 
+    def _create_trainer(self) -> Any:
+        if getattr(self.config.async_dist, "enabled", False):
+            return AsyncRLTrainer(self.config)
+        return RLTrainer(self.config)
+
     def __init__(self, root: tk.Tk, config: Optional[AppConfig] = None):
         self.root = root
         self.root.title("🌌 Gaia Project — Deep RL Studio (SOTA 2026 / Linux & Windows)")
@@ -58,7 +64,7 @@ class GaiaRLStudioGUI:
         self.root.minsize(1020, 720)
 
         self.config = config or AppConfig()
-        self.trainer = RLTrainer(self.config)
+        self.trainer = self._create_trainer()
         self.hyperopt = HyperparameterOptimizer(self.config)
 
         # Thread-safe event queues for UI updates
@@ -831,7 +837,7 @@ class GaiaRLStudioGUI:
     def _on_apply_config(self) -> None:
         try:
             self._save_ui_to_config()
-            self.trainer = RLTrainer(self.config)
+            self.trainer = self._create_trainer()
             messagebox.showinfo("Succès", "Toutes les configurations SOTA 2026 ont été appliquées avec succès !")
         except Exception as e:
             messagebox.showerror("Erreur de configuration", f"Valeur invalide détectée : {e}")
@@ -1067,14 +1073,6 @@ class GaiaRLStudioGUI:
             mcts_cfg.adaptive_budget_enabled = use_gating
             mcts_engine = MultiPlayerMCTS(self.trainer.agent, config=mcts_cfg, device=self.trainer.device)
 
-        action_names = getattr(env, "ACTION_NAMES", [
-            "GainCredits", "ConvertPowerToOre", "TakeQic", "BuildMine",
-            "StartGaiaProject", "UpgradeTradingStation", "UpgradeResearchLab",
-            "UpgradePlanetaryInstitute", "UpgradeAcademy", "FormFederation",
-            "AdvanceResearch", "ClaimTechTile", "BoardActionPower",
-            "ExploreSpaceship", "SpaceshipBoardAction", "Pass",
-        ])
-
         p_count = len(env.players_state)
         algo_title = f"MCTS {engine_choice.upper()} ({sim_budget} sims, unc={use_unc})" if mcts_engine else "Politique Réflexe Directe"
         self.txt_eval_log.insert(tk.END, f"=== DÉBUT DU MATCH ({p_count} Joueurs | IA P0 : {algo_title}) ===\n\n")
@@ -1097,8 +1095,8 @@ class GaiaRLStudioGUI:
                         else:
                             pred_vp = float(self.trainer.agent.score_net(obs_t.unsqueeze(0)).item())
                             unc = 0.0
-                    act_name = action_names[action] if action < len(action_names) else f"Action_{action}"
-                    child_summary = ", ".join([f"{action_names[a][:4] if a < len(action_names) else a}:{v}" for a, v in sorted(meta.get('child_visits', {}).items()) if v > 0])
+                    act_name = format_flat_action(action)
+                    child_summary = ", ".join([f"{format_flat_action(a)[:10]}:{v}" for a, v in sorted(meta.get('child_visits', {}).items()) if v > 0])
                     unc_str = f" | Incertitude σ={unc:.3f}" if use_unc else ""
                     self.txt_eval_log.insert(
                         tk.END,
@@ -1107,8 +1105,9 @@ class GaiaRLStudioGUI:
                     )
                 else:
                     action, _, pred_vp, probs = self.trainer.agent.act_and_evaluate(obs_t, mask_t, deterministic=True)
-                    act_name = action_names[action] if action < len(action_names) else f"Action_{action}"
-                    prob_str = ", ".join([f"{action_names[i][:4] if i < len(action_names) else i}:{probs[i]:.2f}" for i in range(min(len(action_names), len(probs)))])
+                    act_name = format_flat_action(action)
+                    top_acts = sorted(enumerate(probs), key=lambda x: float(x[1]), reverse=True)[:3]
+                    prob_str = ", ".join([f"{format_flat_action(i)[:12]}:{float(p):.2f}" for i, p in top_acts if float(p) > 0.005])
                     self.txt_eval_log.insert(
                         tk.END,
                         f"[Manche {round_num} | Tour {step_count:02d}] 🤖 IA (P0) choisit '{act_name}'\n"
@@ -1117,7 +1116,7 @@ class GaiaRLStudioGUI:
             else:
                 legal_indices = np.where(mask)[0]
                 action = int(np.random.choice(legal_indices))
-                act_name = action_names[action] if action < len(action_names) else f"Action_{action}"
+                act_name = format_flat_action(action)
                 self.txt_eval_log.insert(
                     tk.END,
                     f"[Manche {round_num} | Tour {step_count:02d}] 🎲 Aléatoire (P{curr_p}) joue '{act_name}'\n\n"
@@ -1151,7 +1150,7 @@ class GaiaRLStudioGUI:
     # -------------------------------------------------------------
     def _on_start_training(self) -> None:
         self._save_ui_to_config()
-        self.trainer = RLTrainer(self.config)
+        self.trainer = self._create_trainer()
         self.btn_start.config(state=tk.DISABLED)
         self.btn_pause.config(state=tk.NORMAL, text="⏸ Pause")
         self.btn_stop.config(state=tk.NORMAL)
@@ -1227,7 +1226,7 @@ class GaiaRLStudioGUI:
                 rnd_val = getattr(self.trainer.rnd, "last_intrinsic_reward", 0.0) if getattr(self.trainer, "rnd", None) else 0.0
                 self.kpi_labels["kpi_rnd"].config(text=f"{rnd_val:.4f}")
             if "kpi_rgsc" in self.kpi_labels:
-                rgsc_buf = getattr(self.trainer, "rgsc_buffer", None)
+                rgsc_buf = getattr(self.trainer, "state_buffer", getattr(self.trainer, "rgsc_buffer", None))
                 buf_len = len(rgsc_buf) if rgsc_buf else 0
                 cap = self.config.training.rgsc_buffer_capacity
                 self.kpi_labels["kpi_rgsc"].config(text=f"{buf_len} / {cap}")

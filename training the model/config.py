@@ -147,8 +147,8 @@ class TrainingConfig:
     entropy_start: float = 0.05  # Initial exploration entropy
     entropy_end: float = 0.005  # Exploitation floor entropy
 
-    # PPO Value loss clipping
-    value_clip_epsilon: float = 0.2
+    # PPO Value loss clipping (calibrated for 0..150 VP board game score range)
+    value_clip_epsilon: float = 10.0
 
     # Dynamic Annealed Reward Shaping (Potential-based milestone exploration)
     shaping_enabled: bool = True

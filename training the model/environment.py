@@ -98,7 +98,12 @@ class NativeGaiaEnv:
         if cls._dll_path and os.path.exists(cls._dll_path):
             return cls._dll_path
 
-        lib_names = ["gaiapi.dll", "libgaiapi.so", "libgaiapi.dylib", "gaiapi.so"]
+        if sys.platform.startswith("win"):
+            lib_names = ["gaiapi.dll"]
+        elif sys.platform.startswith("darwin"):
+            lib_names = ["libgaiapi.dylib", "gaiapi.dylib"]
+        else:
+            lib_names = ["libgaiapi.so", "gaiapi.so"]
         candidates = [
             os.environ.get("GAIAPI_LIB"),
             os.environ.get("GAIAPI_DLL"),
@@ -311,6 +316,9 @@ class NativeGaiaEnv:
             elif action == 15:  # Pass
                 flat_action = 1412 + target
 
+        actor = getattr(self, "current_player", 0)
+        prev_vp = float(self.dll.gaiapi_get_player_vp(self.env_ptr, actor)) if hasattr(self.dll, "gaiapi_get_player_vp") else 0.0
+
         if target is not None and hasattr(self.dll, "gaiapi_step_target"):
             success = self.dll.gaiapi_step_target(
                 self.env_ptr,
@@ -343,9 +351,15 @@ class NativeGaiaEnv:
         self.current_player = int(self._cp_buf.value)
         self.terminated = bool(self._d_buf.value)
 
+        new_vp = float(self.dll.gaiapi_get_player_vp(self.env_ptr, actor)) if hasattr(self.dll, "gaiapi_get_player_vp") else 0.0
+        raw_r = float(self._r_buf.value)
+        delta_vp = max(0.0, new_vp - prev_vp)
+        # Defend against cumulative VP returned by legacy binary
+        step_r = delta_vp if (abs(raw_r - new_vp) < 1e-4 and new_vp > delta_vp) else raw_r
+
         return GaiaEnvStepResult(
             obs=self._get_obs(),
-            reward=float(self._r_buf.value),
+            reward=step_r,
             done=self.terminated,
             action_mask=self.get_action_mask(),
             info={
@@ -544,6 +558,57 @@ class RestGaiaEnv:
             action_mask=mask,
             info={"round": resp.get("round", 1)},
         )
+
+
+def format_flat_action(action_id: int) -> str:
+    """Decodes a flat action index (0..3129) into human-readable text."""
+    if 0 <= action_id < 200:
+        return f"BuildMine(Hex {action_id})"
+    elif 200 <= action_id < 400:
+        return f"StartGaiaProject(Hex {action_id - 200})"
+    elif 400 <= action_id < 1400:
+        b_idx = (action_id - 400) // 200
+        h_idx = (action_id - 400) % 200
+        b_names = ["TradingStation", "ResearchLab", "PlanetaryInst", "Academy", "LostFleetDeepSpace"]
+        b_name = b_names[b_idx] if b_idx < len(b_names) else f"Bldg_{b_idx}"
+        return f"Upgrade{b_name}(Hex {h_idx})"
+    elif 1400 <= action_id < 1406:
+        return f"FormFederation(Token {action_id - 1400 + 1})"
+    elif 1406 <= action_id < 1412:
+        tracks = ["Terraforming", "Navigation", "ArtificialIntel", "Gaiaforming", "Economy", "Science"]
+        t_idx = action_id - 1406
+        return f"AdvanceResearch({tracks[t_idx]})"
+    elif 1412 <= action_id < 1422:
+        return f"Pass(Booster {action_id - 1412 + 1})"
+    elif 1422 <= action_id < 1424:
+        return "AcceptLeechPower" if action_id == 1423 else "DeclineLeechPower"
+    elif 1424 <= action_id < 1434:
+        return f"BoardAction(Slot {action_id - 1424 + 1})"
+    elif 1434 <= action_id < 1444:
+        return f"SpecialAction(Slot {action_id - 1434 + 1})"
+    elif 1444 <= action_id < 1498:
+        tile_id = (action_id - 1444) // 6
+        track_id = (action_id - 1444) % 6
+        return f"ClaimTechTile(Tile {tile_id + 1}, Track {track_id + 1})"
+    elif 1498 <= action_id < 2308:
+        adv_idx = (action_id - 1498) // (9 * 6)
+        return f"ClaimAdvTechTile(AdvTile {adv_idx + 1})"
+    elif 2308 <= action_id < 3108:
+        ship_idx = (action_id - 2308) // 200
+        h_idx = (action_id - 2308) % 200
+        return f"ExploreSpaceship(Ship {ship_idx + 1}, Hex {h_idx})"
+    elif 3108 <= action_id < 3124:
+        ship_idx = (action_id - 3108) // 4
+        act_sub = (action_id - 3108) % 4
+        return f"SpaceshipBoardAction(Ship {ship_idx + 1}, Act {act_sub + 1})"
+    elif 3124 <= action_id < 3130:
+        free_names = [
+            "Power4->Ore1", "Power3->Credit1", "Power4->Knowledge1",
+            "Power1->Credit1", "Qic1->Ore1", "Ore1->Credit1",
+        ]
+        sub = action_id - 3124
+        return f"FreeAction({free_names[sub]})"
+    return f"Action_{action_id}"
 
 
 def make_gaia_env(

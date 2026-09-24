@@ -138,8 +138,9 @@ def main():
     if args.async_appo:
         cfg.async_dist.enabled = True
         cfg.async_dist.num_actors = args.actors
-
-    trainer = RLTrainer(cfg)
+        trainer = AsyncRLTrainer(cfg)
+    else:
+        trainer = RLTrainer(cfg)
     device = trainer.device
 
     # 2. Check for Resume

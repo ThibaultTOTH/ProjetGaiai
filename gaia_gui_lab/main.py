@@ -60,7 +60,12 @@ print(f"[GaiaLab] Initialisé avec: {QT_LIB}")
 # ---------------------------------------------------------------------------
 def find_gaiapi_library():
     """Localise gaiapi.dll (Windows), libgaiapi.so (Linux / Pop!_OS) ou libgaiapi.dylib (macOS)."""
-    lib_names = ["gaiapi.dll", "libgaiapi.so", "libgaiapi.dylib", "gaiapi.so"]
+    if sys.platform.startswith("win"):
+        lib_names = ["gaiapi.dll"]
+    elif sys.platform.startswith("darwin"):
+        lib_names = ["libgaiapi.dylib", "gaiapi.dylib"]
+    else:
+        lib_names = ["libgaiapi.so", "gaiapi.so"]
     base_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         os.environ.get("GAIAPI_LIB"),

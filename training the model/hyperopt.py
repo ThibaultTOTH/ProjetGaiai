@@ -443,6 +443,8 @@ class AdvancedNASOptimizer:
                         break
 
                     # Collect currently completed trials as elite candidates for evolutionary mutation
+                    completed = [t for t in self.trials if t.status == "Completed"]
+
                     # Trial #1 begins with the currently registered / saved hyperparameters (baseline)
                     if i == 0:
                         candidate_params = self.extract_params_from_config(self.base_config)

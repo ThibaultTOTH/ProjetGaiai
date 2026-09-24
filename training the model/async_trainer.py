@@ -1,7 +1,8 @@
 import os
 import sys
+import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.multiprocessing as mp
@@ -248,6 +249,16 @@ class AsyncRLTrainer:
         elapsed = max(1e-4, time.time() - start_time)
         steps_per_sec = float(collected_steps) / elapsed
 
+        vram_mb = 0.0
+        if self.device.type == "cuda":
+            vram_mb = torch.cuda.memory_allocated(self.device) / (1024**2)
+
+        curr_elo = (
+            self.trainer.league_manager.members["CurrentPolicy"].elo
+            if hasattr(self.trainer, "league_manager") and "CurrentPolicy" in self.trainer.league_manager.members
+            else 1200.0
+        )
+
         return TrainingMetrics(
             epoch=self.trainer.current_epoch,
             episodes=collected_steps // 20,
@@ -259,6 +270,135 @@ class AsyncRLTrainer:
             avg_real_score=75.0,
             win_rate=self.trainer._last_win_rate,
             steps_per_sec=steps_per_sec,
+            vram_allocated_mb=vram_mb,
+            device_name=str(self.device),
+            league_elo=curr_elo,
+        )
+
+    @property
+    def hw_info(self) -> Dict[str, Any]:
+        return self.trainer.hw_info
+
+    @property
+    def current_epoch(self) -> int:
+        return self.trainer.current_epoch
+
+    @property
+    def agent(self):
+        return self.trainer.agent
+
+    @property
+    def league_manager(self):
+        return self.trainer.league_manager
+
+    @property
+    def state_buffer(self):
+        return getattr(self.trainer, "state_buffer", None)
+
+    @property
+    def buffer(self):
+        return self.trainer.buffer
+
+    @property
+    def rnd(self):
+        return getattr(self.trainer, "rnd", None)
+
+    @property
+    def best_elo(self) -> float:
+        return getattr(self.trainer, "best_elo", 1200.0)
+
+    def resume_from_checkpoint(self, path: str) -> int:
+        res = self.trainer.resume_from_checkpoint(path)
+        self.sync_weights_to_shared()
+        return res
+
+    def save_current_checkpoint(self, is_milestone: bool = False) -> str:
+        return self.trainer.save_current_checkpoint(is_milestone=is_milestone)
+
+    def is_running(self) -> bool:
+        return getattr(self, "_bg_running", False) or self._is_running
+
+    def is_paused(self) -> bool:
+        return self.trainer.is_paused()
+
+    def pause(self) -> None:
+        self.trainer.pause()
+
+    def resume(self) -> None:
+        self.trainer.resume()
+
+    def start_background_training(
+        self,
+        on_metrics: Optional[Callable[[TrainingMetrics], None]] = None,
+        on_finished: Optional[Callable[[], None]] = None,
+        max_epochs: int = 500,
+    ) -> None:
+        """Spawns background training worker thread for AsyncRLTrainer."""
+        if getattr(self, "_bg_running", False):
+            return
+
+        self._bg_running = True
+        self.start_actors()
+        self.trainer._stop_event.clear()
+        self.trainer._pause_event.clear()
+
+        def _worker():
+            try:
+                while (
+                    not self.trainer._stop_event.is_set()
+                    and self.current_epoch < max_epochs
+                ):
+                    if self.trainer._pause_event.is_set():
+                        time.sleep(0.1)
+                        continue
+
+                    metrics = self.train_step()
+                    if on_metrics is not None and metrics is not None and metrics.steps_per_sec > 0:
+                        on_metrics(metrics)
+
+                    if (
+                        self.current_epoch
+                        % self.config.training.save_checkpoint_interval
+                        == 0
+                    ):
+                        self.save_current_checkpoint(is_milestone=True)
+
+            except Exception as e:
+                print(f"[AsyncTrainer Error]: {e}")
+            finally:
+                self.stop_actors()
+                self._bg_running = False
+                if on_finished is not None:
+                    on_finished()
+
+        self._bg_thread = threading.Thread(target=_worker, daemon=True)
+        self._bg_thread.start()
+
+    def stop(self) -> None:
+        self.stop_actors()
+        self.trainer.stop()
+        self._bg_running = False
+
+    def train_step(self, env: Any = None) -> TrainingMetrics:
+        """Drop-in interface matching RLTrainer.train_step for seamless integration."""
+        for _ in range(10):
+            m = self.train_step_async(timeout=3.0)
+            if m is not None:
+                return m
+            time.sleep(0.05)
+        return TrainingMetrics(
+            epoch=self.trainer.current_epoch,
+            episodes=0,
+            policy_loss=0.0,
+            value_loss=0.0,
+            total_loss=0.0,
+            entropy=0.0,
+            avg_predicted_score=0.0,
+            avg_real_score=0.0,
+            win_rate=0.5,
+            steps_per_sec=0.0,
             vram_allocated_mb=0.0,
             device_name=str(self.device),
         )
+
+
