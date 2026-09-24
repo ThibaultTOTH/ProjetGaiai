@@ -997,7 +997,7 @@ impl GaiaEnv {
         
         let is_free_action = false;
 
-        let old_vps: Vec<i32> = self.players.iter().map(|p| p.victory_points).collect();
+        let old_vps: Vec<i16> = self.players.iter().map(|p| p.victory_points).collect();
 
         if self.execute_command(actor, cmd).is_err() {
             return Err(EnvError::IllegalAction { player: actor, action: 0 });
