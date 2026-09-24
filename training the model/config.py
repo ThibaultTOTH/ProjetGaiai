@@ -144,8 +144,8 @@ class TrainingConfig:
 
     # Entropy decay schedule parameters
     entropy_schedule_type: str = "cosine"  # 'cosine', 'exponential', 'linear', 'constant'
-    entropy_start: float = 0.05  # Initial exploration entropy
-    entropy_end: float = 0.005  # Exploitation floor entropy
+    entropy_start: float = 0.15  # Forcer une énorme exploration au début (Espace d'action 3130)
+    entropy_end: float = 0.01  # Exploitation floor entropy
 
     # PPO Value loss clipping (calibrated for 0..150 VP board game score range)
     value_clip_epsilon: float = 10.0
