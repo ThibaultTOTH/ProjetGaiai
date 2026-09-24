@@ -315,8 +315,10 @@ class RLTrainer:
                 shaping_w = self.compute_scheduled_shaping_weight()
                 if shaping_w > 1e-4:
                     milestone_bonus = 0.0
-                    if 400 <= action < 600:       # UpgradeTradingStation
-                        milestone_bonus = 0.2
+                    if 0 <= action < 200:         # BuildMine
+                        milestone_bonus = 0.3
+                    elif 400 <= action < 600:       # UpgradeTradingStation
+                        milestone_bonus = 0.4
                     elif 600 <= action < 800:     # UpgradeResearchLab
                         milestone_bonus = 0.5
                     elif 800 <= action < 1000:    # UpgradePlanetaryInstitute

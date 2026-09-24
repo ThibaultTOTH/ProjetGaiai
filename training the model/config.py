@@ -163,7 +163,7 @@ class TrainingConfig:
     rnd_learning_rate: float = 1e-4
 
     # Opponent Modeling Auxiliary Task
-    use_opponent_modeling: bool = True
+    use_opponent_modeling: bool = False
     opponent_loss_coef: float = 0.25
 
     # Regularized Nash Dynamics (R-NaD) for Multi-Player 1v1v1v1 Convergence
@@ -334,9 +334,9 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.shaping_enabled = True
         cfg.training.shaping_decay_rate = 0.96
         cfg.training.rnd_enabled = True
-        cfg.training.rnad_enabled = True
-        cfg.training.rgsc_enabled = True
-        cfg.training.use_opponent_modeling = True
+        cfg.training.rnad_enabled = False
+        cfg.training.rgsc_enabled = False
+        cfg.training.use_opponent_modeling = False
         cfg.league.enabled = True
         cfg.league.matchmaking_type = "gaussian"
         cfg.league.matchmaking_elo_window = 150.0
@@ -370,10 +370,10 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.shaping_enabled = True
         cfg.training.shaping_decay_rate = 0.96
         cfg.training.rnd_enabled = True
-        cfg.training.rnad_enabled = True
+        cfg.training.rnad_enabled = False
         cfg.training.rnad_alpha = 0.05
         cfg.training.rnad_polyak_beta = 0.20
-        cfg.training.rgsc_enabled = True
+        cfg.training.rgsc_enabled = False
         cfg.league.enabled = True
         cfg.league.matchmaking_type = "gaussian"
         cfg.league.matchmaking_elo_window = 150.0
@@ -409,15 +409,15 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.shaping_decay_rate = 0.96
         cfg.training.rnd_enabled = True
         cfg.training.rnd_initial_weight = 0.05
-        cfg.training.rnad_enabled = True
+        cfg.training.rnad_enabled = False
         cfg.training.rnad_alpha = 0.05
         cfg.training.rnad_polyak_beta = 0.20
         cfg.training.rnad_ref_update_interval = 10
-        cfg.training.rgsc_enabled = True
+        cfg.training.rgsc_enabled = False
         cfg.training.rgsc_regret_threshold = 0.40
         cfg.training.rgsc_buffer_capacity = 200
         cfg.training.rgsc_reset_prob = 0.35
-        cfg.training.use_opponent_modeling = True
+        cfg.training.use_opponent_modeling = False
         cfg.training.opponent_loss_coef = 0.25
         cfg.league.enabled = True
         cfg.league.matchmaking_type = "gaussian"
