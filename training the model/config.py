@@ -128,8 +128,8 @@ class TrainingConfig:
     batch_size: int = 256  # Satures RTX 5070 Tensor Cores with TF32/AMP
     train_epochs_per_rollout: int = 4
 
-    gamma: float = 0.99  # Discount factor
-    gae_lambda: float = 0.95  # Generalized Advantage Estimation lambda
+    gamma: float = 1.0  # Board game, finite horizon
+    gae_lambda: float = 0.98  # Generalized Advantage Estimation lambda
     clip_epsilon: float = 0.2  # PPO clip ratio
     entropy_coef: float = 0.04  # Fallback entropy coef
     value_loss_coef: float = 0.5  # Weight of value loss in joint training
