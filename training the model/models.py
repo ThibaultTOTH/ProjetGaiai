@@ -321,6 +321,7 @@ class ScorePredictorNet(nn.Module):
         use_gnn_map: bool = True,
         gnn_hidden_dim: int = 64,
         gnn_layers: int = 3,
+        backbone: Optional[nn.Module] = None,
     ):
         super().__init__()
         if hidden_layers is None:
@@ -331,21 +332,24 @@ class ScorePredictorNet(nn.Module):
         self.use_input_norm = use_input_norm
         self.use_gnn_map = use_gnn_map and (obs_dim == 2476)
 
-        self.backbone = DualStreamBackbone(
-            scalar_dim=476,
-            map_dim=2000,
-            obs_dim=self.obs_dim,
-            gnn_hidden_dim=gnn_hidden_dim,
-            gnn_layers=gnn_layers,
-            map_out_dim=256,
-            scalar_out_dim=256,
-            trunk_layers=hidden_layers,
-            block_type=block_type,
-            dropout=dropout,
-            activation=activation,
-            use_input_norm=use_input_norm,
-            use_gnn_map=self.use_gnn_map,
-        )
+        if backbone is not None:
+            self.backbone = backbone
+        else:
+            self.backbone = DualStreamBackbone(
+                scalar_dim=476,
+                map_dim=2000,
+                obs_dim=self.obs_dim,
+                gnn_hidden_dim=gnn_hidden_dim,
+                gnn_layers=gnn_layers,
+                map_out_dim=256,
+                scalar_out_dim=256,
+                trunk_layers=hidden_layers,
+                block_type=block_type,
+                dropout=dropout,
+                activation=activation,
+                use_input_norm=use_input_norm,
+                use_gnn_map=self.use_gnn_map,
+            )
 
         self.head = nn.Sequential(
             nn.Linear(self.backbone.output_dim, 128),
@@ -428,6 +432,7 @@ class ActionOptimizerNet(nn.Module):
         use_gnn_map: bool = True,
         gnn_hidden_dim: int = 64,
         gnn_layers: int = 3,
+        backbone: Optional[nn.Module] = None,
     ):
         super().__init__()
         if hidden_layers is None:
@@ -439,21 +444,24 @@ class ActionOptimizerNet(nn.Module):
         self.use_input_norm = use_input_norm
         self.use_gnn_map = use_gnn_map and (obs_dim == 2476)
 
-        self.backbone = DualStreamBackbone(
-            scalar_dim=476,
-            map_dim=2000,
-            obs_dim=self.obs_dim,
-            gnn_hidden_dim=gnn_hidden_dim,
-            gnn_layers=gnn_layers,
-            map_out_dim=256,
-            scalar_out_dim=256,
-            trunk_layers=hidden_layers,
-            block_type=block_type,
-            dropout=dropout,
-            activation=activation,
-            use_input_norm=use_input_norm,
-            use_gnn_map=self.use_gnn_map,
-        )
+        if backbone is not None:
+            self.backbone = backbone
+        else:
+            self.backbone = DualStreamBackbone(
+                scalar_dim=476,
+                map_dim=2000,
+                obs_dim=self.obs_dim,
+                gnn_hidden_dim=gnn_hidden_dim,
+                gnn_layers=gnn_layers,
+                map_out_dim=256,
+                scalar_out_dim=256,
+                trunk_layers=hidden_layers,
+                block_type=block_type,
+                dropout=dropout,
+                activation=activation,
+                use_input_norm=use_input_norm,
+                use_gnn_map=self.use_gnn_map,
+            )
 
         self.policy_head = nn.Sequential(
             nn.Linear(self.backbone.output_dim, 128),
@@ -546,6 +554,23 @@ class DualGaiaAgent(nn.Module):
         gnn_h = getattr(self.config, "gnn_hidden_dim", 64)
         gnn_l = getattr(self.config, "gnn_layers", 3)
 
+        # Create Foundation Model (Shared Backbone)
+        self.shared_backbone = DualStreamBackbone(
+            scalar_dim=476,
+            map_dim=2000,
+            obs_dim=self.config.obs_dim,
+            gnn_hidden_dim=gnn_h,
+            gnn_layers=gnn_l,
+            map_out_dim=256,
+            scalar_out_dim=256,
+            trunk_layers=self.config.policy_hidden_layers or [512, 512, 512, 256],
+            block_type=block_t,
+            dropout=self.config.policy_dropout,
+            activation=self.config.policy_activation,
+            use_input_norm=use_in_norm,
+            use_gnn_map=use_gnn and (self.config.obs_dim == 2476),
+        )
+
         self.score_net = ScorePredictorNet(
             obs_dim=self.config.obs_dim,
             hidden_layers=self.config.score_hidden_layers,
@@ -556,6 +581,7 @@ class DualGaiaAgent(nn.Module):
             use_gnn_map=use_gnn,
             gnn_hidden_dim=gnn_h,
             gnn_layers=gnn_l,
+            backbone=self.shared_backbone,
         )
         self.action_net = ActionOptimizerNet(
             obs_dim=self.config.obs_dim,
@@ -568,7 +594,12 @@ class DualGaiaAgent(nn.Module):
             use_gnn_map=use_gnn,
             gnn_hidden_dim=gnn_h,
             gnn_layers=gnn_l,
+            backbone=self.shared_backbone,
         )
+
+        if getattr(self.config, "finetune_mode", False):
+            for param in self.shared_backbone.parameters():
+                param.requires_grad = False
 
     def to_device(self, device: torch.device) -> "DualGaiaAgent":
         self.to(device)

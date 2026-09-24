@@ -136,16 +136,16 @@ class RLTrainer:
             capacity=self.config.training.rollout_steps_per_epoch,
         )
 
-        self.policy_optimizer = torch.optim.AdamW(
-            self.agent.action_net.parameters(),
-            lr=self.config.model.policy_lr,
-            weight_decay=self.config.model.policy_weight_decay,
-        )
-        self.value_optimizer = torch.optim.AdamW(
-            self.agent.score_net.parameters(),
-            lr=self.config.model.score_lr,
-            weight_decay=self.config.model.score_weight_decay,
-        )
+        # Joint Optimizer for Foundation Model (Shared Backbone)
+        self.optimizer = torch.optim.AdamW([
+            {"params": self.agent.shared_backbone.parameters(), "lr": self.config.model.policy_lr},
+            {"params": self.agent.action_net.policy_head.parameters(), "lr": self.config.model.policy_lr},
+            {"params": self.agent.score_net.head.parameters(), "lr": self.config.model.score_lr, "weight_decay": self.config.model.score_weight_decay}
+        ], weight_decay=self.config.model.policy_weight_decay)
+        
+        # Keep aliases for backward compatibility in the rest of the code, but point to the same joint optimizer
+        self.policy_optimizer = self.optimizer
+        self.value_optimizer = self.optimizer
 
         self.use_amp = (
             self.device.type == "cuda"
@@ -553,41 +553,17 @@ class RLTrainer:
                 if adv_std > 1e-6:
                     advantages = (advantages - advantages.mean()) / (adv_std + 1e-8)
 
-                # 1. Score Predictor (Value Network) Update with PPO Value Clipping
+                # Joint Loss Optimization for Foundation Model
                 if self.use_amp:
                     with torch.amp.autocast("cuda"):
+                        # Value Forward
                         values_pred = self.agent.score_net(batch.observations)
                         v_loss_unclipped = F.smooth_l1_loss(values_pred, batch.returns, reduction="none")
                         v_clipped = batch.values + torch.clamp(values_pred - batch.values, -val_clip_eps, val_clip_eps)
                         v_loss_clipped = F.smooth_l1_loss(v_clipped, batch.returns, reduction="none")
                         v_loss = torch.max(v_loss_unclipped, v_loss_clipped).mean()
 
-                    self.value_optimizer.zero_grad(set_to_none=True)
-                    self.scaler.scale(v_loss).backward()
-                    self.scaler.unscale_(self.value_optimizer)
-                    nn.utils.clip_grad_norm_(
-                        self.agent.score_net.parameters(),
-                        self.config.training.max_grad_norm,
-                    )
-                    self.scaler.step(self.value_optimizer)
-                else:
-                    values_pred = self.agent.score_net(batch.observations)
-                    v_loss_unclipped = F.smooth_l1_loss(values_pred, batch.returns, reduction="none")
-                    v_clipped = batch.values + torch.clamp(values_pred - batch.values, -val_clip_eps, val_clip_eps)
-                    v_loss_clipped = F.smooth_l1_loss(v_clipped, batch.returns, reduction="none")
-                    v_loss = torch.max(v_loss_unclipped, v_loss_clipped).mean()
-
-                    self.value_optimizer.zero_grad(set_to_none=True)
-                    v_loss.backward()
-                    nn.utils.clip_grad_norm_(
-                        self.agent.score_net.parameters(),
-                        self.config.training.max_grad_norm,
-                    )
-                    self.value_optimizer.step()
-
-                # 2. Action Optimizer (Policy Network) Update
-                if self.use_amp:
-                    with torch.amp.autocast("cuda"):
+                        # Policy Forward
                         logits, opp_logits = self.agent.action_net(
                             batch.observations, batch.action_masks, return_opponent=True
                         )
@@ -598,44 +574,39 @@ class RLTrainer:
 
                         ratios = torch.exp(new_log_probs - batch.log_probs)
                         surr1 = ratios * advantages
-                        surr2 = (
-                            torch.clamp(ratios, 1.0 - clip_eps, 1.0 + clip_eps)
-                            * advantages
-                        )
-                        p_loss = (
-                            -torch.min(surr1, surr2).mean()
-                            - entropy_coef * entropy
-                        )
+                        surr2 = torch.clamp(ratios, 1.0 - clip_eps, 1.0 + clip_eps) * advantages
+                        p_loss = -torch.min(surr1, surr2).mean() - entropy_coef * entropy
+                        
                         if getattr(self.config.training, "use_opponent_modeling", True) and batch.has_opponents.any():
-                            opp_loss = F.cross_entropy(
-                                opp_logits[batch.has_opponents],
-                                batch.opponent_actions[batch.has_opponents],
-                            )
-                            opp_coef = getattr(self.config.training, "opponent_loss_coef", 0.25)
-                            p_loss = p_loss + opp_coef * opp_loss
+                            opp_loss = F.cross_entropy(opp_logits[batch.has_opponents], batch.opponent_actions[batch.has_opponents])
+                            p_loss = p_loss + getattr(self.config.training, "opponent_loss_coef", 0.25) * opp_loss
 
-                        # Regularized Nash Dynamics (R-NaD) Relative Entropy Penalty
-                        kl_div = torch.tensor(0.0, device=self.device)
                         if getattr(self.config.training, "rnad_enabled", True) and self.ref_policy_net is not None:
                             with torch.no_grad():
                                 ref_logits = self.ref_policy_net(batch.observations, batch.action_masks)
-                            p_log_probs = F.log_softmax(logits, dim=-1)
-                            ref_log_probs = F.log_softmax(ref_logits, dim=-1)
-                            diff = torch.where(batch.action_masks, p_log_probs - ref_log_probs, torch.zeros_like(p_log_probs))
+                            diff = torch.where(batch.action_masks, F.log_softmax(logits, dim=-1) - F.log_softmax(ref_logits, dim=-1), torch.zeros_like(logits))
                             kl_div = (probs * diff).sum(dim=-1).mean()
-                            rnad_alpha = getattr(self.config.training, "rnad_alpha", 0.05)
-                            p_loss = p_loss + rnad_alpha * kl_div
+                            p_loss = p_loss + getattr(self.config.training, "rnad_alpha", 0.05) * kl_div
 
-                    self.policy_optimizer.zero_grad(set_to_none=True)
-                    self.scaler.scale(p_loss).backward()
-                    self.scaler.unscale_(self.policy_optimizer)
-                    nn.utils.clip_grad_norm_(
-                        self.agent.action_net.parameters(),
-                        self.config.training.max_grad_norm,
-                    )
-                    self.scaler.step(self.policy_optimizer)
+                        # Combine Losses
+                        joint_loss = p_loss + self.config.training.value_loss_coef * v_loss
+
+                    self.optimizer.zero_grad(set_to_none=True)
+                    self.scaler.scale(joint_loss).backward()
+                    self.scaler.unscale_(self.optimizer)
+                    nn.utils.clip_grad_norm_(self.agent.parameters(), self.config.training.max_grad_norm)
+                    self.scaler.step(self.optimizer)
                     self.scaler.update()
+
                 else:
+                    # Value Forward
+                    values_pred = self.agent.score_net(batch.observations)
+                    v_loss_unclipped = F.smooth_l1_loss(values_pred, batch.returns, reduction="none")
+                    v_clipped = batch.values + torch.clamp(values_pred - batch.values, -val_clip_eps, val_clip_eps)
+                    v_loss_clipped = F.smooth_l1_loss(v_clipped, batch.returns, reduction="none")
+                    v_loss = torch.max(v_loss_unclipped, v_loss_clipped).mean()
+
+                    # Policy Forward
                     logits, opp_logits = self.agent.action_net(
                         batch.observations, batch.action_masks, return_opponent=True
                     )
@@ -646,40 +617,27 @@ class RLTrainer:
 
                     ratios = torch.exp(new_log_probs - batch.log_probs)
                     surr1 = ratios * advantages
-                    surr2 = (
-                        torch.clamp(ratios, 1.0 - clip_eps, 1.0 + clip_eps)
-                        * advantages
-                    )
-                    p_loss = (
-                        -torch.min(surr1, surr2).mean() - entropy_coef * entropy
-                    )
+                    surr2 = torch.clamp(ratios, 1.0 - clip_eps, 1.0 + clip_eps) * advantages
+                    p_loss = -torch.min(surr1, surr2).mean() - entropy_coef * entropy
+                    
                     if getattr(self.config.training, "use_opponent_modeling", True) and batch.has_opponents.any():
-                        opp_loss = F.cross_entropy(
-                            opp_logits[batch.has_opponents],
-                            batch.opponent_actions[batch.has_opponents],
-                        )
-                        opp_coef = getattr(self.config.training, "opponent_loss_coef", 0.25)
-                        p_loss = p_loss + opp_coef * opp_loss
+                        opp_loss = F.cross_entropy(opp_logits[batch.has_opponents], batch.opponent_actions[batch.has_opponents])
+                        p_loss = p_loss + getattr(self.config.training, "opponent_loss_coef", 0.25) * opp_loss
 
-                    # Regularized Nash Dynamics (R-NaD) Relative Entropy Penalty
-                    kl_div = torch.tensor(0.0, device=self.device)
                     if getattr(self.config.training, "rnad_enabled", True) and self.ref_policy_net is not None:
                         with torch.no_grad():
                             ref_logits = self.ref_policy_net(batch.observations, batch.action_masks)
-                        p_log_probs = F.log_softmax(logits, dim=-1)
-                        ref_log_probs = F.log_softmax(ref_logits, dim=-1)
-                        diff = torch.where(batch.action_masks, p_log_probs - ref_log_probs, torch.zeros_like(p_log_probs))
+                        diff = torch.where(batch.action_masks, F.log_softmax(logits, dim=-1) - F.log_softmax(ref_logits, dim=-1), torch.zeros_like(logits))
                         kl_div = (probs * diff).sum(dim=-1).mean()
-                        rnad_alpha = getattr(self.config.training, "rnad_alpha", 0.05)
-                        p_loss = p_loss + rnad_alpha * kl_div
+                        p_loss = p_loss + getattr(self.config.training, "rnad_alpha", 0.05) * kl_div
 
-                    self.policy_optimizer.zero_grad(set_to_none=True)
-                    p_loss.backward()
-                    nn.utils.clip_grad_norm_(
-                        self.agent.action_net.parameters(),
-                        self.config.training.max_grad_norm,
-                    )
-                    self.policy_optimizer.step()
+                    # Combine Losses
+                    joint_loss = p_loss + self.config.training.value_loss_coef * v_loss
+
+                    self.optimizer.zero_grad(set_to_none=True)
+                    joint_loss.backward()
+                    nn.utils.clip_grad_norm_(self.agent.parameters(), self.config.training.max_grad_norm)
+                    self.optimizer.step()
 
                 # 3. RND Distillation Predictor Training
                 if self.rnd is not None:

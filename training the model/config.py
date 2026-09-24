@@ -113,6 +113,9 @@ class ModelConfig:
     use_gnn_map: bool = True
     gnn_hidden_dim: int = 64
     gnn_layers: int = 3
+    
+    # Fine-tuning mode: freeze backbone
+    finetune_mode: bool = False
     gnn_dropout: float = 0.05
 
     # Shared or separate backbones
