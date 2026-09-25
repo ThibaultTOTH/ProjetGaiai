@@ -581,6 +581,7 @@ class RLTrainer:
                             opp_loss = F.cross_entropy(opp_logits[batch.has_opponents], batch.opponent_actions[batch.has_opponents])
                             p_loss = p_loss + getattr(self.config.training, "opponent_loss_coef", 0.25) * opp_loss
 
+                        kl_div = torch.tensor(0.0, device=self.device)
                         if getattr(self.config.training, "rnad_enabled", True) and self.ref_policy_net is not None:
                             with torch.no_grad():
                                 ref_logits = self.ref_policy_net(batch.observations, batch.action_masks)
@@ -624,6 +625,7 @@ class RLTrainer:
                         opp_loss = F.cross_entropy(opp_logits[batch.has_opponents], batch.opponent_actions[batch.has_opponents])
                         p_loss = p_loss + getattr(self.config.training, "opponent_loss_coef", 0.25) * opp_loss
 
+                    kl_div = torch.tensor(0.0, device=self.device)
                     if getattr(self.config.training, "rnad_enabled", True) and self.ref_policy_net is not None:
                         with torch.no_grad():
                             ref_logits = self.ref_policy_net(batch.observations, batch.action_masks)
