@@ -155,7 +155,7 @@ class TrainingConfig:
 
     # Dynamic Annealed Reward Shaping (Potential-based milestone exploration)
     shaping_enabled: bool = True
-    shaping_initial_weight: float = 1.0
+    shaping_initial_weight: float = 50.0
     shaping_decay_rate: float = 0.998  # Ralenti drastiquement pour s'adapter à 2000 époques
     shaping_min_weight: float = 0.0
 
@@ -335,7 +335,7 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.model.gnn_layers = 3
         cfg.model.gnn_hidden_dim = 64
         cfg.training.shaping_enabled = True
-        cfg.training.shaping_decay_rate = 0.96
+        cfg.training.shaping_decay_rate = 0.9999
         cfg.training.rnd_enabled = True
         cfg.training.rnad_enabled = False
         cfg.training.rgsc_enabled = False
@@ -371,7 +371,7 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.entropy_start = 0.05
         cfg.training.entropy_end = 0.003
         cfg.training.shaping_enabled = True
-        cfg.training.shaping_decay_rate = 0.96
+        cfg.training.shaping_decay_rate = 0.9999
         cfg.training.rnd_enabled = True
         cfg.training.rnad_enabled = False
         cfg.training.rnad_alpha = 0.05
@@ -408,8 +408,8 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.entropy_start = 0.05
         cfg.training.entropy_end = 0.005
         cfg.training.shaping_enabled = True
-        cfg.training.shaping_initial_weight = 1.0
-        cfg.training.shaping_decay_rate = 0.96
+        cfg.training.shaping_initial_weight = 50.0
+        cfg.training.shaping_decay_rate = 0.9999
         cfg.training.rnd_enabled = True
         cfg.training.rnd_initial_weight = 0.05
         cfg.training.rnad_enabled = False
