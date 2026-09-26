@@ -338,148 +338,150 @@ class AppConfig:
         return cfg
 
 
-def get_training_preset(name: str = "grandmaster") -> AppConfig:
+def get_training_preset(name: str = "pretrain") -> AppConfig:
     """Returns a production-ready, scientifically calibrated configuration preset.
 
     Supported presets:
-    - 'fast': Rapid validation / debug run (50 epochs, lightweight MLP, ~3-5 min).
-    - 'pro': Competitive tournament level (1,000 epochs, SwiGLU + HexGNN, PPO + R-NaD + RND, ~1.5h).
-    - 'grandmaster': Absolute SOTA Top 1% (2,500 epochs, HexGNN 3-layer + SwiGLU 512x512x256,
-                    RGSC Go-Exploit + R-NaD + RND + Gaussian League ZPD + Gumbel GAZ MCTS + AMP, ~4-6h).
+    - 'pretrain' (or 'fondation', 'phase1'):
+        Phase 1 Foundation Model (~150 VP). AlphaZero + MCTS (50 simulations),
+        Over-parameterized SwiGLU [1024, 1024, 512, 256] with HexGNN, unfreezed backbone,
+        Value-Guided Micro-Dispatch, FP16/TF32 enabled. Clean, parasite-free training.
+    - 'finetune' (or 'grandmaster', 'phase2'):
+        Phase 2 Grandmaster Model (230+ VP). AlphaZero with frozen shared backbone,
+        deepened MCTS (100 simulations), multi-agent PBT League with Gaussian matchmaking,
+        RGSC Go-Exploit crisis puzzles, surgical deterministic micro-dispatch.
+    - 'fast': Rapid validation / debug run (20 epochs, lightweight).
     """
     preset = name.lower().strip()
     cfg = AppConfig()
 
-    if preset in ("fast", "debug", "test"):
-        cfg.training.total_episodes = 50
-        cfg.training.rollout_steps_per_epoch = 512
-        cfg.training.batch_size = 128
-        cfg.model.block_type = "pre_ln"
-        cfg.model.policy_hidden_layers = [256, 128]
-        cfg.model.score_hidden_layers = [256, 128]
-        cfg.model.use_gnn_map = False
-        cfg.training.shaping_decay_rate = 0.90
-        cfg.league.snapshot_interval_epochs = 10
-        cfg.training.eval_interval_episodes = 25
-        cfg.training.save_checkpoint_interval = 25
-        cfg.micro_dispatch.enabled = False
+    if preset in ("finetune", "phase2", "grandmaster", "gm"):
+        # 👑 PHASE 2 : Fine-Tuning Grand Maître (Cible 220 - 240+ VP)
+        cfg.alphazero.enabled = True
+        cfg.alphazero.num_simulations = 100
+        cfg.alphazero.gumbel_candidates = 8
+        cfg.alphazero.games_per_epoch = 10
+        cfg.alphazero.training_steps_per_epoch = 200
+        cfg.alphazero.temperature_high = 0.5
+        cfg.alphazero.temperature_low = 0.05
+        cfg.alphazero.dirichlet_eps = 0.15
 
-    elif preset in ("pro", "competitive"):
-        cfg.training.total_episodes = 1000
-        cfg.training.rollout_steps_per_epoch = 1024
-        cfg.training.batch_size = 256
-        cfg.model.block_type = "swiglu"
-        cfg.model.policy_hidden_layers = [512, 512, 256]
-        cfg.model.score_hidden_layers = [512, 512, 256]
-        cfg.model.use_gnn_map = True
-        cfg.model.gnn_layers = 3
-        cfg.model.gnn_hidden_dim = 64
-        cfg.training.shaping_enabled = True
-        cfg.training.shaping_decay_rate = 0.9999
-        cfg.training.rnd_enabled = True
-        cfg.training.rnad_enabled = False
-        cfg.training.rgsc_enabled = False
-        cfg.training.use_opponent_modeling = False
-        cfg.league.enabled = True
-        cfg.league.matchmaking_type = "gaussian"
-        cfg.league.matchmaking_elo_window = 150.0
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 16
-        cfg.micro_dispatch.enabled = True
-        cfg.micro_dispatch.num_candidates = 2
-        cfg.micro_dispatch.temperature = 0.0
-    elif preset in ("double_descent", "overparameterized", "wide"):
-        cfg.training.total_episodes = 1200
-        cfg.training.rollout_steps_per_epoch = 1024
-        cfg.training.batch_size = 256
+        cfg.mcts.num_simulations = 100
+        cfg.mcts.gumbel_candidates = 8
+
         cfg.model.block_type = "swiglu"
-        # Deep Over-Parameterized Regime (~16M parameters, safely past the interpolation peak)
+        cfg.model.policy_activation = "silu"
+        cfg.model.score_activation = "silu"
+        cfg.model.policy_dropout = 0.05
+        cfg.model.score_dropout = 0.05
         cfg.model.policy_hidden_layers = [1024, 1024, 512, 256]
         cfg.model.score_hidden_layers = [1024, 1024, 512, 256]
-        cfg.model.policy_dropout = 0.03
-        cfg.model.score_dropout = 0.03
-        cfg.model.policy_weight_decay = 2e-4  # Essential L2 regularization for flat minima
+        cfg.model.policy_weight_decay = 2e-4
         cfg.model.score_weight_decay = 2e-4
         cfg.model.use_gnn_map = True
         cfg.model.gnn_layers = 3
         cfg.model.gnn_hidden_dim = 64
-        cfg.training.lr_schedule_type = "cosine"
-        cfg.training.warmup_ratio = 0.05
-        cfg.training.lr_final_factor = 0.05
-        cfg.training.entropy_schedule_type = "cosine"
-        cfg.training.entropy_start = 0.005
-        cfg.training.entropy_end = 0.0001
-        cfg.training.shaping_enabled = True
-        cfg.training.shaping_decay_rate = 0.9999
-        cfg.training.rnd_enabled = True
-        cfg.training.rnad_enabled = False
-        cfg.training.rnad_alpha = 0.05
-        cfg.training.rnad_polyak_beta = 0.20
-        cfg.training.rgsc_enabled = False
+        cfg.model.finetune_mode = True  # GÈLE LE SHARED BACKBONE !
+
+        cfg.model.policy_lr = 3e-5
+        cfg.model.score_lr = 1e-4
+        cfg.training.batch_size = 256
+        cfg.training.total_episodes = 10000
+
+        # Puzzles de crise tactiques
+        cfg.training.rgsc_enabled = True
+        cfg.training.rgsc_regret_threshold = 0.30
+        cfg.training.rgsc_buffer_capacity = 200
+        cfg.training.rgsc_reset_prob = 0.25
+
+        # Self-Play en Ligue PBT
         cfg.league.enabled = True
         cfg.league.matchmaking_type = "gaussian"
-        cfg.league.matchmaking_elo_window = 150.0
-        cfg.mcts.enabled = True
-        cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 16
+        cfg.league.matchmaking_elo_window = 120.0
+        cfg.league.snapshot_interval_epochs = 50
+        cfg.league.max_snapshots = 15
+
+        # Pas de bruit parasite
+        cfg.training.shaping_enabled = False
+        cfg.training.rnd_enabled = False
+        cfg.training.rnad_enabled = False
+        cfg.training.use_opponent_modeling = False
+
+        # Micro-Dispatch déterministe
         cfg.micro_dispatch.enabled = True
         cfg.micro_dispatch.num_candidates = 4
-        cfg.micro_dispatch.temperature = 0.05
+        cfg.micro_dispatch.temperature = 0.0
+
+        # Hardware RTX
         cfg.hardware.use_mixed_precision = True
         cfg.hardware.enable_tf32 = True
 
-    else:  # 'grandmaster', 'top1%', or default
-        cfg.training.total_episodes = 2500
-        cfg.training.rollout_steps_per_epoch = 1024
-        cfg.training.batch_size = 256
+    elif preset in ("fast", "debug", "test"):
+        # Helper rapide pour les tests unitaires
+        cfg.training.total_episodes = 20
+        cfg.training.batch_size = 64
+        cfg.alphazero.enabled = True
+        cfg.alphazero.num_simulations = 8
+        cfg.mcts.num_simulations = 8
+        cfg.model.policy_hidden_layers = [256, 128]
+        cfg.model.score_hidden_layers = [256, 128]
+
+    else:
+        # 🚀 PHASE 1 : Pré-entraînement Fondation (Cible ~150 VP) - DÉFAUT
+        cfg.alphazero.enabled = True
+        cfg.alphazero.num_simulations = 50
+        cfg.alphazero.gumbel_candidates = 4
+        cfg.alphazero.games_per_epoch = 10
+        cfg.alphazero.training_steps_per_epoch = 100
+        cfg.alphazero.temperature_high = 1.0
+        cfg.alphazero.temperature_low = 0.1
+        cfg.alphazero.dirichlet_eps = 0.25
+
+        cfg.mcts.enabled = True
+        cfg.mcts.algorithm = "gumbel"
+        cfg.mcts.num_simulations = 50
+        cfg.mcts.gumbel_candidates = 4
+
         cfg.model.block_type = "swiglu"
-        cfg.model.policy_hidden_layers = [512, 512, 512, 256]
-        cfg.model.score_hidden_layers = [512, 512, 512, 256]
-        cfg.model.policy_dropout = 0.05
-        cfg.model.score_dropout = 0.05
+        cfg.model.policy_activation = "silu"
+        cfg.model.score_activation = "silu"
+        cfg.model.policy_dropout = 0.02
+        cfg.model.score_dropout = 0.02
+        cfg.model.policy_hidden_layers = [1024, 1024, 512, 256]
+        cfg.model.score_hidden_layers = [1024, 1024, 512, 256]
+        cfg.model.policy_weight_decay = 2e-4
+        cfg.model.score_weight_decay = 2e-4
         cfg.model.use_gnn_map = True
         cfg.model.gnn_layers = 3
         cfg.model.gnn_hidden_dim = 64
-        cfg.training.lr_schedule_type = "cosine"
-        cfg.training.warmup_ratio = 0.05
-        cfg.training.lr_final_factor = 0.10
-        cfg.training.entropy_schedule_type = "cosine"
-        cfg.training.entropy_start = 0.005
-        cfg.training.entropy_end = 0.0001
-        cfg.training.shaping_enabled = True
-        cfg.training.shaping_initial_weight = 50.0
-        cfg.training.shaping_decay_rate = 0.9999
-        cfg.training.rnd_enabled = True
-        cfg.training.rnd_initial_weight = 0.05
+        cfg.model.finetune_mode = False  # Dégelé
+
+        cfg.model.policy_lr = 1e-4
+        cfg.model.score_lr = 3e-4
+        cfg.training.batch_size = 256
+        cfg.training.total_episodes = 2500
+
+        # Pas de bruit parasite
+        cfg.training.shaping_enabled = False
+        cfg.training.rnd_enabled = False
         cfg.training.rnad_enabled = False
-        cfg.training.rnad_alpha = 0.05
-        cfg.training.rnad_polyak_beta = 0.20
-        cfg.training.rnad_ref_update_interval = 10
         cfg.training.rgsc_enabled = False
-        cfg.training.rgsc_regret_threshold = 0.40
-        cfg.training.rgsc_buffer_capacity = 200
-        cfg.training.rgsc_reset_prob = 0.35
         cfg.training.use_opponent_modeling = False
-        cfg.training.opponent_loss_coef = 0.25
-        cfg.league.enabled = True
-        cfg.league.matchmaking_type = "gaussian"
-        cfg.league.matchmaking_elo_window = 150.0
-        cfg.mcts.enabled = True
-        cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 16
-        cfg.mcts.gumbel_candidates = 4
-        cfg.mcts.use_epistemic_uncertainty = True
-        cfg.mcts.mc_dropout_passes = 4
-        cfg.mcts.uncertainty_scale = 0.50
-        cfg.mcts.adaptive_budget_enabled = True
-        cfg.mcts.entropy_threshold = 0.15
-        cfg.mcts.min_simulations = 2
-        cfg.hardware.use_mixed_precision = True
-        cfg.hardware.enable_tf32 = True
+        cfg.league.enabled = False
+
+        # Micro-Dispatch guidé par la valeur
         cfg.micro_dispatch.enabled = True
+        cfg.micro_dispatch.setup_mode = "value_guided"
+        cfg.micro_dispatch.initial_booster_draft_enabled = True
+        cfg.micro_dispatch.tech_tile_dispatch_enabled = True
         cfg.micro_dispatch.num_candidates = 4
         cfg.micro_dispatch.temperature = 0.05
+
+        # Hardware RTX
+        cfg.hardware.use_mixed_precision = True
+        cfg.hardware.enable_tf32 = True
 
     return cfg
 

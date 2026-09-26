@@ -98,29 +98,76 @@ class NativeGaiaEnv:
         if cls._dll_path and os.path.exists(cls._dll_path):
             return cls._dll_path
 
-        if sys.platform.startswith("win"):
-            lib_names = ["gaiapi.dll"]
-        elif sys.platform.startswith("darwin"):
-            lib_names = ["libgaiapi.dylib", "gaiapi.dylib"]
-        else:
-            lib_names = ["libgaiapi.so", "gaiapi.so"]
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(base_dir)
+        cwd = os.getcwd()
+
+        # All potential library filenames across Windows, Linux and macOS
+        lib_names = [
+            "gaiapi.dll", "libgaiapi.dll",
+            "libgaiapi.so", "gaiapi.so",
+            "libgaiapi.dylib", "gaiapi.dylib"
+        ]
+
         candidates = [
             os.environ.get("GAIAPI_LIB"),
             os.environ.get("GAIAPI_DLL"),
         ]
-        base_dir = os.path.dirname(__file__)
-        for name in lib_names:
-            candidates.extend([
-                os.path.join(base_dir, "..", "projet_gaiapi", "target", "release", name),
-                os.path.join(base_dir, "..", "projet_gaiapi", "target", "debug", name),
-                os.path.join(base_dir, name),
-                name,
-            ])
+
+        # Scan comprehensive list of standard locations
+        search_dirs = [
+            base_dir,
+            os.path.join(project_root, "projet_gaiapi", "target", "release"),
+            os.path.join(project_root, "projet_gaiapi", "target", "debug"),
+            os.path.join(project_root, "target", "release"),
+            os.path.join(project_root, "target", "debug"),
+            os.path.join(cwd, "projet_gaiapi", "target", "release"),
+            os.path.join(cwd, "target", "release"),
+            cwd,
+        ]
+
+        for sdir in search_dirs:
+            for name in lib_names:
+                candidates.append(os.path.join(sdir, name))
 
         for c in candidates:
             if c and os.path.exists(c):
                 cls._dll_path = os.path.abspath(c)
                 return cls._dll_path
+
+        # If still not found, attempt automatic build via Cargo if available on the system
+        import shutil
+        import subprocess
+
+        cargo_bin = shutil.which("cargo")
+        rust_crate_dir = os.path.join(project_root, "projet_gaiapi")
+        cargo_toml = os.path.join(rust_crate_dir, "Cargo.toml")
+        if not os.path.exists(cargo_toml) and os.path.exists(os.path.join(cwd, "projet_gaiapi", "Cargo.toml")):
+            rust_crate_dir = os.path.join(cwd, "projet_gaiapi")
+            cargo_toml = os.path.join(rust_crate_dir, "Cargo.toml")
+
+        if cargo_bin and os.path.exists(cargo_toml):
+            print("⚙️  [RUST ENGINE] Détection automatique de Cargo : compilation du moteur Rust en cours (cargo build --release)...")
+            try:
+                subprocess.run(
+                    [cargo_bin, "build", "--release"],
+                    cwd=rust_crate_dir,
+                    check=True,
+                )
+                print("✓ [RUST ENGINE] Compilation Rust terminée avec succès !")
+                target_release = os.path.join(rust_crate_dir, "target", "release")
+                for name in lib_names:
+                    candidate = os.path.join(target_release, name)
+                    if os.path.exists(candidate):
+                        cls._dll_path = os.path.abspath(candidate)
+                        try:
+                            shutil.copy2(cls._dll_path, os.path.join(base_dir, name))
+                        except Exception:
+                            pass
+                        return cls._dll_path
+            except Exception as e:
+                print(f"⚠️  [RUST ENGINE] Échec de la compilation Cargo automatique : {e}")
+
         return None
 
     @classmethod

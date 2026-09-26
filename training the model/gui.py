@@ -149,57 +149,31 @@ class GaiaRLStudioGUI:
 
         tk.Label(preset_box, text="⚡ Préréglages :", bg="#0f172a", fg="#94a3b8", font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT, padx=4)
 
-        btn_fast = tk.Button(
+        btn_pretrain = tk.Button(
             preset_box,
-            text="🟢 Fast (5 min)",
-            bg="#14532d",
-            fg="#86efac",
-            font=("Segoe UI", 8, "bold"),
+            text="🚀 1. Pré-entraînement Fondation (150 VP)",
+            bg="#047857",
+            fg="#a7f3d0",
+            font=("Segoe UI", 9, "bold"),
             relief=tk.FLAT,
-            padx=6,
-            pady=2,
-            command=lambda: self._apply_preset_by_name("fast"),
+            padx=10,
+            pady=3,
+            command=lambda: self._apply_preset_by_name("pretrain"),
         )
-        btn_fast.pack(side=tk.LEFT, padx=2)
+        btn_pretrain.pack(side=tk.LEFT, padx=3)
 
-        btn_pro = tk.Button(
+        btn_finetune = tk.Button(
             preset_box,
-            text="🔵 Pro Compétitif (1h30)",
-            bg="#1e3a8a",
-            fg="#93c5fd",
-            font=("Segoe UI", 8, "bold"),
+            text="👑 2. Fine-Tuning Grand Maître (230+ VP)",
+            bg="#6b21a8",
+            fg="#f3e8ff",
+            font=("Segoe UI", 9, "bold"),
             relief=tk.FLAT,
-            padx=6,
-            pady=2,
-            command=lambda: self._apply_preset_by_name("pro"),
+            padx=10,
+            pady=3,
+            command=lambda: self._apply_preset_by_name("finetune"),
         )
-        btn_pro.pack(side=tk.LEFT, padx=2)
-
-        btn_gm = tk.Button(
-            preset_box,
-            text="🟣 Grandmaster Top 1% (4-6h)",
-            bg="#581c87",
-            fg="#d8b4fe",
-            font=("Segoe UI", 8, "bold"),
-            relief=tk.FLAT,
-            padx=6,
-            pady=2,
-            command=lambda: self._apply_preset_by_name("grandmaster"),
-        )
-        btn_gm.pack(side=tk.LEFT, padx=2)
-
-        btn_dd = tk.Button(
-            preset_box,
-            text="⚡ Double Descente (16M)",
-            bg="#0f766e",
-            fg="#99f6e4",
-            font=("Segoe UI", 8, "bold"),
-            relief=tk.FLAT,
-            padx=6,
-            pady=2,
-            command=lambda: self._apply_preset_by_name("double_descent"),
-        )
-        btn_dd.pack(side=tk.LEFT, padx=2)
+        btn_finetune.pack(side=tk.LEFT, padx=3)
 
         status_row = ttk.Frame(right_box, style="Header.TFrame")
         status_row.pack(side=tk.BOTTOM, anchor=tk.E, pady=(2, 0))
@@ -760,15 +734,14 @@ class GaiaRLStudioGUI:
         self.hyperopt.base_config = deepcopy(self.config)
 
         labels = {
-            "fast": "🟢 Fast (50 époques, MLP)",
-            "pro": "🔵 Pro Compétitif (1000 époques, SwiGLU+GNN, R-NaD)",
-            "grandmaster": "🟣 Grandmaster Top 1% (2500 époques, SwiGLU, RGSC)",
-            "double_descent": "⚡ Double Descente (16M SwiGLU, L2, 1200 ép)",
+            "pretrain": "🚀 1. Pré-entraînement Fondation (150 VP)",
+            "finetune": "👑 2. Fine-Tuning Grand Maître (230+ VP)",
+            "fast": "⚡ Test Rapide",
         }
         name_str = labels.get(name, name.upper())
         if hasattr(self, "lbl_preset_status"):
             self.lbl_preset_status.config(
-                text=f"✓ HP chargés : {name_str}",
+                text=f"✓ Préréglage appliqué : {name_str}",
                 fg="#38bdf8",
             )
 
