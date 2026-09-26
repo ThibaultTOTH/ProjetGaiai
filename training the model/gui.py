@@ -422,7 +422,7 @@ class GaiaRLStudioGUI:
         ttk.Label(sec_arch, text="Couches cachées :").grid(row=1, column=0, sticky=tk.W, padx=4, pady=3)
         default_layers = ", ".join(str(x) for x in c.model.policy_hidden_layers)
         self.var_layers = tk.StringVar(value=default_layers)
-        ttk.Combobox(sec_arch, textvariable=self.var_layers, values=["512, 512, 512, 256", "512, 512, 256", "256, 256, 128", "128, 128"], width=22).grid(row=1, column=1, columnspan=2, sticky=tk.W, padx=4)
+        ttk.Combobox(sec_arch, textvariable=self.var_layers, values=["1024, 1024, 512, 256", "512, 512, 512, 256", "512, 512, 256", "256, 256, 128", "128, 128"], width=24).grid(row=1, column=1, columnspan=2, sticky=tk.W, padx=4)
 
         self.var_finetune = tk.BooleanVar(value=getattr(c.model, "finetune_mode", False))
         ttk.Checkbutton(sec_arch, text="Mode Fine-Tuning (Gèle le Shared Backbone)", variable=self.var_finetune).grid(row=1, column=3, columnspan=3, sticky=tk.W, padx=12)
