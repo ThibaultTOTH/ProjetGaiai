@@ -227,7 +227,9 @@ class MultiPlayerMCTS:
                             dtype=np.float32,
                         )
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                        value_vector = (raw_vps - mean_vp) / 20.0
+                        margin = (raw_vps - mean_vp) / 20.0
+                        ambition = (raw_vps - 90.0) / 40.0
+                        value_vector = 0.6 * margin + 0.4 * ambition
                         leaf_unc = 0.0
                     else:
                         curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
@@ -283,12 +285,14 @@ class MultiPlayerMCTS:
                         # Optimism under predicted score:
                         # Player 0's leaf evaluation is boosted by an optimism bonus if pred_score exceeds baseline
                         # This encourages MCTS to actively explore and commit to high-scoring strategic paths!
-                        optimism_weight = getattr(self.config, "optimism_weight", 0.25)
+                        optimism_weight = getattr(self.config, "optimism_weight", 0.35)
                         optimistic_score = pred_score + optimism_weight * max(0.0, pred_score - 70.0)
                         raw_vps[0] = max(raw_vps[0], optimistic_score)
 
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                        value_vector = (raw_vps - mean_vp) / 25.0
+                        margin = (raw_vps - mean_vp) / 25.0
+                        ambition = (raw_vps - 90.0) / 40.0
+                        value_vector = 0.6 * margin + 0.4 * ambition
 
                     # Backpropagate
                     for n in reversed(search_path):

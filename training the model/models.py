@@ -718,19 +718,20 @@ class DualGaiaAgent(nn.Module):
             obs = obs.unsqueeze(0)
         feat = self.shared_backbone(obs)
         val = self.score_net.head(feat).squeeze(-1)
-        if leaf_actor == 0:
+        neg_val = torch.tensor(-1e4, dtype=feat.dtype, device=feat.device)
+        if leaf_actor == 0 or not getattr(self.config, "use_opponent_modeling", False):
             logits = self.action_net.policy_head(feat)
             if action_mask is not None:
                 if action_mask.dim() == 1 and logits.dim() == 2:
                     action_mask = action_mask.unsqueeze(0)
-                logits = torch.where(action_mask, logits, torch.tensor(-1e9, device=logits.device))
+                logits = torch.where(action_mask, logits, neg_val)
             priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
         else:
             opp_logits = self.action_net.opponent_head(feat)
             if action_mask is not None:
                 if action_mask.dim() == 1 and opp_logits.dim() == 2:
                     action_mask = action_mask.unsqueeze(0)
-                opp_logits = torch.where(action_mask, opp_logits, torch.tensor(-1e9, device=opp_logits.device))
+                opp_logits = torch.where(action_mask, opp_logits, neg_val)
             priors = F.softmax(opp_logits, dim=-1).squeeze(0).cpu().numpy()
         return float(val.item()), priors
 

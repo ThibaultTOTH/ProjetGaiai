@@ -128,17 +128,20 @@ class AlphaZeroTrainer:
                 obs_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
                 mask_t = torch.from_numpy(mask).bool().to(self.device).unsqueeze(0)
                 with torch.no_grad():
-                    probs_t = self.agent.predict_opponent_action(obs_t, mask_t)
+                    # In AlphaZero self-play, opponents play using the current policy network
+                    logits = self.agent.action_net(obs_t, mask_t)
+                    probs_t = F.softmax(logits, dim=-1)
                     probs = probs_t.squeeze(0).cpu().numpy()
                 
                 legal_indices = np.where(mask)[0]
                 if len(legal_indices) > 0:
                     p_legal = probs[legal_indices]
-                    if p_legal.sum() > 0:
-                        p_legal = p_legal / p_legal.sum()
+                    p_sum = p_legal.sum()
+                    if p_sum > 0:
+                        p_legal = p_legal / p_sum
                         action = np.random.choice(legal_indices, p=p_legal)
                     else:
-                        action = legal_indices[0]
+                        action = int(np.random.choice(legal_indices))
                 else:
                     action = 0
                     
