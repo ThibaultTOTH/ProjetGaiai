@@ -252,6 +252,40 @@ class MicroDispatchConfig:
 
 
 @dataclass
+class AlphaZeroConfig:
+    enabled: bool = False
+    num_simulations: int = 50
+    games_per_epoch: int = 10
+    training_steps_per_epoch: int = 100
+    replay_buffer_size: int = 100_000
+    batch_size: int = 256
+    value_loss_coef: float = 1.0
+    temperature_threshold_move: int = 30
+    temperature_high: float = 1.0
+    temperature_low: float = 0.1
+    dirichlet_alpha: float = 0.3
+    dirichlet_eps: float = 0.25
+    checkpoint_interval: int = 50
+
+@dataclass
+class MuZeroConfig:
+    enabled: bool = False
+    hidden_dim: int = 256
+    num_dynamics_blocks: int = 4
+    unroll_steps: int = 5
+    num_simulations: int = 50
+    games_per_epoch: int = 10
+    training_steps_per_epoch: int = 200
+    replay_buffer_size: int = 50_000
+    batch_size: int = 128
+    value_loss_coef: float = 0.25
+    reward_loss_coef: float = 1.0
+    lr: float = 1e-3
+    weight_decay: float = 1e-4
+    temperature_threshold_move: int = 30
+    checkpoint_interval: int = 50
+
+@dataclass
 class AppConfig:
     """Root configuration aggregator."""
 
@@ -262,6 +296,8 @@ class AppConfig:
     mcts: MCTSConfig = field(default_factory=MCTSConfig)
     async_dist: AsyncConfig = field(default_factory=AsyncConfig)
     micro_dispatch: MicroDispatchConfig = field(default_factory=MicroDispatchConfig)
+    alphazero: AlphaZeroConfig = field(default_factory=AlphaZeroConfig)
+    muzero: MuZeroConfig = field(default_factory=MuZeroConfig)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -295,6 +331,10 @@ class AppConfig:
             sig_params = inspect.signature(MicroDispatchConfig).parameters
             filtered = {k: v for k, v in data["micro_dispatch"].items() if k in sig_params}
             cfg.micro_dispatch = MicroDispatchConfig(**filtered)
+        if "alphazero" in data:
+            cfg.alphazero = AlphaZeroConfig(**data["alphazero"])
+        if "muzero" in data:
+            cfg.muzero = MuZeroConfig(**data["muzero"])
         return cfg
 
 

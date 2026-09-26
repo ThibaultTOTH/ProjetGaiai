@@ -1,0 +1,267 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+import time
+import math
+import numpy as np
+import torch
+import torch.nn.functional as F
+from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
+from collections import deque
+import random
+import threading
+
+from config import AppConfig
+from models import DualGaiaAgent
+from mcts import MultiPlayerMCTS
+
+class AlphaZeroReplayBuffer:
+    """Stores (observation, action_mask, mcts_policy, mcts_value) tuples from self-play."""
+    def __init__(self, capacity: int = 100_000):
+        self.capacity = capacity
+        self.buffer = []
+        self.position = 0
+
+    def add(self, obs: np.ndarray, action_mask: np.ndarray, mcts_policy: np.ndarray, value_target: float):
+        data = (obs, action_mask, mcts_policy, value_target)
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(data)
+        else:
+            self.buffer[self.position] = data
+        self.position = (self.position + 1) % self.capacity
+
+    def sample(self, batch_size: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        batch = random.sample(self.buffer, batch_size)
+        obs, action_mask, mcts_policy, value_target = zip(*batch)
+        return (
+            np.stack(obs),
+            np.stack(action_mask),
+            np.stack(mcts_policy),
+            np.array(value_target, dtype=np.float32)
+        )
+
+    def __len__(self):
+        return len(self.buffer)
+
+@dataclass
+class EpochMetrics:
+    epoch: int
+    policy_loss: float
+    value_loss: float
+    avg_predicted_score: float
+    avg_real_score: float
+    entropy: float
+    duration: float
+
+class AlphaZeroTrainer:
+    def __init__(self, config: AppConfig, agent: DualGaiaAgent = None):
+        self.config = config
+        self.az_config = config.alphazero
+        
+        self.device = config.hardware.get_torch_device()
+        if agent is None:
+            self.agent = DualGaiaAgent(config.model).to(self.device)
+        else:
+            self.agent = agent.to(self.device)
+            
+        self.mcts = MultiPlayerMCTS(self.agent, config.mcts, self.device)
+        self.replay_buffer = AlphaZeroReplayBuffer(self.az_config.replay_buffer_size)
+        
+        parameters = list(self.agent.parameters())
+        self.optimizer = torch.optim.AdamW(
+            parameters,
+            lr=config.model.policy_lr,
+            weight_decay=config.model.policy_weight_decay
+        )
+        
+        self.use_amp = config.hardware.use_mixed_precision
+        self.scaler = torch.amp.GradScaler("cuda", enabled=(self.use_amp and self.device.type == "cuda"))
+        
+        self._stop_event = threading.Event()
+        self._is_running = False
+
+    def is_running(self):
+        return self._is_running
+
+    def stop(self):
+        self._stop_event.set()
+
+    def self_play_game(self, env: Any) -> List[Tuple[np.ndarray, np.ndarray, np.ndarray, float]]:
+        env.reset()
+        history = []
+        move_count = 0
+        
+        while not env.terminated:
+            current_player = env.current_player
+            obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
+            mask = env.get_action_mask()
+            
+            if current_player == 0:
+                temp = self.az_config.temperature_high if move_count < self.az_config.temperature_threshold_move else self.az_config.temperature_low
+                
+                action, probs, _ = self.mcts.search(
+                    env, 
+                    num_simulations=self.az_config.num_simulations, 
+                    temperature=temp,
+                    add_noise=True
+                )
+                
+                history.append((obs, mask, probs, 0.0))
+                move_count += 1
+            else:
+                obs_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
+                mask_t = torch.from_numpy(mask).bool().to(self.device).unsqueeze(0)
+                with torch.no_grad():
+                    probs_t = self.agent.predict_opponent_action(obs_t, mask_t)
+                    probs = probs_t.squeeze(0).cpu().numpy()
+                
+                legal_indices = np.where(mask)[0]
+                if len(legal_indices) > 0:
+                    p_legal = probs[legal_indices]
+                    if p_legal.sum() > 0:
+                        p_legal = p_legal / p_legal.sum()
+                        action = np.random.choice(legal_indices, p=p_legal)
+                    else:
+                        action = legal_indices[0]
+                else:
+                    action = 0
+                    
+            env.step(action)
+            
+        raw_vps = [p["vp"] for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)]
+        p0_vp = raw_vps[0] if len(raw_vps) > 0 else 50.0
+        normalized_vp = (p0_vp - 75.0) / 75.0
+        
+        final_history = [(obs, mask, probs, normalized_vp) for obs, mask, probs, _ in history]
+        return final_history
+
+    def train_on_batch(self, batch: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> Tuple[float, float, float, float]:
+        obs_b, mask_b, policy_b, value_b = batch
+        
+        obs_t = torch.from_numpy(obs_b).float().to(self.device)
+        mask_t = torch.from_numpy(mask_b).bool().to(self.device)
+        policy_t = torch.from_numpy(policy_b).float().to(self.device)
+        value_t = torch.from_numpy(value_b).float().to(self.device)
+        
+        self.optimizer.zero_grad(set_to_none=True)
+        
+        device_type = "cuda" if (self.use_amp and self.device.type == "cuda") else "cpu"
+        with torch.amp.autocast(device_type=device_type, enabled=(self.use_amp and self.device.type == "cuda")):
+            pred_values = self.agent.score_net(obs_t).view(-1)
+            logits = self.agent.action_net(obs_t, mask_t)
+            
+            value_loss = F.mse_loss(pred_values, value_t.view(-1))
+            
+            log_probs = F.log_softmax(logits, dim=-1)
+            policy_t_masked = policy_t * mask_t
+            policy_sum = policy_t_masked.sum(dim=-1, keepdim=True)
+            policy_t_masked = torch.where(policy_sum > 0, policy_t_masked / policy_sum, policy_t_masked)
+            
+            policy_loss = -(policy_t_masked * log_probs).sum(dim=-1).mean()
+            loss = policy_loss + self.az_config.value_loss_coef * value_loss
+            
+            entropy = -(torch.exp(log_probs) * log_probs).sum(dim=-1).mean()
+
+        self.scaler.scale(loss).backward()
+        
+        if self.config.training.max_grad_norm > 0:
+            self.scaler.unscale_(self.optimizer)
+            torch.nn.utils.clip_grad_norm_(self.agent.parameters(), self.config.training.max_grad_norm)
+            
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        
+        return policy_loss.item(), value_loss.item(), entropy.item(), pred_values.mean().item()
+
+    def run_training_loop(self, env: Any, max_epochs: int, callback=None):
+        self._is_running = True
+        self._stop_event.clear()
+        
+        for epoch in range(1, max_epochs + 1):
+            if self._stop_event.is_set():
+                break
+                
+            start_time = time.time()
+            self.agent.eval()
+            
+            epoch_real_scores = []
+            
+            for _ in range(self.az_config.games_per_epoch):
+                if self._stop_event.is_set():
+                    break
+                game_history = self.self_play_game(env)
+                for step_data in game_history:
+                    self.replay_buffer.add(*step_data)
+                
+                if game_history:
+                    epoch_real_scores.append(game_history[0][3])
+            
+            if self._stop_event.is_set():
+                break
+                
+            self.agent.train()
+            total_p_loss = 0.0
+            total_v_loss = 0.0
+            total_entropy = 0.0
+            total_pred_score = 0.0
+            
+            steps = min(self.az_config.training_steps_per_epoch, len(self.replay_buffer) // self.az_config.batch_size)
+            if steps == 0 and len(self.replay_buffer) >= self.az_config.batch_size:
+                steps = 1
+                
+            for _ in range(steps):
+                if self._stop_event.is_set():
+                    break
+                batch = self.replay_buffer.sample(self.az_config.batch_size)
+                p_loss, v_loss, ent, pred_val = self.train_on_batch(batch)
+                total_p_loss += p_loss
+                total_v_loss += v_loss
+                total_entropy += ent
+                total_pred_score += pred_val
+                
+            duration = time.time() - start_time
+            
+            if steps > 0:
+                metrics = EpochMetrics(
+                    epoch=epoch,
+                    policy_loss=total_p_loss / steps,
+                    value_loss=total_v_loss / steps,
+                    avg_predicted_score=total_pred_score / steps,
+                    avg_real_score=sum(epoch_real_scores) / len(epoch_real_scores) if epoch_real_scores else 0.0,
+                    entropy=total_entropy / steps,
+                    duration=duration
+                )
+                
+                if callback:
+                    callback(metrics)
+                    
+            if epoch % self.az_config.checkpoint_interval == 0:
+                self.save_checkpoint(os.path.join(self.config.training.checkpoint_dir, f"az_checkpoint_{epoch}.pt"))
+                
+        self._is_running = False
+
+    def save_checkpoint(self, path: str):
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        torch.save({
+            'agent_state_dict': self.agent.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scaler_state_dict': self.scaler.state_dict()
+        }, path)
+
+    def load_checkpoint(self, path: str) -> int:
+        if not os.path.exists(path):
+            return 0
+        checkpoint = torch.load(path, map_location=self.device)
+        self.agent.load_state_dict(checkpoint['agent_state_dict'])
+        if 'optimizer_state_dict' in checkpoint:
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scaler_state_dict' in checkpoint and self.use_amp:
+            self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
+            
+        try:
+            filename = os.path.basename(path)
+            if "az_checkpoint_" in filename:
+                return int(filename.split('_')[-1].split('.')[0])
+        except Exception:
+            pass
+        return 0

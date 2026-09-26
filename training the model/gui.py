@@ -43,6 +43,8 @@ from environment import format_flat_action, make_gaia_env
 from hyperopt import HyperoptTrial, HyperparameterOptimizer
 from mcts import MultiPlayerMCTS
 from async_trainer import AsyncRLTrainer
+from alphazero_trainer import AlphaZeroTrainer
+from muzero import MuZeroTrainer
 from models import DualGaiaAgent
 from trainer import RLTrainer, TrainingMetrics
 
@@ -53,6 +55,12 @@ class GaiaRLStudioGUI:
     """Main Application Window for Gaia Project RL Training, MCTS Analysis & Tuning."""
 
     def _create_trainer(self) -> Any:
+        algo = getattr(self, 'var_training_algo', None)
+        algo_name = algo.get() if algo else "PPO"
+        if algo_name == "AlphaZero":
+            return AlphaZeroTrainer(self.config)
+        if algo_name == "MuZero":
+            return MuZeroTrainer(self.config)
         if getattr(self.config.async_dist, "enabled", False):
             return AsyncRLTrainer(self.config)
         return RLTrainer(self.config)
@@ -390,6 +398,11 @@ class GaiaRLStudioGUI:
         self.var_tf32 = tk.BooleanVar(value=c.hardware.enable_tf32)
         ttk.Checkbutton(sec_hw, text="Activer TF32 (Tensor Cores Ampere/Ada/Blackwell)", variable=self.var_tf32).grid(row=0, column=3, padx=12, sticky=tk.W)
 
+        ttk.Label(sec_hw, text="Algorithme :").grid(row=1, column=0, sticky=tk.W, padx=4, pady=3)
+        self.var_training_algo = tk.StringVar(value="PPO")
+        ttk.Combobox(sec_hw, textvariable=self.var_training_algo, values=["PPO", "AlphaZero", "MuZero"], state="readonly", width=col_w).grid(row=1, column=1, sticky=tk.W, padx=4)
+        ttk.Label(sec_hw, text="PPO = Classique | AlphaZero = MCTS+Self-Play | MuZero = Latent MCTS (10x plus rapide)", font=("Segoe UI", 8)).grid(row=1, column=2, columnspan=3, sticky=tk.W, padx=8)
+
         # 2. Modern Deep RL Architecture
         sec_arch = ttk.LabelFrame(scrollable_frame, text="2. Architecture Réseau & Blocs Modernes", padding=8)
         sec_arch.pack(fill=tk.X, pady=4)
@@ -662,6 +675,13 @@ class GaiaRLStudioGUI:
         self.var_fp16.set(c.hardware.use_mixed_precision)
         self.var_tf32.set(c.hardware.enable_tf32)
 
+        if getattr(c.alphazero, "enabled", False):
+            self.var_training_algo.set("AlphaZero")
+        elif getattr(c.muzero, "enabled", False):
+            self.var_training_algo.set("MuZero")
+        else:
+            self.var_training_algo.set("PPO")
+
         self.var_block_type.set(c.model.block_type)
         self.var_activation.set(c.model.policy_activation)
         self.var_dropout.set(c.model.policy_dropout)
@@ -758,6 +778,10 @@ class GaiaRLStudioGUI:
         c.hardware.device_override = self.var_device.get()
         c.hardware.use_mixed_precision = self.var_fp16.get()
         c.hardware.enable_tf32 = self.var_tf32.get()
+
+        algo = self.var_training_algo.get()
+        c.alphazero.enabled = (algo == "AlphaZero")
+        c.muzero.enabled = (algo == "MuZero")
 
         c.model.block_type = self.var_block_type.get()
         c.model.policy_activation = self.var_activation.get()
@@ -1160,20 +1184,34 @@ class GaiaRLStudioGUI:
         self.btn_start.config(state=tk.DISABLED)
         self.btn_pause.config(state=tk.NORMAL, text="⏸ Pause")
         self.btn_stop.config(state=tk.NORMAL)
-        self.lbl_train_status.config(text="● Entraînement en cours...", bg="#16a34a", fg="#ffffff")
+        algo_name = self.var_training_algo.get()
+        self.lbl_train_status.config(text=f"● Entraînement {algo_name} en cours...", bg="#16a34a", fg="#ffffff")
 
-        def _on_metrics(m: TrainingMetrics):
+        def _on_metrics(m):
             self.metrics_queue.put(m)
 
         def _on_finish():
             self.metrics_queue.put("FINISHED")
 
         max_epochs = self.var_max_epochs.get()
-        self.trainer.start_background_training(
-            on_metrics=_on_metrics,
-            on_finished=_on_finish,
-            max_epochs=max_epochs,
-        )
+
+        if algo_name in ("AlphaZero", "MuZero"):
+            # AlphaZero/MuZero use run_training_loop with a callback
+            import threading
+            env = make_gaia_env(self.config)
+            def _az_thread():
+                try:
+                    self.trainer.run_training_loop(env, max_epochs=max_epochs, callback=_on_metrics)
+                finally:
+                    _on_finish()
+            t = threading.Thread(target=_az_thread, daemon=True)
+            t.start()
+        else:
+            self.trainer.start_background_training(
+                on_metrics=_on_metrics,
+                on_finished=_on_finish,
+                max_epochs=max_epochs,
+            )
 
     def _on_pause_training(self) -> None:
         if self.trainer.is_paused():
@@ -1218,12 +1256,12 @@ class GaiaRLStudioGUI:
                     self._on_generate_pdf_report()
                 continue
 
-            m: TrainingMetrics = item
+            m = item
             # Update KPI cards
             if "kpi_epochs" in self.kpi_labels:
                 self.kpi_labels["kpi_epochs"].config(text=f"{m.epoch} / {self.var_max_epochs.get()}")
             if "kpi_speed" in self.kpi_labels:
-                self.kpi_labels["kpi_speed"].config(text=f"{m.steps_per_sec:.0f}")
+                self.kpi_labels["kpi_speed"].config(text=f"{getattr(m, 'steps_per_sec', 0.0):.0f}")
             if "kpi_losses" in self.kpi_labels:
                 self.kpi_labels["kpi_losses"].config(text=f"P:{m.policy_loss:.3f} V:{m.value_loss:.3f}")
             if "kpi_rnad" in self.kpi_labels:
@@ -1234,12 +1272,12 @@ class GaiaRLStudioGUI:
             if "kpi_rgsc" in self.kpi_labels:
                 rgsc_buf = getattr(self.trainer, "state_buffer", getattr(self.trainer, "rgsc_buffer", None))
                 buf_len = len(rgsc_buf) if rgsc_buf else 0
-                cap = self.config.training.rgsc_buffer_capacity
+                cap = getattr(self.config.training, "rgsc_buffer_capacity", 200)
                 self.kpi_labels["kpi_rgsc"].config(text=f"{buf_len} / {cap}")
             if "kpi_vp" in self.kpi_labels:
                 self.kpi_labels["kpi_vp"].config(text=f"{m.avg_predicted_score:.1f} (R: {m.avg_real_score:.1f})")
             if "kpi_winrate" in self.kpi_labels:
-                self.kpi_labels["kpi_winrate"].config(text=f"{m.win_rate * 100:.0f}%")
+                self.kpi_labels["kpi_winrate"].config(text=f"{getattr(m, 'win_rate', 0.5) * 100:.0f}%")
             if "kpi_elo" in self.kpi_labels:
                 self.kpi_labels["kpi_elo"].config(
                     text=f"{getattr(m, 'league_elo', 1200.0):.0f} ({getattr(m, 'league_size', 2)})"
