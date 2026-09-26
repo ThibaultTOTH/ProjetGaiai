@@ -134,7 +134,7 @@ class TrainingConfig:
     gamma: float = 1.0  # Board game, finite horizon
     gae_lambda: float = 0.98  # Generalized Advantage Estimation lambda
     clip_epsilon: float = 0.2  # PPO clip ratio
-    entropy_coef: float = 0.04  # Fallback entropy coef
+    entropy_coef: float = 0.001  # Fallback entropy coef
     value_loss_coef: float = 0.5  # Weight of value loss in joint training
     max_grad_norm: float = 0.5  # Gradient clipping
 
@@ -146,9 +146,9 @@ class TrainingConfig:
     min_lr: float = 1e-5
 
     # Entropy decay schedule parameters
-    entropy_schedule_type: str = "cosine"  # 'cosine', 'exponential', 'linear', 'constant'
-    entropy_start: float = 0.15  # Forcer une énorme exploration au début (Espace d'action 3130)
-    entropy_end: float = 0.01  # Exploitation floor entropy
+    entropy_schedule_type: str = "cosine"
+    entropy_start: float = 0.005  # Massive reduction due to ln(3130) max entropy
+    entropy_end: float = 0.0001
 
     # PPO Value loss clipping (calibrated for 0..150 VP board game score range)
     value_clip_epsilon: float = 10.0
@@ -368,8 +368,8 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.warmup_ratio = 0.05
         cfg.training.lr_final_factor = 0.05
         cfg.training.entropy_schedule_type = "cosine"
-        cfg.training.entropy_start = 0.05
-        cfg.training.entropy_end = 0.003
+        cfg.training.entropy_start = 0.005
+        cfg.training.entropy_end = 0.0001
         cfg.training.shaping_enabled = True
         cfg.training.shaping_decay_rate = 0.9999
         cfg.training.rnd_enabled = True
@@ -405,8 +405,8 @@ def get_training_preset(name: str = "grandmaster") -> AppConfig:
         cfg.training.warmup_ratio = 0.05
         cfg.training.lr_final_factor = 0.10
         cfg.training.entropy_schedule_type = "cosine"
-        cfg.training.entropy_start = 0.05
-        cfg.training.entropy_end = 0.005
+        cfg.training.entropy_start = 0.005
+        cfg.training.entropy_end = 0.0001
         cfg.training.shaping_enabled = True
         cfg.training.shaping_initial_weight = 50.0
         cfg.training.shaping_decay_rate = 0.9999
