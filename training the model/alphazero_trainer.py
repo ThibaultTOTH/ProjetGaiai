@@ -52,6 +52,8 @@ class EpochMetrics:
     avg_real_score: float
     entropy: float
     duration: float
+    win_rate: float = 0.5
+    steps_per_sec: float = 0.0
 
 class AlphaZeroTrainer:
     def __init__(self, config: AppConfig, agent: DualGaiaAgent = None):
@@ -128,12 +130,13 @@ class AlphaZeroTrainer:
                     
             env.step(action)
             
-        raw_vps = [p["vp"] for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)]
+        raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)]
         p0_vp = raw_vps[0] if len(raw_vps) > 0 else 50.0
-        normalized_vp = (p0_vp - 75.0) / 75.0
+        p0_won = bool(len(raw_vps) >= 2 and p0_vp > max(raw_vps[1:]))
         
-        final_history = [(obs, mask, probs, normalized_vp) for obs, mask, probs, _ in history]
-        return final_history
+        # Store true Victory Points (0 - 250+ VP) for natural calibration with MCTS and GUI
+        final_history = [(obs, mask, probs, p0_vp) for obs, mask, probs, _ in history]
+        return final_history, p0_vp, p0_won, move_count
 
     def train_on_batch(self, batch: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> Tuple[float, float, float, float]:
         obs_b, mask_b, policy_b, value_b = batch
@@ -150,7 +153,8 @@ class AlphaZeroTrainer:
             pred_values = self.agent.score_net(obs_t).view(-1)
             logits = self.agent.action_net(obs_t, mask_t)
             
-            value_loss = F.mse_loss(pred_values, value_t.view(-1))
+            # Huber Smooth L1 loss on VP prevents gradient explosion
+            value_loss = F.smooth_l1_loss(pred_values, value_t.view(-1))
             
             log_probs = F.log_softmax(logits, dim=-1)
             policy_t_masked = policy_t * mask_t
@@ -185,16 +189,22 @@ class AlphaZeroTrainer:
             self.agent.eval()
             
             epoch_real_scores = []
+            epoch_wins = 0
+            epoch_games = 0
+            epoch_moves = 0
             
             for _ in range(self.az_config.games_per_epoch):
                 if self._stop_event.is_set():
                     break
-                game_history = self.self_play_game(env)
+                game_history, p0_vp, p0_won, moves = self.self_play_game(env)
                 for step_data in game_history:
                     self.replay_buffer.add(*step_data)
                 
-                if game_history:
-                    epoch_real_scores.append(game_history[0][3])
+                epoch_real_scores.append(p0_vp)
+                if p0_won:
+                    epoch_wins += 1
+                epoch_games += 1
+                epoch_moves += moves
             
             if self._stop_event.is_set():
                 break
@@ -219,7 +229,9 @@ class AlphaZeroTrainer:
                 total_entropy += ent
                 total_pred_score += pred_val
                 
-            duration = time.time() - start_time
+            duration = max(1e-4, time.time() - start_time)
+            speed = epoch_moves / duration
+            win_r = float(epoch_wins) / float(max(1, epoch_games))
             
             if steps > 0:
                 metrics = EpochMetrics(
@@ -227,9 +239,11 @@ class AlphaZeroTrainer:
                     policy_loss=total_p_loss / steps,
                     value_loss=total_v_loss / steps,
                     avg_predicted_score=total_pred_score / steps,
-                    avg_real_score=sum(epoch_real_scores) / len(epoch_real_scores) if epoch_real_scores else 0.0,
+                    avg_real_score=float(np.mean(epoch_real_scores)) if epoch_real_scores else 0.0,
                     entropy=total_entropy / steps,
-                    duration=duration
+                    duration=duration,
+                    win_rate=win_r,
+                    steps_per_sec=speed,
                 )
                 
                 if callback:

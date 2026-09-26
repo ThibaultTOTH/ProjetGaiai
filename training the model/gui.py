@@ -1293,10 +1293,12 @@ class GaiaRLStudioGUI:
             # Redraw Matplotlib plots periodically
             if m.epoch % 2 == 0 or m.epoch == 1:
                 self.ax_loss.clear()
-                self.ax_loss.plot(self.history_epochs, self.history_policy_loss, label="Policy Loss (PPO)", color="#2563eb", lw=1.5)
+                algo_str = getattr(self, "var_training_algo", None)
+                algo_label = algo_str.get() if algo_str else "Policy"
+                self.ax_loss.plot(self.history_epochs, self.history_policy_loss, label=f"Policy Loss ({algo_label})", color="#2563eb", lw=1.5)
                 self.ax_loss.plot(self.history_epochs, self.history_value_loss, label="Value Loss (Score)", color="#e11d48", lw=1.5)
                 self.ax_loss.legend(fontsize=7, loc="upper right")
-                self.ax_loss.set_title("Pertes d'apprentissage (PPO & Score)", fontsize=9, fontweight="bold")
+                self.ax_loss.set_title(f"Pertes d'apprentissage ({algo_label} & Score)", fontsize=9, fontweight="bold")
                 self.ax_loss.grid(True, linestyle="--", alpha=0.4)
 
                 self.ax_score.clear()
