@@ -1,0 +1,18 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyTorch checkpoints
+*.pt
+*.pth
+
+# Rust build artifacts
+target/
+**/target/
+Cargo.lock
+
+# Test & IDE
+.pytest_cache/
+.vscode/
+.vs/

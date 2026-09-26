@@ -68,8 +68,18 @@ class HardwareConfig:
                 info["mixed_precision"] = self.use_mixed_precision
 
                 if self.enable_tf32:
-                    torch.backends.cuda.matmul.allow_tf32 = True
-                    torch.backends.cudnn.allow_tf32 = True
+                    # Modern PyTorch 2.9+ syntax with backward compatibility
+                    try:
+                        torch.backends.cuda.matmul.fp32_precision = "tf32"
+                    except Exception:
+                        torch.backends.cuda.matmul.allow_tf32 = True
+                    try:
+                        torch.backends.cudnn.conv.fp32_precision = "tf32"
+                    except Exception:
+                        try:
+                            torch.backends.cudnn.allow_tf32 = True
+                        except Exception:
+                            pass
                     info["tf32_active"] = True
 
                 if self.enable_cudnn_benchmark:

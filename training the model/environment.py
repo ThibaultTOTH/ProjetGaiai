@@ -96,18 +96,23 @@ class NativeGaiaEnv:
     @classmethod
     def _find_dll(cls) -> Optional[str]:
         if cls._dll_path and os.path.exists(cls._dll_path):
-            return cls._dll_path
+            try:
+                ctypes.CDLL(cls._dll_path)
+                return cls._dll_path
+            except OSError:
+                cls._dll_path = None
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(base_dir)
         cwd = os.getcwd()
 
-        # All potential library filenames across Windows, Linux and macOS
-        lib_names = [
-            "gaiapi.dll", "libgaiapi.dll",
-            "libgaiapi.so", "gaiapi.so",
-            "libgaiapi.dylib", "gaiapi.dylib"
-        ]
+        # Strict platform-specific shared library extensions
+        if sys.platform.startswith("win"):
+            lib_names = ["gaiapi.dll", "libgaiapi.dll"]
+        elif sys.platform.startswith("darwin"):
+            lib_names = ["libgaiapi.dylib", "gaiapi.dylib"]
+        else:  # Linux, Unix, BSD (NEVER load a .dll on Linux!)
+            lib_names = ["libgaiapi.so", "gaiapi.so"]
 
         candidates = [
             os.environ.get("GAIAPI_LIB"),
@@ -116,12 +121,12 @@ class NativeGaiaEnv:
 
         # Scan comprehensive list of standard locations
         search_dirs = [
-            base_dir,
             os.path.join(project_root, "projet_gaiapi", "target", "release"),
+            os.path.join(cwd, "projet_gaiapi", "target", "release"),
+            base_dir,
             os.path.join(project_root, "projet_gaiapi", "target", "debug"),
             os.path.join(project_root, "target", "release"),
             os.path.join(project_root, "target", "debug"),
-            os.path.join(cwd, "projet_gaiapi", "target", "release"),
             os.path.join(cwd, "target", "release"),
             cwd,
         ]
@@ -132,8 +137,14 @@ class NativeGaiaEnv:
 
         for c in candidates:
             if c and os.path.exists(c):
-                cls._dll_path = os.path.abspath(c)
-                return cls._dll_path
+                try:
+                    # Test if it can actually be loaded on this OS
+                    test_dll = ctypes.CDLL(c)
+                    cls._dll_path = os.path.abspath(c)
+                    return cls._dll_path
+                except OSError:
+                    # e.g. invalid ELF header if trying to load Windows DLL on Linux
+                    continue
 
         # If still not found, attempt automatic build via Cargo if available on the system
         import shutil
@@ -159,12 +170,16 @@ class NativeGaiaEnv:
                 for name in lib_names:
                     candidate = os.path.join(target_release, name)
                     if os.path.exists(candidate):
-                        cls._dll_path = os.path.abspath(candidate)
                         try:
-                            shutil.copy2(cls._dll_path, os.path.join(base_dir, name))
-                        except Exception:
-                            pass
-                        return cls._dll_path
+                            test_dll = ctypes.CDLL(candidate)
+                            cls._dll_path = os.path.abspath(candidate)
+                            try:
+                                shutil.copy2(cls._dll_path, os.path.join(base_dir, name))
+                            except Exception:
+                                pass
+                            return cls._dll_path
+                        except OSError:
+                            continue
             except Exception as e:
                 print(f"⚠️  [RUST ENGINE] Échec de la compilation Cargo automatique : {e}")
 
