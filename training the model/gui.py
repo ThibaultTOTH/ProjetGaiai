@@ -300,16 +300,23 @@ class GaiaRLStudioGUI:
         plot_frame.pack(fill=tk.BOTH, expand=True)
 
         self.fig, (self.ax_loss, self.ax_score) = plt.subplots(1, 2, figsize=(10, 4), dpi=100)
+        self.ax_loss_twin = self.ax_loss.twinx()
         self.fig.patch.set_facecolor("#f8fafc")
 
         self.ax_loss.set_facecolor("#ffffff")
-        self.ax_loss.set_title("Pertes d'apprentissage (PPO & Score)", fontsize=10, fontweight="bold", color="#1e293b")
+        self.ax_loss.set_title("Pertes d'apprentissage (Politique & Score)", fontsize=10, fontweight="bold", color="#1e293b")
         self.ax_loss.set_xlabel("Époques", fontsize=8)
+        self.ax_loss.set_ylabel("Perte Politique", color="#2563eb", fontsize=8, fontweight="bold")
+        self.ax_loss.tick_params(axis="y", labelcolor="#2563eb")
         self.ax_loss.grid(True, linestyle="--", alpha=0.5)
+
+        self.ax_loss_twin.set_ylabel("Perte Valeur (VP)", color="#e11d48", fontsize=8, fontweight="bold")
+        self.ax_loss_twin.tick_params(axis="y", labelcolor="#e11d48")
 
         self.ax_score.set_facecolor("#ffffff")
         self.ax_score.set_title("Score moyen : Prédit vs Réel (VP)", fontsize=10, fontweight="bold", color="#1e293b")
         self.ax_score.set_xlabel("Époques", fontsize=8)
+        self.ax_score.set_ylabel("Points de Victoire (VP)", fontsize=8, fontweight="bold")
         self.ax_score.grid(True, linestyle="--", alpha=0.5)
 
         self.fig.tight_layout()
@@ -1266,17 +1273,32 @@ class GaiaRLStudioGUI:
             # Redraw Matplotlib plots periodically
             if m.epoch % 2 == 0 or m.epoch == 1:
                 self.ax_loss.clear()
+                self.ax_loss_twin.clear()
                 algo_str = getattr(self, "var_training_algo", None)
                 algo_label = algo_str.get() if algo_str else "Policy"
-                self.ax_loss.plot(self.history_epochs, self.history_policy_loss, label=f"Policy Loss ({algo_label})", color="#2563eb", lw=1.5)
-                self.ax_loss.plot(self.history_epochs, self.history_value_loss, label="Value Loss (Score)", color="#e11d48", lw=1.5)
-                self.ax_loss.legend(fontsize=7, loc="upper right")
-                self.ax_loss.set_title(f"Pertes d'apprentissage ({algo_label} & Score)", fontsize=9, fontweight="bold")
+
+                # Left Y-axis: Policy Loss (Blue)
+                l1 = self.ax_loss.plot(self.history_epochs, self.history_policy_loss, label=f"Policy Loss ({algo_label})", color="#2563eb", lw=1.8)
+                self.ax_loss.set_ylabel("Perte Politique (Policy)", color="#2563eb", fontsize=8, fontweight="bold")
+                self.ax_loss.tick_params(axis="y", labelcolor="#2563eb")
+                self.ax_loss.set_xlabel("Époques", fontsize=8)
                 self.ax_loss.grid(True, linestyle="--", alpha=0.4)
 
+                # Right Y-axis: Value Loss (Red)
+                l2 = self.ax_loss_twin.plot(self.history_epochs, self.history_value_loss, label="Value Loss (Score VP)", color="#e11d48", lw=1.8, linestyle="--")
+                self.ax_loss_twin.set_ylabel("Perte Valeur (VP)", color="#e11d48", fontsize=8, fontweight="bold")
+                self.ax_loss_twin.tick_params(axis="y", labelcolor="#e11d48")
+
+                lines = l1 + l2
+                labels = [l.get_label() for l in lines]
+                self.ax_loss.legend(lines, labels, fontsize=7, loc="upper right")
+                self.ax_loss.set_title(f"Pertes d'apprentissage ({algo_label} & Score)", fontsize=9, fontweight="bold")
+
                 self.ax_score.clear()
-                self.ax_score.plot(self.history_epochs, self.history_pred_scores, label="Score Prédit (VP)", color="#059669", lw=1.5)
-                self.ax_score.plot(self.history_epochs, self.history_real_scores, label="Score Réel (VP)", color="#d97706", lw=1.5, linestyle="--")
+                self.ax_score.plot(self.history_epochs, self.history_pred_scores, label="Score Prédit (VP)", color="#059669", lw=1.8)
+                self.ax_score.plot(self.history_epochs, self.history_real_scores, label="Score Réel (VP)", color="#d97706", lw=1.8, linestyle="--")
+                self.ax_score.set_ylabel("Points de Victoire (VP)", fontsize=8, fontweight="bold")
+                self.ax_score.set_xlabel("Époques", fontsize=8)
                 self.ax_score.legend(fontsize=7, loc="upper right")
                 self.ax_score.set_title("Score moyen : Prédit vs Réel (VP)", fontsize=9, fontweight="bold")
                 self.ax_score.grid(True, linestyle="--", alpha=0.4)

@@ -30,8 +30,22 @@ class AlphaZeroReplayBuffer:
             self.buffer[self.position] = data
         self.position = (self.position + 1) % self.capacity
 
-    def sample(self, batch_size: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        batch = random.sample(self.buffer, batch_size)
+    def sample(self, batch_size: int, optimism_power: float = 1.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if len(self.buffer) <= batch_size:
+            batch = self.buffer
+        else:
+            vps = np.array([x[3] for x in self.buffer], dtype=np.float32)
+            v_min = float(np.min(vps))
+            v_max = float(np.max(vps))
+            if v_max > v_min and optimism_power > 0.0:
+                normalized = (vps - v_min) / (v_max - v_min)
+                weights = (0.2 + 0.8 * normalized) ** optimism_power
+                probs = weights / weights.sum()
+                indices = np.random.choice(len(self.buffer), size=batch_size, replace=False, p=probs)
+                batch = [self.buffer[i] for i in indices]
+            else:
+                batch = random.sample(self.buffer, batch_size)
+
         obs, action_mask, mcts_policy, value_target = zip(*batch)
         return (
             np.stack(obs),
@@ -162,7 +176,9 @@ class AlphaZeroTrainer:
             policy_t_masked = torch.where(policy_sum > 0, policy_t_masked / policy_sum, policy_t_masked)
             
             policy_loss = -(policy_t_masked * log_probs).sum(dim=-1).mean()
-            loss = policy_loss + self.az_config.value_loss_coef * value_loss
+            # Normalize VP scale (variance ~25 VP) so value gradients do not overwhelm policy gradients
+            norm_value_loss = value_loss / 25.0
+            loss = policy_loss + self.az_config.value_loss_coef * norm_value_loss
             
             entropy = -(torch.exp(log_probs) * log_probs).sum(dim=-1).mean()
 
@@ -222,7 +238,10 @@ class AlphaZeroTrainer:
             for _ in range(steps):
                 if self._stop_event.is_set():
                     break
-                batch = self.replay_buffer.sample(self.az_config.batch_size)
+                batch = self.replay_buffer.sample(
+                    self.az_config.batch_size,
+                    optimism_power=getattr(self.az_config, "optimism_power", 1.0)
+                )
                 p_loss, v_loss, ent, pred_val = self.train_on_batch(batch)
                 total_p_loss += p_loss
                 total_v_loss += v_loss

@@ -234,6 +234,7 @@ class MCTSConfig:
     adaptive_budget_enabled: bool = True
     entropy_threshold: float = 0.15
     min_simulations: int = 2
+    optimism_weight: float = 0.25  # Pousse le modèle vers l'optimisme (recherche de branches à fort VP)
 
 
 @dataclass
@@ -275,6 +276,7 @@ class AlphaZeroConfig:
     temperature_low: float = 0.1
     dirichlet_alpha: float = 0.3
     dirichlet_eps: float = 0.25
+    optimism_power: float = 1.0  # Échantillonnage priorisé optimiste des parties à haut score VP
     checkpoint_interval: int = 50
 
 @dataclass
