@@ -501,7 +501,8 @@ class ActionOptimizerNet(nn.Module):
         if action_mask is not None:
             if action_mask.dim() == 1 and logits.dim() == 2:
                 action_mask = action_mask.unsqueeze(0)
-            logits = torch.where(action_mask, logits, torch.tensor(-1e9, device=logits.device))
+            neg_val = torch.tensor(-1e4, dtype=logits.dtype, device=logits.device)
+            logits = torch.where(action_mask, logits, neg_val)
 
         if return_opponent:
             opp_logits = self.opponent_head(feat)

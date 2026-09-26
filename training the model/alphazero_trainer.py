@@ -170,17 +170,32 @@ class AlphaZeroTrainer:
             # Huber Smooth L1 loss on VP prevents gradient explosion
             value_loss = F.smooth_l1_loss(pred_values, value_t.view(-1))
             
-            log_probs = F.log_softmax(logits, dim=-1)
-            policy_t_masked = policy_t * mask_t
+            # Safe Cross-Entropy / Policy Loss:
+            # 1. Normalize target policy over legal actions only
+            policy_t_masked = torch.where(mask_t, policy_t, torch.zeros_like(policy_t))
             policy_sum = policy_t_masked.sum(dim=-1, keepdim=True)
-            policy_t_masked = torch.where(policy_sum > 0, policy_t_masked / policy_sum, policy_t_masked)
+            policy_t_masked = torch.where(policy_sum > 0, policy_t_masked / policy_sum, torch.zeros_like(policy_t_masked))
             
-            policy_loss = -(policy_t_masked * log_probs).sum(dim=-1).mean()
+            # 2. Compute log_softmax
+            log_probs = F.log_softmax(logits, dim=-1)
+            
+            # 3. Only evaluate cross-entropy where mask is True and target prob > 0 (prevents 0.0 * -inf = NaN)
+            safe_terms = torch.where(mask_t & (policy_t_masked > 0), policy_t_masked * log_probs, torch.zeros_like(log_probs))
+            policy_loss = -safe_terms.sum(dim=-1).mean()
+            
+            # 4. Guarantee finite scalars
+            policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
+            value_loss = torch.nan_to_num(value_loss, nan=0.0, posinf=100.0, neginf=-100.0)
+            
             # Normalize VP scale (variance ~25 VP) so value gradients do not overwhelm policy gradients
             norm_value_loss = value_loss / 25.0
             loss = policy_loss + self.az_config.value_loss_coef * norm_value_loss
             
-            entropy = -(torch.exp(log_probs) * log_probs).sum(dim=-1).mean()
+            # Safe entropy calculation over legal actions
+            probs = torch.where(mask_t, torch.exp(log_probs), torch.zeros_like(log_probs))
+            safe_lp = torch.where(mask_t, log_probs, torch.zeros_like(log_probs))
+            entropy = -(probs * safe_lp).sum(dim=-1).mean()
+            entropy = torch.nan_to_num(entropy, nan=0.0)
 
         self.scaler.scale(loss).backward()
         
