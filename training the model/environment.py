@@ -290,11 +290,21 @@ class NativeGaiaEnv:
             cls._dll_instance = dll
         return cls._dll_instance
 
-    def __init__(self, players: int = 4, max_rounds: int = 6, seed: int = 42):
-        self.num_players = players
-        self.max_rounds = max_rounds
+    def __init__(self, players: Any = 4, max_rounds: int = 6, seed: int = 42):
+        if hasattr(players, "model") and hasattr(players.model, "num_players"):
+            players = players.model.num_players
+        elif isinstance(players, dict) and "model" in players:
+            players = players["model"].get("num_players", 4)
+        elif not isinstance(players, int):
+            try:
+                players = int(players)
+            except (TypeError, ValueError):
+                players = 4
+
+        self.num_players = int(players)
+        self.max_rounds = int(max_rounds)
         self.dll = self._get_dll()
-        self.env_ptr = self.dll.gaiapi_create(seed, players)
+        self.env_ptr = self.dll.gaiapi_create(ctypes.c_uint64(int(seed)), ctypes.c_uint32(int(self.num_players)))
         if not self.env_ptr:
             raise RuntimeError("Failed to allocate native GaiaEnv.")
         self.obs_dim = int(self.dll.gaiapi_get_obs_dim(self.env_ptr))
@@ -700,34 +710,47 @@ def format_flat_action(action_id: int) -> str:
 
 
 def make_gaia_env(
-    players: int = 4,
+    players: Any = 4,
     prefer_native: bool = True,
     use_rest: bool = False,
     rest_url: str = "http://127.0.0.1:3000",
     seed: Optional[int] = None,
     **kwargs: Any,
 ) -> Any:
-    """Factory creating NativeGaiaEnv (DLL) > RestGaiaEnv."""
+    """Factory creating NativeGaiaEnv (DLL/.so) > RestGaiaEnv."""
     mode = kwargs.pop("mode", None)
+    config = kwargs.pop("config", None)
+    if hasattr(players, "model") and hasattr(players.model, "num_players"):
+        players = players.model.num_players
+    elif isinstance(players, dict) and "model" in players:
+        players = players["model"].get("num_players", 4)
+    elif not isinstance(players, int):
+        try:
+            players = int(players)
+        except (TypeError, ValueError):
+            players = 4
+
+    actual_seed = seed if seed is not None else 42
+
     if mode == "rest":
         use_rest = True
         prefer_native = False
     if prefer_native:
         if NativeGaiaEnv.is_available():
             try:
-                return NativeGaiaEnv(players=players, seed=seed if seed is not None else 42, **kwargs)
+                return NativeGaiaEnv(players=players, seed=actual_seed, **kwargs)
             except Exception as e:
-                warn_rust_not_detected(detail=f"Erreur lors du chargement de la DLL Native: {e}")
-                print(f"[make_gaia_env] Native DLL fallback to SimEnv: {e}")
+                print(f"❌ [make_gaia_env] Erreur lors de l'instanciation de NativeGaiaEnv: {e}")
+                raise e
         else:
-            warn_rust_not_detected(detail="make_gaia_env(prefer_native=True) n'a trouvé aucune DLL Rust compilée.")
+            warn_rust_not_detected(detail="make_gaia_env(prefer_native=True) n'a trouvé aucune bibliothèque native compilée.")
 
     if use_rest:
         rest_env = RestGaiaEnv(rest_url)
         if rest_env.is_available():
             return rest_env
 
-    raise RuntimeError("Native Gaia DLL not found. FastGaiaSimEnv has been removed. Please build the Rust engine.")
+    raise RuntimeError("Native Gaia DLL / .so not found. Please compile the Rust engine with ./compile_linux.sh.")
 
 
 # Automatic check on import: immediately warn developer if Rust engine is missing

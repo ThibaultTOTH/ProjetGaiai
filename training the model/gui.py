@@ -1171,7 +1171,7 @@ class GaiaRLStudioGUI:
         if algo_name in ("AlphaZero", "MuZero"):
             # AlphaZero/MuZero use run_training_loop with a callback
             import threading
-            env = make_gaia_env(self.config)
+            env = make_gaia_env(players=self.config.model.num_players)
             def _az_thread():
                 try:
                     self.trainer.run_training_loop(env, max_epochs=max_epochs, callback=_on_metrics)
