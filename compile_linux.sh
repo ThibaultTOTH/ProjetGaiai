@@ -15,12 +15,20 @@ echo "=================================================================="
 echo "  🚀 COMPILATION DU MOTEUR RUST GAIAPI POUR LINUX (.so)"
 echo "=================================================================="
 
+# S'assurer que Cargo / Rustup est dans le PATH
+if [ -f "$HOME/.cargo/env" ]; then
+    source "$HOME/.cargo/env"
+elif [ -d "$HOME/.cargo/bin" ]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
 # 1. Vérification de Cargo / Rust
 if ! command -v cargo &> /dev/null; then
     echo "❌ Erreur : 'cargo' (Rust) n'est pas installé sur ce système Linux."
-    echo "💡 Pour installer Rust rapidement, exécutez :"
-    echo "   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    echo "   source \$HOME/.cargo/env"
+    echo "💡 Pour installer Rust rapidement sur Pop!_OS / Ubuntu, exécutez :"
+    echo "   sudo apt update && sudo apt install -y cargo rustc"
+    echo "   OU :"
+    echo "   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && source \$HOME/.cargo/env"
     exit 1
 fi
 

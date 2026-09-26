@@ -36,34 +36,35 @@ def warn_rust_not_detected(detail: Optional[str] = None) -> None:
     border = "!" * banner_width
     msg = f"""
 {border}
-  ⚠️   ATTENTION CRITIQUE : MOTEUR RUST NON DÉTECTÉ (gaiapi.dll / libgaiapi.so)   ⚠️
+  ⚠️   ATTENTION CRITIQUE : MOTEUR RUST NON COMPILÉ / NON DÉTECTÉ   ⚠️
 {border}
 [GAIA RL ENGINE] La bibliothèque native compilée Rust est introuvable.
+(Fichier attendu : libgaiapi.so sous Linux, gaiapi.dll sous Windows)
 
 Emplacements scannés :
-  • projet_gaiapi/target/release/gaiapi.dll (ou .so / .dylib)
-  • projet_gaiapi/target/debug/gaiapi.dll
-  • training the model/gaiapi.dll
+  • projet_gaiapi/target/release/libgaiapi.so (ou .dll)
+  • training the model/libgaiapi.so (ou .dll)
   • Variables d'environnement GAIAPI_LIB / GAIAPI_DLL
 {f"  • Détail : {detail}" if detail else ""}
 
-⚡ IMPACT SUR L'ENTRAÎNEMENT :
-  -> Basculement automatique sur le simulateur pur Python (FastGaiaSimEnv).
-  -> L'environnement reste 100% fonctionnel (observation 2276, règles, scoring),
-     MAIS la vitesse d'exécution sera ~10x à 50x plus lente qu'avec le moteur Rust !
+⚡ LE MOTEUR RUST EST INDISPENSABLE POUR LES ALGORITHMES SOTA (AlphaZero / MuZero).
 
-🛠️  POUR ACTIVER LE MOTEUR RUST ULTRA-RAPIDE :
-  1. Ouvrez un terminal dans le dossier projet_gaiapi :
-       cd "projet_gaiapi"
-  2. Compilez la bibliothèque en mode release :
-       cargo build --release
-  (ou exécutez 'compile_rust.bat' sous Windows / './compile_rust.sh' sous Linux)
+🛠️  POUR COMPILER SUR LINUX (Pop!_OS / Ubuntu) EN 1 CLIC :
+  1. Ouvrez un terminal dans le dossier ProjetGaiai :
+       cd ~/ProjetGaiai
+  2. Lancez le script officiel :
+       ./compile_linux.sh
+
+  Si Rust / Cargo n'est pas encore installé sur votre système Linux :
+       sudo apt update && sudo apt install -y cargo rustc
+       (ou : curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh)
+       puis relancez : ./compile_linux.sh
 {border}
 """
     sys.stderr.write(msg + "\n")
     sys.stderr.flush()
     warnings.warn(
-        "Moteur Rust gaiapi non détecté. Basculement sur FastGaiaSimEnv (pure Python).",
+        "Moteur Rust gaiapi non détecté. Veuillez compiler la bibliothèque native (libgaiapi.so / gaiapi.dll).",
         category=RuntimeWarning,
         stacklevel=2,
     )
@@ -150,7 +151,20 @@ class NativeGaiaEnv:
         import shutil
         import subprocess
 
-        cargo_bin = shutil.which("cargo")
+        cargo_candidates = [
+            shutil.which("cargo"),
+            os.path.expanduser("~/.cargo/bin/cargo"),
+            os.path.expanduser("~/.cargo/bin/cargo.exe"),
+            "/usr/bin/cargo",
+            "/usr/local/bin/cargo",
+            "/opt/cargo/bin/cargo",
+        ]
+        cargo_bin = None
+        for cand in cargo_candidates:
+            if cand and os.path.exists(cand) and (sys.platform.startswith("win") or os.access(cand, os.X_OK)):
+                cargo_bin = cand
+                break
+
         rust_crate_dir = os.path.join(project_root, "projet_gaiapi")
         cargo_toml = os.path.join(rust_crate_dir, "Cargo.toml")
         if not os.path.exists(cargo_toml) and os.path.exists(os.path.join(cwd, "projet_gaiapi", "Cargo.toml")):
@@ -158,30 +172,42 @@ class NativeGaiaEnv:
             cargo_toml = os.path.join(rust_crate_dir, "Cargo.toml")
 
         if cargo_bin and os.path.exists(cargo_toml):
-            print("⚙️  [RUST ENGINE] Détection automatique de Cargo : compilation du moteur Rust en cours (cargo build --release)...")
+            print(f"⚙️  [RUST ENGINE] Cargo détecté ({cargo_bin}) : compilation automatique du moteur Rust (cargo build --release)...")
             try:
-                subprocess.run(
+                cargo_dir = os.path.dirname(cargo_bin)
+                build_env = os.environ.copy()
+                if cargo_dir:
+                    build_env["PATH"] = f"{cargo_dir}{os.pathsep}{build_env.get('PATH', '')}"
+
+                res = subprocess.run(
                     [cargo_bin, "build", "--release"],
                     cwd=rust_crate_dir,
-                    check=True,
+                    env=build_env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
                 )
-                print("✓ [RUST ENGINE] Compilation Rust terminée avec succès !")
-                target_release = os.path.join(rust_crate_dir, "target", "release")
-                for name in lib_names:
-                    candidate = os.path.join(target_release, name)
-                    if os.path.exists(candidate):
-                        try:
-                            test_dll = ctypes.CDLL(candidate)
-                            cls._dll_path = os.path.abspath(candidate)
+                if res.returncode == 0:
+                    print("✓ [RUST ENGINE] Compilation Rust terminée avec succès !")
+                    target_release = os.path.join(rust_crate_dir, "target", "release")
+                    for name in lib_names:
+                        candidate = os.path.join(target_release, name)
+                        if os.path.exists(candidate):
                             try:
-                                shutil.copy2(cls._dll_path, os.path.join(base_dir, name))
-                            except Exception:
-                                pass
-                            return cls._dll_path
-                        except OSError:
-                            continue
+                                test_dll = ctypes.CDLL(candidate)
+                                cls._dll_path = os.path.abspath(candidate)
+                                try:
+                                    shutil.copy2(cls._dll_path, os.path.join(base_dir, name))
+                                except Exception:
+                                    pass
+                                return cls._dll_path
+                            except OSError:
+                                continue
+                else:
+                    err_msg = res.stderr.strip() or res.stdout.strip()
+                    print(f"⚠️  [RUST ENGINE] Erreur lors de la compilation Cargo :\n{err_msg}")
             except Exception as e:
-                print(f"⚠️  [RUST ENGINE] Échec de la compilation Cargo automatique : {e}")
+                print(f"⚠️  [RUST ENGINE] Échec de l'exécution Cargo : {e}")
 
         return None
 
