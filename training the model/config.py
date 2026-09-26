@@ -227,9 +227,9 @@ class MCTSConfig:
     dirichlet_eps: float = 0.25
     temperature: float = 1.0
 
-    # Epistemic Uncertainty Guidance (MC-Dropout) & Resource-Efficient Search Budget
-    use_epistemic_uncertainty: bool = True
-    mc_dropout_passes: int = 4
+    # Epistemic Uncertainty Guidance (MC-Dropout) - Désactivé par défaut en self-play pour vitesse maximale (x5)
+    use_epistemic_uncertainty: bool = False
+    mc_dropout_passes: int = 1
     uncertainty_scale: float = 0.50
     adaptive_budget_enabled: bool = True
     entropy_threshold: float = 0.15
@@ -368,18 +368,19 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     if preset in ("finetune", "phase2", "grandmaster", "gm"):
         # 👑 PHASE 2 : Fine-Tuning Grand Maître (Cible 220 - 240+ VP)
         cfg.alphazero.enabled = True
-        cfg.alphazero.num_simulations = 100
-        cfg.alphazero.gumbel_candidates = 8
-        cfg.alphazero.games_per_epoch = 10
-        cfg.alphazero.training_steps_per_epoch = 200
+        cfg.alphazero.num_simulations = 32
+        cfg.alphazero.gumbel_candidates = 4
+        cfg.alphazero.games_per_epoch = 4
+        cfg.alphazero.training_steps_per_epoch = 100
         cfg.alphazero.temperature_high = 0.5
         cfg.alphazero.temperature_low = 0.05
         cfg.alphazero.dirichlet_eps = 0.15
 
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 100
-        cfg.mcts.gumbel_candidates = 8
+        cfg.mcts.num_simulations = 32
+        cfg.mcts.gumbel_candidates = 4
+        cfg.mcts.use_epistemic_uncertainty = False
 
         cfg.model.block_type = "swiglu"
         cfg.model.policy_activation = "silu"
@@ -441,18 +442,19 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     else:
         # 🚀 PHASE 1 : Pré-entraînement Fondation (Cible ~150 VP) - DÉFAUT
         cfg.alphazero.enabled = True
-        cfg.alphazero.num_simulations = 50
+        cfg.alphazero.num_simulations = 16
         cfg.alphazero.gumbel_candidates = 4
-        cfg.alphazero.games_per_epoch = 10
-        cfg.alphazero.training_steps_per_epoch = 100
+        cfg.alphazero.games_per_epoch = 4
+        cfg.alphazero.training_steps_per_epoch = 50
         cfg.alphazero.temperature_high = 1.0
         cfg.alphazero.temperature_low = 0.1
         cfg.alphazero.dirichlet_eps = 0.25
 
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 50
+        cfg.mcts.num_simulations = 16
         cfg.mcts.gumbel_candidates = 4
+        cfg.mcts.use_epistemic_uncertainty = False
 
         cfg.model.block_type = "swiglu"
         cfg.model.policy_activation = "silu"

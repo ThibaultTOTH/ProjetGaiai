@@ -242,16 +242,26 @@ class MultiPlayerMCTS:
                                 pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
                                     obs_t, num_passes=dropout_passes
                                 )
+                                if leaf_actor == 0:
+                                    leaf_logits = self.agent.action_net(obs_t, mask_t)
+                                    leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
+                                else:
+                                    opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
+                                    leaf_priors = opp_probs.cpu().numpy()
                             else:
-                                pred_score = float(self.agent.score_net(obs_t).item())
+                                if hasattr(self.agent, "evaluate_leaf"):
+                                    pred_score, leaf_priors = self.agent.evaluate_leaf(
+                                        obs_t, mask_t, leaf_actor=leaf_actor
+                                    )
+                                else:
+                                    pred_score = float(self.agent.score_net(obs_t).item())
+                                    if leaf_actor == 0:
+                                        leaf_logits = self.agent.action_net(obs_t, mask_t)
+                                        leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
+                                    else:
+                                        opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
+                                        leaf_priors = opp_probs.cpu().numpy()
                                 leaf_unc = 0.0
-
-                            if leaf_actor == 0:
-                                leaf_logits = self.agent.action_net(obs_t, mask_t)
-                                leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
-                            else:
-                                opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                                leaf_priors = opp_probs.cpu().numpy()
 
                         if np.any(curr_mask):
                             node.player = leaf_actor
@@ -442,16 +452,26 @@ class MultiPlayerMCTS:
                         pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
                             obs_t, num_passes=dropout_passes
                         )
+                        if leaf_actor == 0:
+                            leaf_logits = self.agent.action_net(obs_t, mask_t)
+                            leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
+                        else:
+                            opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
+                            leaf_priors = opp_probs.cpu().numpy()
                     else:
-                        pred_score = float(self.agent.score_net(obs_t).item())
+                        if hasattr(self.agent, "evaluate_leaf"):
+                            pred_score, leaf_priors = self.agent.evaluate_leaf(
+                                obs_t, mask_t, leaf_actor=leaf_actor
+                            )
+                        else:
+                            pred_score = float(self.agent.score_net(obs_t).item())
+                            if leaf_actor == 0:
+                                leaf_logits = self.agent.action_net(obs_t, mask_t)
+                                leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
+                            else:
+                                opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
+                                leaf_priors = opp_probs.cpu().numpy()
                         leaf_unc = 0.0
-
-                    if leaf_actor == 0:
-                        leaf_logits = self.agent.action_net(obs_t, mask_t)
-                        leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
-                    else:
-                        opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                        leaf_priors = opp_probs.cpu().numpy()
 
                 # Expand leaf if legal actions exist
                 if np.any(curr_mask):

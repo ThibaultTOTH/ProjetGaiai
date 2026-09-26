@@ -705,6 +705,34 @@ class DualGaiaAgent(nn.Module):
                 )
         return opp_probs.squeeze(0)
 
+    @torch.no_grad()
+    def evaluate_leaf(
+        self,
+        obs: torch.Tensor,
+        action_mask: Optional[torch.Tensor] = None,
+        leaf_actor: int = 0,
+    ) -> Tuple[float, np.ndarray]:
+        """Ultra-fast joint evaluation of both value and policy prior with a SINGLE shared backbone forward pass."""
+        if obs.dim() == 1:
+            obs = obs.unsqueeze(0)
+        feat = self.shared_backbone(obs)
+        val = self.score_net.head(feat).squeeze(-1)
+        if leaf_actor == 0:
+            logits = self.action_net.policy_head(feat)
+            if action_mask is not None:
+                if action_mask.dim() == 1 and logits.dim() == 2:
+                    action_mask = action_mask.unsqueeze(0)
+                logits = torch.where(action_mask, logits, torch.tensor(-1e9, device=logits.device))
+            priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
+        else:
+            opp_logits = self.action_net.opponent_head(feat)
+            if action_mask is not None:
+                if action_mask.dim() == 1 and opp_logits.dim() == 2:
+                    action_mask = action_mask.unsqueeze(0)
+                opp_logits = torch.where(action_mask, opp_logits, torch.tensor(-1e9, device=opp_logits.device))
+            priors = F.softmax(opp_logits, dim=-1).squeeze(0).cpu().numpy()
+        return float(val.item()), priors
+
     def predict_score_with_uncertainty(
         self, obs: torch.Tensor, num_passes: int = 4
     ) -> Tuple[float, float]:
