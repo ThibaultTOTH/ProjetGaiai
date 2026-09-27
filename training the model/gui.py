@@ -56,7 +56,7 @@ class GaiaRLStudioGUI:
 
     def _create_trainer(self) -> Any:
         algo = getattr(self, 'var_training_algo', None)
-        algo_name = algo.get() if algo else "PPO"
+        algo_name = algo.get() if algo else ("AlphaZero" if getattr(self.config.alphazero, "enabled", False) else "PPO")
         if algo_name == "AlphaZero":
             return AlphaZeroTrainer(self.config)
         if algo_name == "MuZero":
@@ -71,7 +71,7 @@ class GaiaRLStudioGUI:
         self.root.geometry("1240x860")
         self.root.minsize(1020, 720)
 
-        self.config = config or AppConfig()
+        self.config = config or get_training_preset("pretrain")
         self.trainer = self._create_trainer()
         self.hyperopt = HyperparameterOptimizer(self.config)
 
@@ -89,6 +89,12 @@ class GaiaRLStudioGUI:
         self._build_style()
         self._build_header()
         self._build_tabs()
+        self._sync_config_to_ui()
+        if hasattr(self, "lbl_preset_status"):
+            self.lbl_preset_status.config(
+                text="✓ Préréglage actif : 🚀 1. Pré-entraînement Fondation (150 VP)",
+                fg="#38bdf8",
+            )
         self._start_polling()
 
     # -------------------------------------------------------------
@@ -380,7 +386,8 @@ class GaiaRLStudioGUI:
         ttk.Checkbutton(sec_hw, text="Activer TF32 (Tensor Cores Ampere/Ada/Blackwell)", variable=self.var_tf32).grid(row=0, column=3, padx=12, sticky=tk.W)
 
         ttk.Label(sec_hw, text="Algorithme :").grid(row=1, column=0, sticky=tk.W, padx=4, pady=3)
-        self.var_training_algo = tk.StringVar(value="PPO")
+        default_algo = "AlphaZero" if getattr(c.alphazero, "enabled", False) else ("MuZero" if getattr(c.muzero, "enabled", False) else "PPO")
+        self.var_training_algo = tk.StringVar(value=default_algo)
         ttk.Combobox(sec_hw, textvariable=self.var_training_algo, values=["PPO", "AlphaZero", "MuZero"], state="readonly", width=col_w).grid(row=1, column=1, sticky=tk.W, padx=4)
         ttk.Label(sec_hw, text="PPO = Classique | AlphaZero = MCTS+Self-Play | MuZero = Latent MCTS (10x plus rapide)", font=("Segoe UI", 8)).grid(row=1, column=2, columnspan=3, sticky=tk.W, padx=8)
 
