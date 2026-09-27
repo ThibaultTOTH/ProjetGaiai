@@ -75,6 +75,9 @@ class MCTSNode:
                 best_score = score
                 best_action = action
 
+        if best_action == -1 and self.children:
+            best_action = next(iter(self.children.keys()))
+
         return best_action, self.children[best_action]
 
 
@@ -128,7 +131,8 @@ class MultiPlayerMCTS:
         if len(legal_indices) <= 1:
             act = int(legal_indices[0]) if len(legal_indices) == 1 else 0
             probs = np.zeros(action_dim, dtype=np.float32)
-            probs[act] = 1.0
+            if len(legal_indices) == 1:
+                probs[act] = 1.0
             return act, probs, {
                 "algorithm": "gumbel_gaz",
                 "root_visits": 0,
@@ -215,10 +219,14 @@ class MultiPlayerMCTS:
                     step_res = sim_env.step(cand_act)
 
                     # Traverse downward if node is already expanded
-                    while node.is_expanded and not sim_env.terminated and node.children:
+                    depth = 0
+                    while node.is_expanded and not sim_env.terminated and node.children and depth < 50:
                         act, node = node.best_child(c_puct=c_puct, uncertainty_scale=unc_scale)
                         search_path.append(node)
                         step_res = sim_env.step(act)
+                        depth += 1
+                        if hasattr(step_res, "info") and "error" in step_res.info:
+                            break
 
                     # Leaf evaluation
                     if sim_env.terminated:

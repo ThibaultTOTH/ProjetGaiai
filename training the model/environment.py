@@ -447,7 +447,7 @@ class NativeGaiaEnv:
 
         self.round = int(self._round_buf.value)
         self.current_player = int(self._cp_buf.value)
-        self.terminated = bool(self._d_buf.value)
+        self.terminated = bool(self._d_buf.value) or (self.round > self.max_rounds)
 
         new_vp = float(self.dll.gaiapi_get_player_vp(self.env_ptr, actor)) if hasattr(self.dll, "gaiapi_get_player_vp") else 0.0
         raw_r = float(self._r_buf.value)

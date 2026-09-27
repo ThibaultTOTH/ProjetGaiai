@@ -5,7 +5,7 @@ import math
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from collections import deque
 import random
@@ -75,6 +75,7 @@ class AlphaZeroTrainer:
         self.az_config = config.alphazero
         
         self.device = config.hardware.get_torch_device()
+        self.hw_info = config.hardware.configure_cuda()
         if agent is None:
             self.agent = DualGaiaAgent(config.model).to(self.device)
         else:
@@ -94,24 +95,53 @@ class AlphaZeroTrainer:
         self.scaler = torch.amp.GradScaler("cuda", enabled=(self.use_amp and self.device.type == "cuda"))
         
         self._stop_event = threading.Event()
+        self._pause_event = threading.Event()
         self._is_running = False
+        self.current_epoch = 0
 
-    def is_running(self):
+    def is_running(self) -> bool:
         return self._is_running
 
-    def stop(self):
-        self._stop_event.set()
+    def is_paused(self) -> bool:
+        return self._pause_event.is_set()
 
-    def self_play_game(self, env: Any) -> List[Tuple[np.ndarray, np.ndarray, np.ndarray, float]]:
+    def pause(self) -> None:
+        self._pause_event.set()
+
+    def resume(self) -> None:
+        self._pause_event.clear()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        self._pause_event.clear()
+        self._is_running = False
+
+    def self_play_game(self, env: Any) -> Tuple[List[Tuple[np.ndarray, np.ndarray, np.ndarray, float]], float, bool, int]:
         env.reset()
         history = []
         move_count = 0
+        total_game_steps = 0
+        consecutive_step_errors = 0
+        MAX_TOTAL_STEPS = 400
         
-        while not env.terminated:
+        while not env.terminated and total_game_steps < MAX_TOTAL_STEPS:
+            if self._stop_event.is_set():
+                break
+            while self._pause_event.is_set():
+                if self._stop_event.is_set():
+                    break
+                time.sleep(0.2)
+
+            total_game_steps += 1
             current_player = env.current_player
             obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
             mask = env.get_action_mask()
             
+            legal_indices = np.where(mask)[0]
+            if len(legal_indices) == 0:
+                env.terminated = True
+                break
+
             if current_player == 0:
                 temp = self.az_config.temperature_high if move_count < self.az_config.temperature_threshold_move else self.az_config.temperature_low
                 
@@ -133,19 +163,32 @@ class AlphaZeroTrainer:
                     probs_t = F.softmax(logits, dim=-1)
                     probs = probs_t.squeeze(0).cpu().numpy()
                 
-                legal_indices = np.where(mask)[0]
-                if len(legal_indices) > 0:
-                    p_legal = probs[legal_indices]
-                    p_sum = p_legal.sum()
-                    if p_sum > 0:
-                        p_legal = p_legal / p_sum
-                        action = np.random.choice(legal_indices, p=p_legal)
-                    else:
-                        action = int(np.random.choice(legal_indices))
+                p_legal = probs[legal_indices]
+                p_sum = p_legal.sum()
+                if p_sum > 0:
+                    p_legal = p_legal / p_sum
+                    action = np.random.choice(legal_indices, p=p_legal)
                 else:
-                    action = 0
+                    action = int(np.random.choice(legal_indices))
                     
-            env.step(action)
+            step_res = env.step(action)
+            if hasattr(step_res, "info") and "error" in step_res.info:
+                consecutive_step_errors += 1
+                fallback_success = False
+                alt_actions = np.random.permutation(legal_indices)
+                for alt_act in alt_actions:
+                    if alt_act == action:
+                        continue
+                    step_res = env.step(int(alt_act))
+                    if not (hasattr(step_res, "info") and "error" in step_res.info):
+                        fallback_success = True
+                        consecutive_step_errors = 0
+                        break
+                if not fallback_success and consecutive_step_errors >= 5:
+                    env.terminated = True
+                    break
+            else:
+                consecutive_step_errors = 0
             
         raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)]
         p0_vp = raw_vps[0] if len(raw_vps) > 0 else 50.0
@@ -214,11 +257,18 @@ class AlphaZeroTrainer:
     def run_training_loop(self, env: Any, max_epochs: int, callback=None):
         self._is_running = True
         self._stop_event.clear()
+        self._pause_event.clear()
         
-        for epoch in range(1, max_epochs + 1):
+        start_epoch = getattr(self, "current_epoch", 0) + 1
+        for epoch in range(start_epoch, max_epochs + 1):
             if self._stop_event.is_set():
                 break
+            while self._pause_event.is_set():
+                if self._stop_event.is_set():
+                    break
+                time.sleep(0.2)
                 
+            self.current_epoch = epoch
             start_time = time.time()
             self.agent.eval()
             
@@ -294,10 +344,19 @@ class AlphaZeroTrainer:
     def save_checkpoint(self, path: str):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         torch.save({
+            'epoch': self.current_epoch,
             'agent_state_dict': self.agent.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scaler_state_dict': self.scaler.state_dict()
         }, path)
+
+    def save_current_checkpoint(self, path: Optional[str] = None) -> str:
+        if path is None:
+            ckpt_dir = self.config.training.checkpoint_dir
+            os.makedirs(ckpt_dir, exist_ok=True)
+            path = os.path.join(ckpt_dir, f"az_checkpoint_{self.current_epoch}.pt")
+        self.save_checkpoint(path)
+        return path
 
     def load_checkpoint(self, path: str) -> int:
         if not os.path.exists(path):
@@ -309,10 +368,18 @@ class AlphaZeroTrainer:
         if 'scaler_state_dict' in checkpoint and self.use_amp:
             self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
             
-        try:
-            filename = os.path.basename(path)
-            if "az_checkpoint_" in filename:
-                return int(filename.split('_')[-1].split('.')[0])
-        except Exception:
-            pass
-        return 0
+        epoch = 0
+        if 'epoch' in checkpoint:
+            epoch = int(checkpoint['epoch'])
+        else:
+            try:
+                filename = os.path.basename(path)
+                if "az_checkpoint_" in filename:
+                    epoch = int(filename.split('_')[-1].split('.')[0])
+            except Exception:
+                pass
+        self.current_epoch = epoch
+        return epoch
+
+    def resume_from_checkpoint(self, checkpoint_path: str) -> int:
+        return self.load_checkpoint(checkpoint_path)
