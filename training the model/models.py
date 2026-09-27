@@ -892,6 +892,10 @@ class DualGaiaAgent(nn.Module):
                     f"Unrecognized checkpoint format in {path}. Keys: {list(checkpoint.keys()) if isinstance(checkpoint, dict) else type(checkpoint)}"
                 )
 
+        if not getattr(self.config, "finetune_mode", False):
+            for param in self.parameters():
+                param.requires_grad = True
+
         if target_device is not None:
             self.to_device(target_device)
         return meta

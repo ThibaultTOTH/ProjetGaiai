@@ -18,6 +18,33 @@ from config import MCTSConfig
 from models import DualGaiaAgent
 
 
+def compute_milestone_bonus(action: int) -> float:
+    """Calculates tactical milestone bonus for productive strategic actions in Gaia Project."""
+    if 0 <= action < 200:         # BuildMine
+        return 0.3
+    elif 400 <= action < 600:       # UpgradeTradingStation
+        return 0.4
+    elif 600 <= action < 800:     # UpgradeResearchLab
+        return 0.5
+    elif 800 <= action < 1000:    # UpgradePlanetaryInstitute
+        return 0.6
+    elif 1000 <= action < 1200:   # UpgradeAcademy
+        return 0.6
+    elif 1400 <= action < 1406:   # FormFederation
+        return 1.2
+    elif 1406 <= action < 1412:   # AdvanceResearch
+        return 0.5
+    elif 1444 <= action < 1498:   # ClaimTechTile
+        return 0.4
+    elif 1498 <= action < 2308:   # ClaimAdvTechTile
+        return 0.7
+    elif 2308 <= action < 3108:   # ExploreSpaceship
+        return 0.5
+    elif 200 <= action < 400:     # StartGaiaProject
+        return 0.3
+    return 0.0
+
+
 class MCTSNode:
     """A node in the Multi-Player MCTS search tree."""
 
@@ -205,6 +232,11 @@ class MultiPlayerMCTS:
         unc_scale = getattr(self.config, "uncertainty_scale", 0.50) if use_unc else 0.0
         dropout_passes = getattr(self.config, "mc_dropout_passes", 4)
 
+        root_vps = np.array(
+            [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
+            dtype=np.float32,
+        )
+
         active_set = list(candidates)
         for phase in range(num_phases):
             if len(active_set) <= 1:
@@ -212,6 +244,7 @@ class MultiPlayerMCTS:
             sims_per_cand = max(1, total_budget // (num_phases * len(active_set)))
 
             for cand_act in active_set:
+                cand_milestone = compute_milestone_bonus(cand_act)
                 for _ in range(sims_per_cand):
                     sim_env = env.clone()
                     node = root.children[cand_act]
@@ -231,7 +264,7 @@ class MultiPlayerMCTS:
                     # Leaf evaluation
                     if sim_env.terminated:
                         raw_vps = np.array(
-                            [p["vp"] for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
                             dtype=np.float32,
                         )
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
@@ -286,16 +319,26 @@ class MultiPlayerMCTS:
                                 )
                             node.is_expanded = True
 
-                        raw_vps = np.array(
-                            [p["vp"] for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                        leaf_vps = np.array(
+                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
                             dtype=np.float32,
                         )
-                        # Optimism under predicted score:
-                        # Player 0's leaf evaluation is boosted by an optimism bonus if pred_score exceeds baseline
-                        # This encourages MCTS to actively explore and commit to high-scoring strategic paths!
+                        delta_vps = leaf_vps - root_vps
+
+                        milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
+                        cand_bonus = milestone_w * cand_milestone if root_actor == 0 else 0.0
+
+                        # Optimism & Concrete Intermediate VP projection:
+                        # Ensures high-scoring actions (federations +7..12 VP, research, scoring tiles)
+                        # receive immediate discriminative advantage instead of being squashed by flat pred_score
                         optimism_weight = getattr(self.config, "optimism_weight", 0.35)
-                        optimistic_score = pred_score + optimism_weight * max(0.0, pred_score - 70.0)
-                        raw_vps[0] = max(raw_vps[0], optimistic_score)
+                        p0_optimism = optimism_weight * max(0.0, pred_score - 70.0)
+                        p0_projected = pred_score + delta_vps[0] + cand_bonus + p0_optimism
+
+                        raw_vps = np.zeros(4, dtype=np.float32)
+                        raw_vps[0] = p0_projected
+                        for i in range(1, 4):
+                            raw_vps[i] = pred_score + (root_vps[i] - root_vps[0]) + delta_vps[i]
 
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                         margin = (raw_vps - mean_vp) / 25.0
@@ -433,6 +476,11 @@ class MultiPlayerMCTS:
             )
         root.is_expanded = True
 
+        root_vps = np.array(
+            [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
+            dtype=np.float32,
+        )
+
         # 2. Run MCTS Simulations
         for _ in range(sims):
             sim_env = env.clone()
@@ -449,7 +497,7 @@ class MultiPlayerMCTS:
             if sim_env.terminated:
                 # Terminal leaf: true score margin relative to table average
                 raw_vps = np.array(
-                    [p["vp"] for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                    [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
                     dtype=np.float32,
                 )
                 mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
@@ -504,14 +552,25 @@ class MultiPlayerMCTS:
                         )
                     node.is_expanded = True
 
-                # Relative margin estimation with optimism on predicted final score
-                raw_vps = np.array(
-                    [p["vp"] for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                leaf_vps = np.array(
+                    [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
                     dtype=np.float32,
                 )
+                delta_vps = leaf_vps - root_vps
+
+                first_action = search_path[1].action_from_parent if len(search_path) > 1 and search_path[1].action_from_parent is not None else -1
+                cand_milestone = compute_milestone_bonus(first_action) if first_action >= 0 else 0.0
+                milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
+                cand_bonus = milestone_w * cand_milestone if root_actor == 0 else 0.0
+
                 optimism_weight = getattr(self.config, "optimism_weight", 0.25)
-                optimistic_score = pred_score + optimism_weight * max(0.0, pred_score - 70.0)
-                raw_vps[0] = max(raw_vps[0], optimistic_score)
+                p0_optimism = optimism_weight * max(0.0, pred_score - 70.0)
+                p0_projected = pred_score + delta_vps[0] + cand_bonus + p0_optimism
+
+                raw_vps = np.zeros(4, dtype=np.float32)
+                raw_vps[0] = p0_projected
+                for i in range(1, 4):
+                    raw_vps[i] = pred_score + (root_vps[i] - root_vps[0]) + delta_vps[i]
 
                 mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                 value_vector = (raw_vps - mean_vp) / 25.0

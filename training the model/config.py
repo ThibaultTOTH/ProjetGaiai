@@ -235,6 +235,7 @@ class MCTSConfig:
     entropy_threshold: float = 0.15
     min_simulations: int = 2
     optimism_weight: float = 0.25  # Pousse le modèle vers l'optimisme (recherche de branches à fort VP)
+    milestone_shaping_weight: float = 0.50  # Bonus de jalon tactique pour actions structurantes (fédérations, labos, mines)
 
 
 @dataclass
@@ -396,7 +397,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.model.use_gnn_map = True
         cfg.model.gnn_layers = 3
         cfg.model.gnn_hidden_dim = 64
-        cfg.model.finetune_mode = True  # GÈLE LE SHARED BACKBONE !
+        cfg.model.finetune_mode = False  # Dégelé par défaut pour permettre l'apprentissage complet du backbone
 
         cfg.model.policy_lr = 3e-5
         cfg.model.score_lr = 1e-4
