@@ -98,7 +98,7 @@ class ModelConfig:
 
     # Score Predictor (Value Network) - Large Pro ResNet
     score_hidden_layers: List[int] = field(
-        default_factory=lambda: [512, 512, 512, 256]
+        default_factory=lambda: [1024, 1024, 512, 256]
     )
     score_dropout: float = 0.05
     score_activation: str = "silu"  # 'silu', 'gelu', 'mish', 'relu'
@@ -108,7 +108,7 @@ class ModelConfig:
 
     # Action Optimizer (Policy Network) - Large Pro ResNet
     policy_hidden_layers: List[int] = field(
-        default_factory=lambda: [512, 512, 512, 256]
+        default_factory=lambda: [1024, 1024, 512, 256]
     )
     policy_dropout: float = 0.05
     policy_activation: str = "silu"
@@ -116,7 +116,7 @@ class ModelConfig:
     policy_weight_decay: float = 1e-4
 
     # Architecture block type & normalization
-    block_type: str = "pre_ln"  # 'pre_ln', 'bottleneck', 'swiglu'
+    block_type: str = "swiglu"  # 'pre_ln', 'bottleneck', 'swiglu'
     use_input_norm: bool = True
 
     # Spatial GNN Map Encoder (Hexagonal message passing on 200 board hexes)

@@ -350,6 +350,7 @@ class AlphaZeroTrainer:
             'action_net_state': self.agent.action_net.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scaler_state_dict': self.scaler.state_dict() if hasattr(self, 'scaler') and self.scaler else None,
+            'config': self.config,
             'meta': {'epoch': self.current_epoch, 'algorithm': 'AlphaZero'}
         }, path)
 
@@ -369,18 +370,20 @@ class AlphaZeroTrainer:
         except TypeError:
             checkpoint = torch.load(path, map_location=self.device)
 
-        if isinstance(checkpoint, dict) and 'agent_state_dict' in checkpoint:
-            self.agent.load_state_dict(checkpoint['agent_state_dict'])
-        elif isinstance(checkpoint, dict) and 'score_net_state' in checkpoint and 'action_net_state' in checkpoint:
-            self.agent.score_net.load_state_dict(checkpoint['score_net_state'])
-            self.agent.action_net.load_state_dict(checkpoint['action_net_state'])
-        else:
-            try:
-                self.agent.load_state_dict(checkpoint)
-            except Exception:
-                pass
+        meta = self.agent.load_checkpoint(path, device=self.device)
 
-        if isinstance(checkpoint, dict) and 'optimizer_state_dict' in checkpoint:
+        # After agent is loaded (and potentially rebuilt with new parameters), rebind optimizer if needed
+        current_param_ids = {id(p) for p in self.agent.parameters()}
+        opt_param_ids = {id(p) for group in self.optimizer.param_groups for p in group['params']}
+        if current_param_ids != opt_param_ids:
+            lr = getattr(self.config.model, "policy_lr", 1e-4)
+            wd = getattr(self.config.model, "policy_weight_decay", 1e-4)
+            self.optimizer = torch.optim.AdamW(self.agent.parameters(), lr=lr, weight_decay=wd)
+            optimizer_rebuilt = True
+        else:
+            optimizer_rebuilt = False
+
+        if not optimizer_rebuilt and isinstance(checkpoint, dict) and 'optimizer_state_dict' in checkpoint:
             try:
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             except Exception:
@@ -392,18 +395,21 @@ class AlphaZeroTrainer:
                 pass
             
         epoch = 0
-        if isinstance(checkpoint, dict) and 'epoch' in checkpoint:
-            epoch = int(checkpoint['epoch'])
-        elif isinstance(checkpoint, dict) and 'meta' in checkpoint and 'epoch' in checkpoint['meta']:
-            epoch = int(checkpoint['meta']['epoch'])
-        else:
-            try:
-                filename = os.path.basename(path)
-                for part in filename.replace('.', '_').split('_'):
-                    if part.isdigit():
-                        epoch = int(part)
-            except Exception:
-                pass
+        if isinstance(meta, dict) and 'epoch' in meta:
+            epoch = int(meta['epoch'])
+        if epoch == 0:
+            if isinstance(checkpoint, dict) and 'epoch' in checkpoint:
+                epoch = int(checkpoint['epoch'])
+            elif isinstance(checkpoint, dict) and 'meta' in checkpoint and 'epoch' in checkpoint['meta']:
+                epoch = int(checkpoint['meta']['epoch'])
+            else:
+                try:
+                    filename = os.path.basename(path)
+                    for part in filename.replace('.', '_').split('_'):
+                        if part.isdigit():
+                            epoch = int(part)
+                except Exception:
+                    pass
         self.current_epoch = epoch
         return epoch
 

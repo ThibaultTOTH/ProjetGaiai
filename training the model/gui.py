@@ -1229,6 +1229,14 @@ class GaiaRLStudioGUI:
                     self.var_training_algo.set("MuZero")
                 self.trainer = self._create_trainer()
             epoch = self.trainer.resume_from_checkpoint(path)
+            if hasattr(self.trainer, "agent") and hasattr(self.trainer.agent, "config"):
+                self.config.model = self.trainer.agent.config
+            if hasattr(self.trainer, "config"):
+                self.config = self.trainer.config
+            self._sync_config_to_ui()
+            if hasattr(self, "hyperopt"):
+                self.hyperopt.base_config = deepcopy(self.config)
+
             if hasattr(self, "kpi_labels") and "kpi_epochs" in self.kpi_labels:
                 self.kpi_labels["kpi_epochs"].config(text=f"{epoch} / {self.var_max_epochs.get()}")
             messagebox.showinfo("Chargement", f"Modèles chargés avec succès (Reprise à l'Époque {epoch})")

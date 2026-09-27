@@ -549,11 +549,16 @@ class DualGaiaAgent(nn.Module):
     def __init__(self, config: Optional[ModelConfig] = None):
         super().__init__()
         self.config = config or ModelConfig()
-        block_t = getattr(self.config, "block_type", "pre_ln")
+        self._build_modules()
+
+    def _build_modules(self) -> None:
+        block_t = getattr(self.config, "block_type", "swiglu")
         use_in_norm = getattr(self.config, "use_input_norm", True)
         use_gnn = getattr(self.config, "use_gnn_map", True)
         gnn_h = getattr(self.config, "gnn_hidden_dim", 64)
         gnn_l = getattr(self.config, "gnn_layers", 3)
+        pol_layers = getattr(self.config, "policy_hidden_layers", None) or [1024, 1024, 512, 256]
+        sc_layers = getattr(self.config, "score_hidden_layers", None) or pol_layers
 
         # Create Foundation Model (Shared Backbone)
         self.shared_backbone = DualStreamBackbone(
@@ -564,7 +569,7 @@ class DualGaiaAgent(nn.Module):
             gnn_layers=gnn_l,
             map_out_dim=256,
             scalar_out_dim=256,
-            trunk_layers=self.config.policy_hidden_layers or [512, 512, 512, 256],
+            trunk_layers=pol_layers,
             block_type=block_t,
             dropout=self.config.policy_dropout,
             activation=self.config.policy_activation,
@@ -574,7 +579,7 @@ class DualGaiaAgent(nn.Module):
 
         self.score_net = ScorePredictorNet(
             obs_dim=self.config.obs_dim,
-            hidden_layers=self.config.score_hidden_layers,
+            hidden_layers=sc_layers,
             dropout=self.config.score_dropout,
             activation=self.config.score_activation,
             block_type=block_t,
@@ -587,7 +592,7 @@ class DualGaiaAgent(nn.Module):
         self.action_net = ActionOptimizerNet(
             obs_dim=self.config.obs_dim,
             action_dim=self.config.action_dim,
-            hidden_layers=self.config.policy_hidden_layers,
+            hidden_layers=pol_layers,
             dropout=self.config.policy_dropout,
             activation=self.config.policy_activation,
             block_type=block_t,
@@ -601,6 +606,95 @@ class DualGaiaAgent(nn.Module):
         if getattr(self.config, "finetune_mode", False):
             for param in self.shared_backbone.parameters():
                 param.requires_grad = False
+
+    def _adapt_architecture_from_state_dict(
+        self, state_dict: dict, config_obj: Optional[Any] = None
+    ) -> bool:
+        """Dynamically inspects checkpoint state_dict and adjusts agent architecture if needed.
+        Returns True if the architecture was modified and modules were re-instantiated.
+        """
+        rebuild_needed = False
+
+        # 1. Adapt from checkpoint config object if provided
+        if config_obj is not None:
+            model_cfg = getattr(config_obj, "model", config_obj)
+            if hasattr(model_cfg, "block_type") and model_cfg.block_type != getattr(self.config, "block_type", "swiglu"):
+                self.config.block_type = model_cfg.block_type
+                rebuild_needed = True
+            if hasattr(model_cfg, "policy_hidden_layers") and model_cfg.policy_hidden_layers != getattr(self.config, "policy_hidden_layers", None):
+                self.config.policy_hidden_layers = list(model_cfg.policy_hidden_layers)
+                self.config.score_hidden_layers = list(getattr(model_cfg, "score_hidden_layers", model_cfg.policy_hidden_layers))
+                rebuild_needed = True
+            if hasattr(model_cfg, "use_gnn_map") and model_cfg.use_gnn_map != getattr(self.config, "use_gnn_map", True):
+                self.config.use_gnn_map = model_cfg.use_gnn_map
+                rebuild_needed = True
+
+        # 2. Inspect state_dict keys directly (guarantees 100% precision even if config_obj is absent)
+        trunk_prefix = None
+        for cand in ("shared_backbone.trunk.", "backbone.trunk.", "trunk."):
+            if any(k.startswith(cand) for k in state_dict):
+                trunk_prefix = cand
+                break
+
+        detected_block_type = None
+        if any("w_gate" in k or "w_up" in k or "w_down" in k for k in state_dict):
+            detected_block_type = "swiglu"
+        elif any("down.weight" in k and "up.weight" in k for k in state_dict):
+            detected_block_type = "bottleneck"
+        elif trunk_prefix and any(k.startswith(trunk_prefix) and "ln1" in k for k in state_dict):
+            detected_block_type = "pre_ln"
+
+        if detected_block_type is not None and detected_block_type != getattr(self.config, "block_type", "swiglu"):
+            self.config.block_type = detected_block_type
+            rebuild_needed = True
+
+        if trunk_prefix is not None:
+            block_indices = set()
+            for k in state_dict:
+                if k.startswith(trunk_prefix):
+                    remainder = k[len(trunk_prefix):]
+                    parts = remainder.split(".")
+                    if parts and parts[0].isdigit():
+                        block_indices.add(int(parts[0]))
+
+            if block_indices:
+                max_idx = max(block_indices)
+                detected_layers = []
+                for i in range(max_idx + 1):
+                    proj_key = f"{trunk_prefix}{i}.1.weight"
+                    swiglu_key = f"{trunk_prefix}{i}.w_gate.weight"
+                    preln_key = f"{trunk_prefix}{i}.fc1.weight"
+                    bottle_key = f"{trunk_prefix}{i}.down.weight"
+
+                    if proj_key in state_dict:
+                        detected_layers.append(int(state_dict[proj_key].shape[0]))
+                    elif swiglu_key in state_dict:
+                        detected_layers.append(int(state_dict[swiglu_key].shape[1]))
+                    elif preln_key in state_dict:
+                        detected_layers.append(int(state_dict[preln_key].shape[0]))
+                    elif bottle_key in state_dict:
+                        detected_layers.append(int(state_dict[bottle_key].shape[1]))
+                    else:
+                        break
+
+                if len(detected_layers) == (max_idx + 1):
+                    if detected_layers != getattr(self.config, "policy_hidden_layers", None):
+                        self.config.policy_hidden_layers = detected_layers
+                        self.config.score_hidden_layers = list(detected_layers)
+                        rebuild_needed = True
+
+        gnn_in_state = any("map_encoder" in k for k in state_dict)
+        if gnn_in_state != getattr(self.config, "use_gnn_map", True):
+            self.config.use_gnn_map = gnn_in_state
+            rebuild_needed = True
+
+        if rebuild_needed:
+            device = next(self.parameters()).device if list(self.parameters()) else torch.device("cpu")
+            self._build_modules()
+            self.to(device)
+            return True
+
+        return False
 
     def to_device(self, device: torch.device) -> "DualGaiaAgent":
         self.to(device)
@@ -766,28 +860,38 @@ class DualGaiaAgent(nn.Module):
 
     def load_checkpoint(self, path: str, device: Optional[torch.device] = None) -> dict:
         """Loads weights from checkpoint file supporting DualGaiaAgent, AlphaZero, and state_dict formats."""
+        target_device = device or (next(self.parameters()).device if list(self.parameters()) else torch.device("cpu"))
         try:
-            checkpoint = torch.load(path, map_location=device or torch.device("cpu"), weights_only=False)
+            checkpoint = torch.load(path, map_location=target_device, weights_only=False)
         except TypeError:
-            checkpoint = torch.load(path, map_location=device or torch.device("cpu"))
+            checkpoint = torch.load(path, map_location=target_device)
 
         meta = checkpoint.get("meta", {}) if isinstance(checkpoint, dict) else {}
         if isinstance(checkpoint, dict) and "epoch" in checkpoint and "epoch" not in meta:
             meta["epoch"] = checkpoint["epoch"]
 
+        config_obj = checkpoint.get("config", None) if isinstance(checkpoint, dict) else None
+
         if isinstance(checkpoint, dict) and "agent_state_dict" in checkpoint:
-            self.load_state_dict(checkpoint["agent_state_dict"])
+            state_dict = checkpoint["agent_state_dict"]
+            self._adapt_architecture_from_state_dict(state_dict, config_obj)
+            self.load_state_dict(state_dict)
         elif isinstance(checkpoint, dict) and "score_net_state" in checkpoint and "action_net_state" in checkpoint:
-            self.score_net.load_state_dict(checkpoint["score_net_state"])
-            self.action_net.load_state_dict(checkpoint["action_net_state"])
+            score_state = checkpoint["score_net_state"]
+            action_state = checkpoint["action_net_state"]
+            self._adapt_architecture_from_state_dict(score_state, config_obj)
+            self.score_net.load_state_dict(score_state)
+            self.action_net.load_state_dict(action_state)
         else:
+            state_dict = checkpoint if isinstance(checkpoint, dict) else {}
+            self._adapt_architecture_from_state_dict(state_dict, config_obj)
             try:
-                self.load_state_dict(checkpoint)
+                self.load_state_dict(state_dict)
             except Exception:
                 raise KeyError(
                     f"Unrecognized checkpoint format in {path}. Keys: {list(checkpoint.keys()) if isinstance(checkpoint, dict) else type(checkpoint)}"
                 )
 
-        if device is not None:
-            self.to_device(device)
+        if target_device is not None:
+            self.to_device(target_device)
         return meta
