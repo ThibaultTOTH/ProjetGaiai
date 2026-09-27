@@ -499,3 +499,42 @@ class MuZeroTrainer:
                 callback(epoch, metrics)
                 
         self._is_running = False
+
+    def save_checkpoint(self, path: str):
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        torch.save({
+            'epoch': getattr(self, 'current_epoch', 0),
+            'network_state_dict': self.network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'config': self.config,
+            'meta': {'algorithm': 'MuZero'}
+        }, path)
+
+    def save_current_checkpoint(self, path: Optional[str] = None, is_milestone: bool = False, **kwargs) -> str:
+        ckpt_dir = self.config.training.checkpoint_dir
+        os.makedirs(ckpt_dir, exist_ok=True)
+        if path is None:
+            path = os.path.join(ckpt_dir, f"muzero_checkpoint_{getattr(self, 'current_epoch', 0)}.pt")
+            if not is_milestone:
+                latest_path = os.path.join(ckpt_dir, "gaia_latest.pt")
+                self.save_checkpoint(latest_path)
+        self.save_checkpoint(path)
+        return path
+
+    def resume_from_checkpoint(self, path: str) -> int:
+        if not os.path.exists(path):
+            return 0
+        try:
+            ckpt = torch.load(path, map_location=self.device, weights_only=False)
+        except TypeError:
+            ckpt = torch.load(path, map_location=self.device)
+        if isinstance(ckpt, dict) and 'network_state_dict' in ckpt:
+            self.network.load_state_dict(ckpt['network_state_dict'])
+        elif isinstance(ckpt, dict):
+            try:
+                self.network.load_state_dict(ckpt)
+            except Exception:
+                pass
+        epoch = int(ckpt.get('epoch', 0)) if isinstance(ckpt, dict) else 0
+        self.current_epoch = epoch
+        return epoch

@@ -23,6 +23,8 @@ import torch
 
 from analytics import generate_strategy_pdf
 from async_trainer import AsyncRLTrainer
+from alphazero_trainer import AlphaZeroTrainer
+from muzero import MuZeroTrainer
 from config import AppConfig, get_training_preset
 from environment import NativeGaiaEnv, make_gaia_env
 from trainer import RLTrainer, TrainingMetrics
@@ -37,8 +39,14 @@ def parse_args():
         "--preset",
         type=str,
         default="grandmaster",
-        choices=["fast", "pro", "grandmaster", "double_descent", "debug"],
-        help="Training preset ('fast': 50 eps, 'pro': 1000 eps, 'grandmaster': 2500 eps, 'double_descent': 1200 eps 16M SwiGLU)",
+        help="Training preset ('pretrain', 'grandmaster', 'finetune', 'fast', 'debug')",
+    )
+    parser.add_argument(
+        "--algo",
+        type=str,
+        default="auto",
+        choices=["auto", "alphazero", "muzero", "ppo"],
+        help="Training algorithm ('auto': auto-detect from preset, 'alphazero', 'muzero', 'ppo')",
     )
     parser.add_argument(
         "--epochs",
@@ -131,11 +139,27 @@ def main():
         cfg.training.total_episodes = args.epochs
     if args.batch_size is not None:
         cfg.training.batch_size = args.batch_size
+        cfg.alphazero.batch_size = args.batch_size
     if args.device != "auto":
         cfg.hardware.device_override = args.device
     if args.save_interval is not None:
         cfg.training.save_checkpoint_interval = args.save_interval
-    if args.async_appo:
+        cfg.alphazero.checkpoint_interval = args.save_interval
+
+    algo = args.algo.lower()
+    if algo == "auto":
+        if getattr(cfg.alphazero, "enabled", False):
+            algo = "alphazero"
+        elif getattr(cfg.muzero, "enabled", False):
+            algo = "muzero"
+        else:
+            algo = "ppo"
+
+    if algo == "alphazero":
+        trainer = AlphaZeroTrainer(cfg)
+    elif algo == "muzero":
+        trainer = MuZeroTrainer(cfg)
+    elif args.async_appo:
         cfg.async_dist.enabled = True
         cfg.async_dist.num_actors = args.actors
         trainer = AsyncRLTrainer(cfg)
@@ -149,6 +173,8 @@ def main():
         resume_target = args.resume
         if resume_target.lower() == "auto":
             auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_latest.pt")
+            if not os.path.exists(auto_path):
+                auto_path = os.path.join(cfg.training.checkpoint_dir, "az_checkpoint_500.pt")
             if os.path.exists(auto_path):
                 resume_target = auto_path
             else:
@@ -177,36 +203,39 @@ def main():
     env = make_gaia_env(players=cfg.model.num_players)
     start_time = time.time()
 
-    print(f"{'Époque':<10} {'Cadence':<12} {'Pertes (PPO / Score)':<24} {'VP Moyen':<12} {'Victoires':<12} {'Elo':<10} {'VRAM'}")
+    print(f"{'Époque':<10} {'Cadence':<12} {'Pertes (Pol. / Valeur)':<24} {'VP Moyen':<12} {'Victoires':<12} {'Algo':<10} {'VRAM'}")
     print("-" * 78)
 
+    def _format_metric_row(ep, speed, p_loss, v_loss, avg_vp, win_r, vram):
+        p_loss_str = f"P={p_loss:+.3f}"
+        v_loss_str = f"V={v_loss:.3f}"
+        losses_str = f"{p_loss_str} {v_loss_str}"
+        wr_str = f"{win_r * 100.0:.0f}%"
+        speed_str = f"{speed:.0f} st/s"
+        print(
+            f"[{ep:04d}/{target_epochs}] "
+            f"{speed_str:<12} "
+            f"{losses_str:<24} "
+            f"{avg_vp:>5.1f} VP    "
+            f"{wr_str:<12} "
+            f"{algo.upper():<10} "
+            f"{vram}"
+        )
+
     try:
-        while trainer.current_epoch < target_epochs and not stop_requested[0]:
-            m: TrainingMetrics = trainer.train_step(env)
-            ep = m.epoch
-
-            # Format console log
-            p_loss_str = f"P={m.policy_loss:+.3f}"
-            v_loss_str = f"V={m.value_loss:.3f}"
-            losses_str = f"{p_loss_str} {v_loss_str}"
-            wr_str = f"{m.win_rate * 100.0:.0f}%"
-            speed_str = f"{m.steps_per_sec:.0f} st/s"
-            vram_str = f"{m.vram_allocated_mb:.0f} MB" if device.type == "cuda" else "CPU"
-
-            print(
-                f"[{ep:04d}/{target_epochs}] "
-                f"{speed_str:<12} "
-                f"{losses_str:<24} "
-                f"{m.avg_real_score:>5.1f} VP    "
-                f"{wr_str:<12} "
-                f"{m.league_elo:>6.1f}   "
-                f"{vram_str}"
-            )
-
-            # Auto-save checkpoints
-            if ep % cfg.training.save_checkpoint_interval == 0:
-                saved = trainer.save_current_checkpoint(is_milestone=True)
-                print(f"      💾 Checkpoint saved -> {saved}")
+        if algo in ("alphazero", "muzero"):
+            def _az_callback(m):
+                vram = f"{torch.cuda.memory_allocated() / (1024**2):.0f} MB" if device.type == "cuda" else "CPU"
+                _format_metric_row(m.epoch, m.steps_per_sec, m.policy_loss, m.value_loss, m.avg_real_score, m.win_rate, vram)
+            trainer.run_training_loop(env, max_epochs=target_epochs, callback=_az_callback)
+        else:
+            while trainer.current_epoch < target_epochs and not stop_requested[0]:
+                m: TrainingMetrics = trainer.train_step(env)
+                vram = f"{m.vram_allocated_mb:.0f} MB" if device.type == "cuda" else "CPU"
+                _format_metric_row(m.epoch, m.steps_per_sec, m.policy_loss, m.value_loss, m.avg_real_score, m.win_rate, vram)
+                if m.epoch % cfg.training.save_checkpoint_interval == 0:
+                    saved = trainer.save_current_checkpoint(is_milestone=True)
+                    print(f"      💾 Checkpoint saved -> {saved}")
 
     except KeyboardInterrupt:
         print("\n[!] Interrupted by user.")

@@ -299,9 +299,10 @@ class AlphaZeroTrainer:
             total_entropy = 0.0
             total_pred_score = 0.0
             
-            steps = min(self.az_config.training_steps_per_epoch, len(self.replay_buffer) // self.az_config.batch_size)
-            if steps == 0 and len(self.replay_buffer) >= self.az_config.batch_size:
-                steps = 1
+            if len(self.replay_buffer) > 0:
+                steps = max(1, min(self.az_config.training_steps_per_epoch, len(self.replay_buffer) // max(1, self.az_config.batch_size)))
+            else:
+                steps = 0
                 
             for _ in range(steps):
                 if self._stop_event.is_set():
@@ -354,11 +355,14 @@ class AlphaZeroTrainer:
             'meta': {'epoch': self.current_epoch, 'algorithm': 'AlphaZero'}
         }, path)
 
-    def save_current_checkpoint(self, path: Optional[str] = None) -> str:
+    def save_current_checkpoint(self, path: Optional[str] = None, is_milestone: bool = False, **kwargs) -> str:
+        ckpt_dir = self.config.training.checkpoint_dir
+        os.makedirs(ckpt_dir, exist_ok=True)
         if path is None:
-            ckpt_dir = self.config.training.checkpoint_dir
-            os.makedirs(ckpt_dir, exist_ok=True)
             path = os.path.join(ckpt_dir, f"az_checkpoint_{self.current_epoch}.pt")
+            if not is_milestone:
+                latest_path = os.path.join(ckpt_dir, "gaia_latest.pt")
+                self.save_checkpoint(latest_path)
         self.save_checkpoint(path)
         return path
 
