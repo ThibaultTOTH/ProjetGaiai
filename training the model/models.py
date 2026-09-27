@@ -758,19 +758,36 @@ class DualGaiaAgent(nn.Module):
         checkpoint = {
             "score_net_state": self.score_net.state_dict(),
             "action_net_state": self.action_net.state_dict(),
+            "agent_state_dict": self.state_dict(),
             "config": self.config,
             "meta": extra_meta or {},
         }
         torch.save(checkpoint, path)
 
     def load_checkpoint(self, path: str, device: Optional[torch.device] = None) -> dict:
-        """Loads weights from checkpoint file."""
+        """Loads weights from checkpoint file supporting DualGaiaAgent, AlphaZero, and state_dict formats."""
         try:
             checkpoint = torch.load(path, map_location=device or torch.device("cpu"), weights_only=False)
         except TypeError:
             checkpoint = torch.load(path, map_location=device or torch.device("cpu"))
-        self.score_net.load_state_dict(checkpoint["score_net_state"])
-        self.action_net.load_state_dict(checkpoint["action_net_state"])
+
+        meta = checkpoint.get("meta", {}) if isinstance(checkpoint, dict) else {}
+        if isinstance(checkpoint, dict) and "epoch" in checkpoint and "epoch" not in meta:
+            meta["epoch"] = checkpoint["epoch"]
+
+        if isinstance(checkpoint, dict) and "agent_state_dict" in checkpoint:
+            self.load_state_dict(checkpoint["agent_state_dict"])
+        elif isinstance(checkpoint, dict) and "score_net_state" in checkpoint and "action_net_state" in checkpoint:
+            self.score_net.load_state_dict(checkpoint["score_net_state"])
+            self.action_net.load_state_dict(checkpoint["action_net_state"])
+        else:
+            try:
+                self.load_state_dict(checkpoint)
+            except Exception:
+                raise KeyError(
+                    f"Unrecognized checkpoint format in {path}. Keys: {list(checkpoint.keys()) if isinstance(checkpoint, dict) else type(checkpoint)}"
+                )
+
         if device is not None:
             self.to_device(device)
-        return checkpoint.get("meta", {})
+        return meta

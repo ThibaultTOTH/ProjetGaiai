@@ -1219,7 +1219,18 @@ class GaiaRLStudioGUI:
     def _on_load_checkpoint(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("PyTorch Model", "*.pt")])
         if path:
+            filename = os.path.basename(path).lower()
+            if "az_" in filename or "alphazero" in filename:
+                if hasattr(self, "var_training_algo"):
+                    self.var_training_algo.set("AlphaZero")
+                self.trainer = self._create_trainer()
+            elif "muzero" in filename:
+                if hasattr(self, "var_training_algo"):
+                    self.var_training_algo.set("MuZero")
+                self.trainer = self._create_trainer()
             epoch = self.trainer.resume_from_checkpoint(path)
+            if hasattr(self, "kpi_labels") and "kpi_epochs" in self.kpi_labels:
+                self.kpi_labels["kpi_epochs"].config(text=f"{epoch} / {self.var_max_epochs.get()}")
             messagebox.showinfo("Chargement", f"Modèles chargés avec succès (Reprise à l'Époque {epoch})")
 
     def _start_polling(self) -> None:
@@ -1344,10 +1355,21 @@ class GaiaRLStudioGUI:
 
         def _worker():
             try:
+                metrics_hist = {
+                    "epochs": list(self.history_epochs),
+                    "policy_loss": list(self.history_policy_loss),
+                    "value_loss": list(self.history_value_loss),
+                    "pred_scores": list(self.history_pred_scores),
+                    "real_scores": list(self.history_real_scores),
+                }
+                buf = getattr(self.trainer, "replay_buffer", getattr(self.trainer, "buffer", None))
                 out = generate_strategy_pdf(
-                    self.trainer.agent,
+                    agent=self.trainer.agent,
                     output_path=default_path,
                     device=self.trainer.device,
+                    trainer=self.trainer,
+                    replay_buffer=buf,
+                    metrics_history=metrics_hist,
                 )
                 self.root.after(0, lambda: self._on_pdf_generated_success(out))
             except Exception as e:

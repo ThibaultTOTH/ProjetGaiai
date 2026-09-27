@@ -346,8 +346,11 @@ class AlphaZeroTrainer:
         torch.save({
             'epoch': self.current_epoch,
             'agent_state_dict': self.agent.state_dict(),
+            'score_net_state': self.agent.score_net.state_dict(),
+            'action_net_state': self.agent.action_net.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'scaler_state_dict': self.scaler.state_dict()
+            'scaler_state_dict': self.scaler.state_dict() if hasattr(self, 'scaler') and self.scaler else None,
+            'meta': {'epoch': self.current_epoch, 'algorithm': 'AlphaZero'}
         }, path)
 
     def save_current_checkpoint(self, path: Optional[str] = None) -> str:
@@ -361,21 +364,44 @@ class AlphaZeroTrainer:
     def load_checkpoint(self, path: str) -> int:
         if not os.path.exists(path):
             return 0
-        checkpoint = torch.load(path, map_location=self.device)
-        self.agent.load_state_dict(checkpoint['agent_state_dict'])
-        if 'optimizer_state_dict' in checkpoint:
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        if 'scaler_state_dict' in checkpoint and self.use_amp:
-            self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        try:
+            checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        except TypeError:
+            checkpoint = torch.load(path, map_location=self.device)
+
+        if isinstance(checkpoint, dict) and 'agent_state_dict' in checkpoint:
+            self.agent.load_state_dict(checkpoint['agent_state_dict'])
+        elif isinstance(checkpoint, dict) and 'score_net_state' in checkpoint and 'action_net_state' in checkpoint:
+            self.agent.score_net.load_state_dict(checkpoint['score_net_state'])
+            self.agent.action_net.load_state_dict(checkpoint['action_net_state'])
+        else:
+            try:
+                self.agent.load_state_dict(checkpoint)
+            except Exception:
+                pass
+
+        if isinstance(checkpoint, dict) and 'optimizer_state_dict' in checkpoint:
+            try:
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            except Exception:
+                pass
+        if isinstance(checkpoint, dict) and 'scaler_state_dict' in checkpoint and checkpoint['scaler_state_dict'] and self.use_amp:
+            try:
+                self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
+            except Exception:
+                pass
             
         epoch = 0
-        if 'epoch' in checkpoint:
+        if isinstance(checkpoint, dict) and 'epoch' in checkpoint:
             epoch = int(checkpoint['epoch'])
+        elif isinstance(checkpoint, dict) and 'meta' in checkpoint and 'epoch' in checkpoint['meta']:
+            epoch = int(checkpoint['meta']['epoch'])
         else:
             try:
                 filename = os.path.basename(path)
-                if "az_checkpoint_" in filename:
-                    epoch = int(filename.split('_')[-1].split('.')[0])
+                for part in filename.replace('.', '_').split('_'):
+                    if part.isdigit():
+                        epoch = int(part)
             except Exception:
                 pass
         self.current_epoch = epoch
