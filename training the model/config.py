@@ -221,7 +221,7 @@ class MCTSConfig:
     enabled: bool = False  # Off by default during basic PPO, activated for eval/tournament
     algorithm: str = "gumbel"  # 'gumbel' (TSS GAZ 2026, 8-16 sims) or 'puct' (AlphaZero standard)
     num_simulations: int = 16  # 16 is optimal for Gumbel GAZ, 50-100 for PUCT
-    gumbel_candidates: int = 4  # Number of candidate actions retained in Sequential Halving
+    gumbel_candidates: int = 8  # Number of candidate actions retained in Sequential Halving
     c_puct: float = 1.414  # Exploration constant for PUCT fallback
     dirichlet_alpha: float = 0.3
     dirichlet_eps: float = 0.25
@@ -267,6 +267,7 @@ class MicroDispatchConfig:
 class AlphaZeroConfig:
     enabled: bool = False
     num_simulations: int = 50
+    gumbel_candidates: int = 8
     games_per_epoch: int = 10
     training_steps_per_epoch: int = 100
     replay_buffer_size: int = 100_000
@@ -372,7 +373,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         # 👑 PHASE 2 : Fine-Tuning Grand Maître (Cible 220 - 240+ VP)
         cfg.alphazero.enabled = True
         cfg.alphazero.num_simulations = 32
-        cfg.alphazero.gumbel_candidates = 4
+        cfg.alphazero.gumbel_candidates = 8
         cfg.alphazero.games_per_epoch = 4
         cfg.alphazero.training_steps_per_epoch = 100
         cfg.alphazero.temperature_high = 0.5
@@ -382,7 +383,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
         cfg.mcts.num_simulations = 32
-        cfg.mcts.gumbel_candidates = 4
+        cfg.mcts.gumbel_candidates = 8
         cfg.mcts.use_epistemic_uncertainty = False
 
         cfg.model.block_type = "swiglu"
@@ -448,7 +449,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         # 🚀 PHASE 1 : Pré-entraînement Fondation (Cible ~150 VP) - DÉFAUT
         cfg.alphazero.enabled = True
         cfg.alphazero.num_simulations = 16
-        cfg.alphazero.gumbel_candidates = 4
+        cfg.alphazero.gumbel_candidates = 8
         cfg.alphazero.games_per_epoch = 4
         cfg.alphazero.training_steps_per_epoch = 50
         cfg.alphazero.temperature_high = 1.0
@@ -458,7 +459,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
         cfg.mcts.num_simulations = 16
-        cfg.mcts.gumbel_candidates = 4
+        cfg.mcts.gumbel_candidates = 8
         cfg.mcts.use_epistemic_uncertainty = False
 
         cfg.model.block_type = "swiglu"

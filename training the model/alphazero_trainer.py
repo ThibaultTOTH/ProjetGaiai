@@ -31,8 +31,9 @@ class AlphaZeroReplayBuffer:
         self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size: int, optimism_power: float = 1.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        if len(self.buffer) <= batch_size:
-            batch = self.buffer
+        if len(self.buffer) < batch_size:
+            indices = np.random.choice(len(self.buffer), size=batch_size, replace=True)
+            batch = [self.buffer[i] for i in indices]
         else:
             vps = np.array([x[3] for x in self.buffer], dtype=np.float32)
             v_min = float(np.min(vps))
@@ -299,8 +300,8 @@ class AlphaZeroTrainer:
             total_entropy = 0.0
             total_pred_score = 0.0
             
-            if len(self.replay_buffer) > 0:
-                steps = max(1, min(self.az_config.training_steps_per_epoch, len(self.replay_buffer) // max(1, self.az_config.batch_size)))
+            if len(self.replay_buffer) >= 16:
+                steps = self.az_config.training_steps_per_epoch
             else:
                 steps = 0
                 
