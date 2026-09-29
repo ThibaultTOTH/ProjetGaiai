@@ -844,6 +844,9 @@ class GaiaRLStudioGUI:
         c.mcts.gumbel_candidates = self.var_mcts_cand.get()
         c.mcts.use_epistemic_uncertainty = self.var_mcts_unc.get()
         c.mcts.adaptive_budget_enabled = self.var_mcts_gating.get()
+        if hasattr(c, "alphazero"):
+            c.alphazero.num_simulations = self.var_mcts_sims_cfg.get()
+            c.alphazero.gumbel_candidates = self.var_mcts_cand.get()
 
         if hasattr(c, "micro_dispatch"):
             c.micro_dispatch.enabled = self.var_micro_enabled.get()
