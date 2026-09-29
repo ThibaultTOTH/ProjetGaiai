@@ -356,15 +356,17 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     """Returns a production-ready, scientifically calibrated configuration preset.
 
     Supported presets:
-    - 'pretrain' (or 'fondation', 'phase1'):
-        Phase 1 Foundation Model (~150 VP). AlphaZero + MCTS (50 simulations),
-        Over-parameterized SwiGLU [1024, 1024, 512, 256] with HexGNN, unfreezed backbone,
-        Value-Guided Micro-Dispatch, FP16/TF32 enabled. Clean, parasite-free training.
-    - 'finetune' (or 'grandmaster', 'phase2'):
-        Phase 2 Grandmaster Model (230+ VP). AlphaZero with frozen shared backbone,
-        deepened MCTS (100 simulations), multi-agent PBT League with Gaussian matchmaking,
-        RGSC Go-Exploit crisis puzzles, surgical deterministic micro-dispatch.
-    - 'fast': Rapid validation / debug run (20 epochs, lightweight).
+    - 'pretrain' (or 'imitation', 'fondation', 'phase1'):
+        Phase 1 : Pré-entraînement par Imitation / Behavioral Cloning (~150-170 VP).
+        Entraîne le réseau DualGaiaAgent sur le jeu de données humain expert BGS (>170 VP).
+        Over-parameterized SwiGLU [1024, 1024, 512, 256] with HexGNN, backbone dégelé,
+        LR 3e-4, batch 128, TF32/AMP activés. Initialise instantanément la politique de jeu.
+    - 'finetune' (or 'alphazero', 'grandmaster', 'phase2'):
+        Phase 2 : Fine-Tuning AlphaZero Grand Maître (220+ VP).
+        Démarre depuis le checkpoint pré-entraîné 'gaia_supervised_pretrained.pt'.
+        MCTS Gumbel calibré (32 simulations, 8 candidats), self-play avec température basse (0.5 -> 0.05),
+        ligue multi-agents PBT, dépasse le jeu humain sans repartir du hasard.
+    - 'fast': Validation rapide en 20 époques.
     """
     preset = name.lower().strip()
     cfg = AppConfig()

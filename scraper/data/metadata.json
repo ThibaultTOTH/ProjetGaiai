@@ -1,0 +1,4347 @@
+{
+  "total_games": 103,
+  "faction_counts": {
+    "taklons": 38,
+    "gleens": 40,
+    "lantids": 27,
+    "baltaks": 29,
+    "terrans": 42,
+    "ivits": 39,
+    "xenos": 28,
+    "geodens": 21,
+    "itars": 38,
+    "ambas": 17,
+    "hadsch-hallas": 23,
+    "firaks": 29,
+    "bescods": 15,
+    "nevlas": 26
+  },
+  "games": {
+    "FoolMeOnce": {
+      "id": "FoolMeOnce",
+      "endedAt": "2026-09-21T20:24:23.058Z",
+      "num_moves": 363,
+      "max_score": 199,
+      "factions": [
+        "taklons",
+        "gleens",
+        "lantids",
+        "baltaks"
+      ],
+      "players": [
+        {
+          "name": "Swejie",
+          "faction": "taklons",
+          "score": 155,
+          "elo": 201,
+          "ranking": 2
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "gleens",
+          "score": 199,
+          "elo": 438,
+          "ranking": 1
+        },
+        {
+          "name": "eclipz905",
+          "faction": "lantids",
+          "score": 149,
+          "elo": 226,
+          "ranking": 3
+        },
+        {
+          "name": "Roon",
+          "faction": "baltaks",
+          "score": 149,
+          "elo": 138,
+          "ranking": 3
+        }
+      ]
+    },
+    "115-07-28-03": {
+      "id": "115-07-28-03",
+      "endedAt": "2026-09-19T16:05:41.414Z",
+      "num_moves": 346,
+      "max_score": 173,
+      "factions": [
+        "terrans",
+        "ivits",
+        "xenos",
+        "geodens"
+      ],
+      "players": [
+        {
+          "name": "MakotoMorichika",
+          "faction": "terrans",
+          "score": 173,
+          "elo": 285,
+          "ranking": 1
+        },
+        {
+          "name": "NesticLee",
+          "faction": "ivits",
+          "score": 150,
+          "elo": 423,
+          "ranking": 3
+        },
+        {
+          "name": "Pikacha",
+          "faction": "xenos",
+          "score": 158,
+          "elo": 156,
+          "ranking": 2
+        },
+        {
+          "name": "Huang3315",
+          "faction": "geodens",
+          "score": 106,
+          "elo": 221,
+          "ranking": 4
+        }
+      ]
+    },
+    "Cyan-anvil-6390": {
+      "id": "Cyan-anvil-6390",
+      "endedAt": "2026-09-15T01:10:13.118Z",
+      "num_moves": 273,
+      "max_score": 216,
+      "factions": [
+        "terrans",
+        "xenos",
+        "itars",
+        "geodens"
+      ],
+      "players": [
+        {
+          "name": "Joey",
+          "faction": "terrans",
+          "score": 92,
+          "elo": 0,
+          "ranking": 3
+        },
+        {
+          "name": "Tycoontwist",
+          "faction": "xenos",
+          "score": 79,
+          "elo": 1,
+          "ranking": 4
+        },
+        {
+          "name": "rahala",
+          "faction": "itars",
+          "score": 122,
+          "elo": 174,
+          "ranking": 2
+        },
+        {
+          "name": "Nolegsmoo",
+          "faction": "geodens",
+          "score": 216,
+          "elo": 374,
+          "ranking": 1
+        }
+      ]
+    },
+    "Always-Be-Gaming-0105": {
+      "id": "Always-Be-Gaming-0105",
+      "endedAt": "2026-09-13T22:23:58.220Z",
+      "num_moves": 330,
+      "max_score": 178,
+      "factions": [
+        "xenos",
+        "ivits",
+        "itars",
+        "ambas"
+      ],
+      "players": [
+        {
+          "name": "cheeyup",
+          "faction": "xenos",
+          "score": 136,
+          "elo": 383,
+          "ranking": 3
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "ivits",
+          "score": 178,
+          "elo": 292,
+          "ranking": 1
+        },
+        {
+          "name": "rahoi",
+          "faction": "itars",
+          "score": 127,
+          "elo": 120,
+          "ranking": 4
+        },
+        {
+          "name": "Stevoid",
+          "faction": "ambas",
+          "score": 171,
+          "elo": 458,
+          "ranking": 2
+        }
+      ]
+    },
+    "Master-of-Orion-18": {
+      "id": "Master-of-Orion-18",
+      "endedAt": "2026-09-07T22:31:11.073Z",
+      "num_moves": 355,
+      "max_score": 186,
+      "factions": [
+        "itars",
+        "hadsch-hallas",
+        "terrans",
+        "ambas"
+      ],
+      "players": [
+        {
+          "name": "TimmyOTool",
+          "faction": "itars",
+          "score": 178,
+          "elo": 200,
+          "ranking": 2
+        },
+        {
+          "name": "Svenbossi",
+          "faction": "hadsch-hallas",
+          "score": 175,
+          "elo": 277,
+          "ranking": 3
+        },
+        {
+          "name": "Mouthbreather907",
+          "faction": "terrans",
+          "score": 120,
+          "elo": 136,
+          "ranking": 4
+        },
+        {
+          "name": "PlntCrvn",
+          "faction": "ambas",
+          "score": 186,
+          "elo": 319,
+          "ranking": 1
+        }
+      ]
+    },
+    "Heavy-diamond-8364": {
+      "id": "Heavy-diamond-8364",
+      "endedAt": "2026-09-05T05:13:26.915Z",
+      "num_moves": 445,
+      "max_score": 187,
+      "factions": [
+        "terrans",
+        "firaks",
+        "ambas",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "PlntCrvn",
+          "faction": "terrans",
+          "score": 114,
+          "elo": 329,
+          "ranking": 3
+        },
+        {
+          "name": "Gondalf",
+          "faction": "firaks",
+          "score": 150,
+          "elo": 302,
+          "ranking": 2
+        },
+        {
+          "name": "furrecamaster",
+          "faction": "ambas",
+          "score": 187,
+          "elo": 239,
+          "ranking": 1
+        },
+        {
+          "name": "Auditore",
+          "faction": "hadsch-hallas",
+          "score": 95,
+          "elo": 225,
+          "ranking": 4
+        }
+      ]
+    },
+    "pie-in-the-sky": {
+      "id": "pie-in-the-sky",
+      "endedAt": "2026-09-03T18:13:58.997Z",
+      "num_moves": 387,
+      "max_score": 190,
+      "factions": [
+        "itars",
+        "gleens",
+        "ivits",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "Landryn",
+          "faction": "itars",
+          "score": 159,
+          "elo": 192,
+          "ranking": 2
+        },
+        {
+          "name": "Roon",
+          "faction": "gleens",
+          "score": 120,
+          "elo": 129,
+          "ranking": 4
+        },
+        {
+          "name": "eclipz905",
+          "faction": "ivits",
+          "score": 142,
+          "elo": 231,
+          "ranking": 3
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "lantids",
+          "score": 190,
+          "elo": 429,
+          "ranking": 1
+        }
+      ]
+    },
+    "Always-Be-Gaming-0104": {
+      "id": "Always-Be-Gaming-0104",
+      "endedAt": "2026-08-28T14:57:28.496Z",
+      "num_moves": 354,
+      "max_score": 198,
+      "factions": [
+        "gleens",
+        "terrans",
+        "bescods",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "cheeyup",
+          "faction": "gleens",
+          "score": 197,
+          "elo": 381,
+          "ranking": 2
+        },
+        {
+          "name": "Stevoid",
+          "faction": "terrans",
+          "score": 198,
+          "elo": 451,
+          "ranking": 1
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "bescods",
+          "score": 128,
+          "elo": 309,
+          "ranking": 4
+        },
+        {
+          "name": "rahoi",
+          "faction": "taklons",
+          "score": 148,
+          "elo": 115,
+          "ranking": 3
+        }
+      ]
+    },
+    "Candid-island-2299": {
+      "id": "Candid-island-2299",
+      "endedAt": "2026-08-26T04:36:41.604Z",
+      "num_moves": 388,
+      "max_score": 178,
+      "factions": [
+        "geodens",
+        "taklons",
+        "xenos",
+        "firaks"
+      ],
+      "players": [
+        {
+          "name": "Mouthbreather907",
+          "faction": "geodens",
+          "score": 90,
+          "elo": 169,
+          "ranking": 4
+        },
+        {
+          "name": "GhostArth",
+          "faction": "taklons",
+          "score": 178,
+          "elo": 161,
+          "ranking": 1
+        },
+        {
+          "name": "Stevoid",
+          "faction": "xenos",
+          "score": 140,
+          "elo": 457,
+          "ranking": 2
+        },
+        {
+          "name": "Jirayia",
+          "faction": "firaks",
+          "score": 119,
+          "elo": 237,
+          "ranking": 3
+        }
+      ]
+    },
+    "Bash-theorem-4664": {
+      "id": "Bash-theorem-4664",
+      "endedAt": "2026-08-13T17:04:48.037Z",
+      "num_moves": 428,
+      "max_score": 218,
+      "factions": [
+        "ivits",
+        "terrans",
+        "taklons",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Howger1996",
+          "faction": "ivits",
+          "score": 109,
+          "elo": 108,
+          "ranking": 3
+        },
+        {
+          "name": "ch021112",
+          "faction": "terrans",
+          "score": 218,
+          "elo": 375,
+          "ranking": 1
+        },
+        {
+          "name": "frankie10loiol01",
+          "faction": "taklons",
+          "score": 138,
+          "elo": 170,
+          "ranking": 2
+        },
+        {
+          "name": "wcps0401",
+          "faction": "gleens",
+          "score": 109,
+          "elo": 237,
+          "ranking": 3
+        }
+      ]
+    },
+    "Bash-station-4798": {
+      "id": "Bash-station-4798",
+      "endedAt": "2026-08-12T20:11:45.722Z",
+      "num_moves": 342,
+      "max_score": 176,
+      "factions": [
+        "firaks",
+        "baltaks",
+        "taklons",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "Jirayia",
+          "faction": "firaks",
+          "score": 139,
+          "elo": 233,
+          "ranking": 3
+        },
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "baltaks",
+          "score": 165,
+          "elo": 411,
+          "ranking": 2
+        },
+        {
+          "name": "Mouthbreather907",
+          "faction": "taklons",
+          "score": 176,
+          "elo": 188,
+          "ranking": 1
+        },
+        {
+          "name": "Aldousx",
+          "faction": "itars",
+          "score": 82,
+          "elo": 81,
+          "ranking": 4
+        }
+      ]
+    },
+    "SmellsFishy": {
+      "id": "SmellsFishy",
+      "endedAt": "2026-08-10T21:17:00.948Z",
+      "num_moves": 350,
+      "max_score": 185,
+      "factions": [
+        "geodens",
+        "itars",
+        "taklons",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "Swejie",
+          "faction": "geodens",
+          "score": 184,
+          "elo": 193,
+          "ranking": 2
+        },
+        {
+          "name": "eclipz905",
+          "faction": "itars",
+          "score": 97,
+          "elo": 251,
+          "ranking": 4
+        },
+        {
+          "name": "Landryn",
+          "faction": "taklons",
+          "score": 131,
+          "elo": 196,
+          "ranking": 3
+        },
+        {
+          "name": "Tigerfood27",
+          "faction": "ivits",
+          "score": 185,
+          "elo": 258,
+          "ranking": 1
+        }
+      ]
+    },
+    "hardgame287": {
+      "id": "hardgame287",
+      "endedAt": "2026-08-06T13:40:11.945Z",
+      "num_moves": 334,
+      "max_score": 172,
+      "factions": [
+        "bescods",
+        "baltaks",
+        "hadsch-hallas",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Alexey_Kz",
+          "faction": "bescods",
+          "score": 149,
+          "elo": 244,
+          "ranking": 2
+        },
+        {
+          "name": "secondAfterGod",
+          "faction": "baltaks",
+          "score": 172,
+          "elo": 246,
+          "ranking": 1
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "hadsch-hallas",
+          "score": 137,
+          "elo": 274,
+          "ranking": 3
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "gleens",
+          "score": 114,
+          "elo": 121,
+          "ranking": 4
+        }
+      ]
+    },
+    "Always-Be-Gaming-0103": {
+      "id": "Always-Be-Gaming-0103",
+      "endedAt": "2026-08-04T05:01:27.983Z",
+      "num_moves": 412,
+      "max_score": 200,
+      "factions": [
+        "itars",
+        "taklons",
+        "lantids",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "moonbeardesmond",
+          "faction": "itars",
+          "score": 137,
+          "elo": 327,
+          "ranking": 4
+        },
+        {
+          "name": "cheeyup",
+          "faction": "taklons",
+          "score": 200,
+          "elo": 366,
+          "ranking": 1
+        },
+        {
+          "name": "Stevoid",
+          "faction": "lantids",
+          "score": 188,
+          "elo": 459,
+          "ranking": 2
+        },
+        {
+          "name": "rahoi",
+          "faction": "gleens",
+          "score": 144,
+          "elo": 109,
+          "ranking": 3
+        }
+      ]
+    },
+    "Large-wish-9097": {
+      "id": "Large-wish-9097",
+      "endedAt": "2026-08-03T08:18:31.267Z",
+      "num_moves": 262,
+      "max_score": 194,
+      "factions": [
+        "terrans",
+        "xenos",
+        "baltaks",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "T\u00eeB\u00f4",
+          "faction": "terrans",
+          "score": 194,
+          "elo": 1,
+          "ranking": 1
+        },
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "xenos",
+          "score": 165,
+          "elo": 417,
+          "ranking": 2
+        },
+        {
+          "name": "PlntCrvn",
+          "faction": "baltaks",
+          "score": 139,
+          "elo": 308,
+          "ranking": 3
+        },
+        {
+          "name": "loscemo",
+          "faction": "hadsch-hallas",
+          "score": 35,
+          "elo": 1,
+          "ranking": 4
+        }
+      ]
+    },
+    "Always-Be-Gaming-0102": {
+      "id": "Always-Be-Gaming-0102",
+      "endedAt": "2026-07-22T05:04:11.597Z",
+      "num_moves": 345,
+      "max_score": 179,
+      "factions": [
+        "terrans",
+        "ambas",
+        "geodens",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "cheeyup",
+          "faction": "terrans",
+          "score": 179,
+          "elo": 350,
+          "ranking": 1
+        },
+        {
+          "name": "Stevoid",
+          "faction": "ambas",
+          "score": 150,
+          "elo": 458,
+          "ranking": 2
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "geodens",
+          "score": 140,
+          "elo": 334,
+          "ranking": 3
+        },
+        {
+          "name": "rahoi",
+          "faction": "ivits",
+          "score": 110,
+          "elo": 116,
+          "ranking": 4
+        }
+      ]
+    },
+    "In-A-Jam": {
+      "id": "In-A-Jam",
+      "endedAt": "2026-07-21T16:53:06.144Z",
+      "num_moves": 335,
+      "max_score": 195,
+      "factions": [
+        "hadsch-hallas",
+        "gleens",
+        "firaks",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "Roon",
+          "faction": "hadsch-hallas",
+          "score": 130,
+          "elo": 140,
+          "ranking": 4
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "gleens",
+          "score": 195,
+          "elo": 421,
+          "ranking": 1
+        },
+        {
+          "name": "Tigerfood27",
+          "faction": "firaks",
+          "score": 158,
+          "elo": 265,
+          "ranking": 3
+        },
+        {
+          "name": "Landryn",
+          "faction": "lantids",
+          "score": 159,
+          "elo": 186,
+          "ranking": 2
+        }
+      ]
+    },
+    "S3-2313": {
+      "id": "S3-2313",
+      "endedAt": "2026-07-21T10:21:01.631Z",
+      "num_moves": 402,
+      "max_score": 199,
+      "factions": [
+        "ivits",
+        "terrans",
+        "xenos",
+        "bescods"
+      ],
+      "players": [
+        {
+          "name": "Adriano",
+          "faction": "ivits",
+          "score": 140,
+          "elo": 139,
+          "ranking": 3
+        },
+        {
+          "name": "hykkk",
+          "faction": "terrans",
+          "score": 108,
+          "elo": 175,
+          "ranking": 4
+        },
+        {
+          "name": "doldole",
+          "faction": "xenos",
+          "score": 152,
+          "elo": 209,
+          "ranking": 2
+        },
+        {
+          "name": "kupawang",
+          "faction": "bescods",
+          "score": 199,
+          "elo": 231,
+          "ranking": 1
+        }
+      ]
+    },
+    "115-06-10-01": {
+      "id": "115-06-10-01",
+      "endedAt": "2026-07-20T03:26:21.054Z",
+      "num_moves": 361,
+      "max_score": 178,
+      "factions": [
+        "baltaks",
+        "bescods",
+        "itars",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Huang3315",
+          "faction": "baltaks",
+          "score": 154,
+          "elo": 130,
+          "ranking": 2
+        },
+        {
+          "name": "NesticLee",
+          "faction": "bescods",
+          "score": 178,
+          "elo": 433,
+          "ranking": 1
+        },
+        {
+          "name": "Pikacha",
+          "faction": "itars",
+          "score": 146,
+          "elo": 182,
+          "ranking": 3
+        },
+        {
+          "name": "MakotoMorichika",
+          "faction": "taklons",
+          "score": 137,
+          "elo": 341,
+          "ranking": 4
+        }
+      ]
+    },
+    "S3-2312": {
+      "id": "S3-2312",
+      "endedAt": "2026-07-07T04:57:05.304Z",
+      "num_moves": 372,
+      "max_score": 214,
+      "factions": [
+        "geodens",
+        "itars",
+        "ivits",
+        "firaks"
+      ],
+      "players": [
+        {
+          "name": "kupawang",
+          "faction": "geodens",
+          "score": 214,
+          "elo": 215,
+          "ranking": 1
+        },
+        {
+          "name": "doldole",
+          "faction": "itars",
+          "score": 178,
+          "elo": 204,
+          "ranking": 2
+        },
+        {
+          "name": "hykkk",
+          "faction": "ivits",
+          "score": 135,
+          "elo": 180,
+          "ranking": 3
+        },
+        {
+          "name": "Adriano",
+          "faction": "firaks",
+          "score": 129,
+          "elo": 155,
+          "ranking": 4
+        }
+      ]
+    },
+    "GPS24-I": {
+      "id": "GPS24-I",
+      "endedAt": "2026-09-11T22:57:29.145Z",
+      "num_moves": 289,
+      "max_score": 202,
+      "factions": [
+        "ivits",
+        "nevlas",
+        "gleens",
+        "baltaks"
+      ],
+      "players": [
+        {
+          "name": "Ramanujan1729",
+          "faction": "ivits",
+          "score": 202,
+          "elo": 416,
+          "ranking": 1
+        },
+        {
+          "name": "KelvinAllton",
+          "faction": "nevlas",
+          "score": 124,
+          "elo": 116,
+          "ranking": 3
+        },
+        {
+          "name": "Stardusting",
+          "faction": "gleens",
+          "score": 122,
+          "elo": 291,
+          "ranking": 4
+        },
+        {
+          "name": "ray298",
+          "faction": "baltaks",
+          "score": 145,
+          "elo": 389,
+          "ranking": 2
+        }
+      ]
+    },
+    "parallel-universe198": {
+      "id": "parallel-universe198",
+      "endedAt": "2026-08-08T12:52:23.161Z",
+      "num_moves": 332,
+      "max_score": 177,
+      "factions": [
+        "firaks",
+        "nevlas",
+        "ivits",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Brains-on-ice",
+          "faction": "firaks",
+          "score": 140,
+          "elo": 265,
+          "ranking": 3
+        },
+        {
+          "name": "Svenbossi",
+          "faction": "nevlas",
+          "score": 177,
+          "elo": 263,
+          "ranking": 1
+        },
+        {
+          "name": "Mouthbreather907",
+          "faction": "ivits",
+          "score": 155,
+          "elo": 180,
+          "ranking": 2
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "gleens",
+          "score": 116,
+          "elo": 110,
+          "ranking": 4
+        }
+      ]
+    },
+    "Opaque-federation-6198": {
+      "id": "Opaque-federation-6198",
+      "endedAt": "2026-07-31T22:19:14.049Z",
+      "num_moves": 331,
+      "max_score": 185,
+      "factions": [
+        "firaks",
+        "nevlas",
+        "gleens",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "Gondalf",
+          "faction": "firaks",
+          "score": 185,
+          "elo": 283,
+          "ranking": 1
+        },
+        {
+          "name": "Stevoid",
+          "faction": "nevlas",
+          "score": 139,
+          "elo": 456,
+          "ranking": 3
+        },
+        {
+          "name": "ukin",
+          "faction": "gleens",
+          "score": 144,
+          "elo": 374,
+          "ranking": 2
+        },
+        {
+          "name": "vbuu",
+          "faction": "ivits",
+          "score": 61,
+          "elo": 249,
+          "ranking": 4
+        }
+      ]
+    },
+    "parallel-universe196": {
+      "id": "parallel-universe196",
+      "endedAt": "2026-07-11T09:07:49.353Z",
+      "num_moves": 331,
+      "max_score": 176,
+      "factions": [
+        "firaks",
+        "gleens",
+        "terrans",
+        "nevlas"
+      ],
+      "players": [
+        {
+          "name": "Brains-on-ice",
+          "faction": "firaks",
+          "score": 176,
+          "elo": 260,
+          "ranking": 1
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "gleens",
+          "score": 97,
+          "elo": 135,
+          "ranking": 4
+        },
+        {
+          "name": "Mouthbreather907",
+          "faction": "terrans",
+          "score": 139,
+          "elo": 155,
+          "ranking": 3
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "nevlas",
+          "score": 162,
+          "elo": 241,
+          "ranking": 2
+        }
+      ]
+    },
+    "parallel-universe197": {
+      "id": "parallel-universe197",
+      "endedAt": "2026-07-08T14:49:31.158Z",
+      "num_moves": 362,
+      "max_score": 182,
+      "factions": [
+        "nevlas",
+        "ambas",
+        "terrans",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "SergeyGein",
+          "faction": "nevlas",
+          "score": 122,
+          "elo": 148,
+          "ranking": 4
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "ambas",
+          "score": 182,
+          "elo": 223,
+          "ranking": 1
+        },
+        {
+          "name": "Jirayia",
+          "faction": "terrans",
+          "score": 130,
+          "elo": 238,
+          "ranking": 3
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "ivits",
+          "score": 155,
+          "elo": 257,
+          "ranking": 2
+        }
+      ]
+    },
+    "Paramount-baby-1504": {
+      "id": "Paramount-baby-1504",
+      "endedAt": "2026-07-03T08:47:23.035Z",
+      "num_moves": 364,
+      "max_score": 203,
+      "factions": [
+        "gleens",
+        "terrans",
+        "firaks",
+        "geodens"
+      ],
+      "players": [
+        {
+          "name": "Stevoid",
+          "faction": "gleens",
+          "score": 170,
+          "elo": 460,
+          "ranking": 3
+        },
+        {
+          "name": "ashwinik23",
+          "faction": "terrans",
+          "score": 102,
+          "elo": 161,
+          "ranking": 4
+        },
+        {
+          "name": "TinyNose",
+          "faction": "firaks",
+          "score": 203,
+          "elo": 302,
+          "ranking": 1
+        },
+        {
+          "name": "ukin",
+          "faction": "geodens",
+          "score": 172,
+          "elo": 371,
+          "ranking": 2
+        }
+      ]
+    },
+    "Always-Be-Gaming-101b": {
+      "id": "Always-Be-Gaming-101b",
+      "endedAt": "2026-07-03T01:41:48.539Z",
+      "num_moves": 400,
+      "max_score": 206,
+      "factions": [
+        "gleens",
+        "terrans",
+        "taklons",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "cheeyup",
+          "faction": "gleens",
+          "score": 168,
+          "elo": 346,
+          "ranking": 2
+        },
+        {
+          "name": "rahoi",
+          "faction": "terrans",
+          "score": 145,
+          "elo": 123,
+          "ranking": 4
+        },
+        {
+          "name": "Stevoid",
+          "faction": "taklons",
+          "score": 206,
+          "elo": 450,
+          "ranking": 1
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "hadsch-hallas",
+          "score": 150,
+          "elo": 341,
+          "ranking": 3
+        }
+      ]
+    },
+    "Rhyming-story-660": {
+      "id": "Rhyming-story-660",
+      "endedAt": "2026-07-01T22:45:56.519Z",
+      "num_moves": 396,
+      "max_score": 175,
+      "factions": [
+        "terrans",
+        "itars",
+        "ivits",
+        "ambas"
+      ],
+      "players": [
+        {
+          "name": "ukin",
+          "faction": "terrans",
+          "score": 168,
+          "elo": 370,
+          "ranking": 2
+        },
+        {
+          "name": "TimmyOTool",
+          "faction": "itars",
+          "score": 161,
+          "elo": 227,
+          "ranking": 3
+        },
+        {
+          "name": "PlntCrvn",
+          "faction": "ivits",
+          "score": 141,
+          "elo": 301,
+          "ranking": 4
+        },
+        {
+          "name": "TinyNose",
+          "faction": "ambas",
+          "score": 175,
+          "elo": 262,
+          "ranking": 1
+        }
+      ]
+    },
+    "hardgame286": {
+      "id": "hardgame286",
+      "endedAt": "2026-07-01T12:50:54.591Z",
+      "num_moves": 350,
+      "max_score": 177,
+      "factions": [
+        "ambas",
+        "xenos",
+        "lantids",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "SergeyGein",
+          "faction": "ambas",
+          "score": 139,
+          "elo": 137,
+          "ranking": 2
+        },
+        {
+          "name": "secondAfterGod",
+          "faction": "xenos",
+          "score": 137,
+          "elo": 254,
+          "ranking": 3
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "lantids",
+          "score": 177,
+          "elo": 240,
+          "ranking": 1
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "hadsch-hallas",
+          "score": 132,
+          "elo": 243,
+          "ranking": 4
+        }
+      ]
+    },
+    "hardgame285": {
+      "id": "hardgame285",
+      "endedAt": "2026-06-26T19:07:35.596Z",
+      "num_moves": 369,
+      "max_score": 174,
+      "factions": [
+        "ivits",
+        "taklons",
+        "gleens",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "Brains-on-ice",
+          "faction": "ivits",
+          "score": 153,
+          "elo": 228,
+          "ranking": 2
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "taklons",
+          "score": 136,
+          "elo": 158,
+          "ranking": 4
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "gleens",
+          "score": 145,
+          "elo": 251,
+          "ranking": 3
+        },
+        {
+          "name": "secondAfterGod",
+          "faction": "lantids",
+          "score": 174,
+          "elo": 237,
+          "ranking": 1
+        }
+      ]
+    },
+    "S3-2311": {
+      "id": "S3-2311",
+      "endedAt": "2026-06-26T08:04:28.809Z",
+      "num_moves": 408,
+      "max_score": 172,
+      "factions": [
+        "nevlas",
+        "gleens",
+        "terrans",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "Adriano",
+          "faction": "nevlas",
+          "score": 158,
+          "elo": 172,
+          "ranking": 4
+        },
+        {
+          "name": "doldole",
+          "faction": "gleens",
+          "score": 165,
+          "elo": 205,
+          "ranking": 2
+        },
+        {
+          "name": "hykkk",
+          "faction": "terrans",
+          "score": 165,
+          "elo": 179,
+          "ranking": 2
+        },
+        {
+          "name": "kupawang",
+          "faction": "hadsch-hallas",
+          "score": 172,
+          "elo": 198,
+          "ranking": 1
+        }
+      ]
+    },
+    "Stunning-farm-1382": {
+      "id": "Stunning-farm-1382",
+      "endedAt": "2026-06-25T12:08:56.006Z",
+      "num_moves": 364,
+      "max_score": 211,
+      "factions": [
+        "firaks",
+        "taklons",
+        "geodens",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "ukin",
+          "faction": "firaks",
+          "score": 160,
+          "elo": 377,
+          "ranking": 3
+        },
+        {
+          "name": "Svenbossi",
+          "faction": "taklons",
+          "score": 109,
+          "elo": 275,
+          "ranking": 4
+        },
+        {
+          "name": "Hamilton",
+          "faction": "geodens",
+          "score": 211,
+          "elo": 372,
+          "ranking": 1
+        },
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "gleens",
+          "score": 186,
+          "elo": 440,
+          "ranking": 2
+        }
+      ]
+    },
+    "Ancient-ghost-7896": {
+      "id": "Ancient-ghost-7896",
+      "endedAt": "2026-06-23T17:56:21.032Z",
+      "num_moves": 395,
+      "max_score": 183,
+      "factions": [
+        "itars",
+        "xenos",
+        "firaks",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "PlntCrvn",
+          "faction": "itars",
+          "score": 183,
+          "elo": 300,
+          "ranking": 1
+        },
+        {
+          "name": "GhostArth",
+          "faction": "xenos",
+          "score": 111,
+          "elo": 149,
+          "ranking": 4
+        },
+        {
+          "name": "Jirayia",
+          "faction": "firaks",
+          "score": 118,
+          "elo": 237,
+          "ranking": 3
+        },
+        {
+          "name": "ashwinik23",
+          "faction": "lantids",
+          "score": 141,
+          "elo": 151,
+          "ranking": 2
+        }
+      ]
+    },
+    "Lustful-statuettes-3540": {
+      "id": "Lustful-statuettes-3540",
+      "endedAt": "2026-06-19T14:04:44.847Z",
+      "num_moves": 386,
+      "max_score": 185,
+      "factions": [
+        "xenos",
+        "lantids",
+        "itars",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Cyberduck",
+          "faction": "xenos",
+          "score": 161,
+          "elo": 177,
+          "ranking": 2
+        },
+        {
+          "name": "Guta",
+          "faction": "lantids",
+          "score": 185,
+          "elo": 318,
+          "ranking": 1
+        },
+        {
+          "name": "andrenatam",
+          "faction": "itars",
+          "score": 143,
+          "elo": 152,
+          "ranking": 4
+        },
+        {
+          "name": "vicoraio",
+          "faction": "taklons",
+          "score": 157,
+          "elo": 158,
+          "ranking": 3
+        }
+      ]
+    },
+    "S3-2310": {
+      "id": "S3-2310",
+      "endedAt": "2026-06-19T12:10:37.113Z",
+      "num_moves": 378,
+      "max_score": 206,
+      "factions": [
+        "lantids",
+        "hadsch-hallas",
+        "baltaks",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "hykkk",
+          "faction": "lantids",
+          "score": 190,
+          "elo": 172,
+          "ranking": 2
+        },
+        {
+          "name": "doldole",
+          "faction": "hadsch-hallas",
+          "score": 175,
+          "elo": 213,
+          "ranking": 3
+        },
+        {
+          "name": "Adriano",
+          "faction": "baltaks",
+          "score": 154,
+          "elo": 190,
+          "ranking": 4
+        },
+        {
+          "name": "kupawang",
+          "faction": "itars",
+          "score": 206,
+          "elo": 179,
+          "ranking": 1
+        }
+      ]
+    },
+    "GPS23-I": {
+      "id": "GPS23-I",
+      "endedAt": "2026-06-16T08:02:35.263Z",
+      "num_moves": 289,
+      "max_score": 177,
+      "factions": [
+        "lantids",
+        "gleens",
+        "bescods",
+        "geodens"
+      ],
+      "players": [
+        {
+          "name": "Wils1066",
+          "faction": "lantids",
+          "score": 76,
+          "elo": 79,
+          "ranking": 4
+        },
+        {
+          "name": "Ramanujan1729",
+          "faction": "gleens",
+          "score": 158,
+          "elo": 452,
+          "ranking": 2
+        },
+        {
+          "name": "KelvinAllton",
+          "faction": "bescods",
+          "score": 86,
+          "elo": 149,
+          "ranking": 3
+        },
+        {
+          "name": "ray298",
+          "faction": "geodens",
+          "score": 177,
+          "elo": 369,
+          "ranking": 1
+        }
+      ]
+    },
+    "Master-of-Orion-17": {
+      "id": "Master-of-Orion-17",
+      "endedAt": "2026-06-15T22:05:49.213Z",
+      "num_moves": 347,
+      "max_score": 172,
+      "factions": [
+        "geodens",
+        "ivits",
+        "itars",
+        "ambas"
+      ],
+      "players": [
+        {
+          "name": "Svenbossi",
+          "faction": "geodens",
+          "score": 172,
+          "elo": 256,
+          "ranking": 1
+        },
+        {
+          "name": "ashwinik23",
+          "faction": "ivits",
+          "score": 123,
+          "elo": 152,
+          "ranking": 4
+        },
+        {
+          "name": "ukin",
+          "faction": "itars",
+          "score": 142,
+          "elo": 391,
+          "ranking": 3
+        },
+        {
+          "name": "PlntCrvn",
+          "faction": "ambas",
+          "score": 171,
+          "elo": 272,
+          "ranking": 2
+        }
+      ]
+    },
+    "S3-2210": {
+      "id": "S3-2210",
+      "endedAt": "2026-06-15T21:22:45.310Z",
+      "num_moves": 440,
+      "max_score": 186,
+      "factions": [
+        "nevlas",
+        "hadsch-hallas",
+        "firaks",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Adriano",
+          "faction": "nevlas",
+          "score": 135,
+          "elo": 209,
+          "ranking": 4
+        },
+        {
+          "name": "kupawang",
+          "faction": "hadsch-hallas",
+          "score": 173,
+          "elo": 172,
+          "ranking": 2
+        },
+        {
+          "name": "hykkk",
+          "faction": "firaks",
+          "score": 157,
+          "elo": 177,
+          "ranking": 3
+        },
+        {
+          "name": "doldole",
+          "faction": "gleens",
+          "score": 186,
+          "elo": 195,
+          "ranking": 1
+        }
+      ]
+    },
+    "Always-Be-Gaming-0100": {
+      "id": "Always-Be-Gaming-0100",
+      "endedAt": "2026-06-13T06:18:15.929Z",
+      "num_moves": 346,
+      "max_score": 186,
+      "factions": [
+        "bescods",
+        "ambas",
+        "itars",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "Stevoid",
+          "faction": "bescods",
+          "score": 186,
+          "elo": 439,
+          "ranking": 1
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "ambas",
+          "score": 149,
+          "elo": 349,
+          "ranking": 3
+        },
+        {
+          "name": "rahoi",
+          "faction": "itars",
+          "score": 126,
+          "elo": 130,
+          "ranking": 4
+        },
+        {
+          "name": "cheeyup",
+          "faction": "ivits",
+          "score": 178,
+          "elo": 341,
+          "ranking": 2
+        }
+      ]
+    },
+    "GPS23-A": {
+      "id": "GPS23-A",
+      "endedAt": "2026-06-10T08:01:47.303Z",
+      "num_moves": 300,
+      "max_score": 207,
+      "factions": [
+        "itars",
+        "terrans",
+        "baltaks",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Wils1066",
+          "faction": "itars",
+          "score": 90,
+          "elo": 79,
+          "ranking": 4
+        },
+        {
+          "name": "Stardusting",
+          "faction": "terrans",
+          "score": 153,
+          "elo": 272,
+          "ranking": 2
+        },
+        {
+          "name": "MedicineDan",
+          "faction": "baltaks",
+          "score": 207,
+          "elo": 433,
+          "ranking": 1
+        },
+        {
+          "name": "Julietvdv",
+          "faction": "gleens",
+          "score": 104,
+          "elo": 189,
+          "ranking": 3
+        }
+      ]
+    },
+    "ButtOfTheJoke": {
+      "id": "ButtOfTheJoke",
+      "endedAt": "2026-06-04T02:20:54.959Z",
+      "num_moves": 379,
+      "max_score": 215,
+      "factions": [
+        "terrans",
+        "taklons",
+        "xenos",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "eclipz905",
+          "faction": "terrans",
+          "score": 144,
+          "elo": 252,
+          "ranking": 4
+        },
+        {
+          "name": "Swejie",
+          "faction": "taklons",
+          "score": 151,
+          "elo": 200,
+          "ranking": 3
+        },
+        {
+          "name": "Tigerfood27",
+          "faction": "xenos",
+          "score": 156,
+          "elo": 258,
+          "ranking": 2
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "ivits",
+          "score": 215,
+          "elo": 411,
+          "ranking": 1
+        }
+      ]
+    },
+    "S3-1200": {
+      "id": "S3-1200",
+      "endedAt": "2026-06-01T00:02:47.987Z",
+      "num_moves": 396,
+      "max_score": 191,
+      "factions": [
+        "terrans",
+        "taklons",
+        "xenos",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "Adriano",
+          "faction": "terrans",
+          "score": 191,
+          "elo": 214,
+          "ranking": 1
+        },
+        {
+          "name": "hykkk",
+          "faction": "taklons",
+          "score": 182,
+          "elo": 148,
+          "ranking": 2
+        },
+        {
+          "name": "kupawang",
+          "faction": "xenos",
+          "score": 132,
+          "elo": 196,
+          "ranking": 4
+        },
+        {
+          "name": "doldole",
+          "faction": "hadsch-hallas",
+          "score": 164,
+          "elo": 195,
+          "ranking": 3
+        }
+      ]
+    },
+    "parallel-universe192": {
+      "id": "parallel-universe192",
+      "endedAt": "2026-05-26T11:32:09.217Z",
+      "num_moves": 292,
+      "max_score": 201,
+      "factions": [
+        "ivits",
+        "xenos",
+        "lantids",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Alexey_Kz",
+          "faction": "ivits",
+          "score": 126,
+          "elo": 252,
+          "ranking": 3
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "xenos",
+          "score": 152,
+          "elo": 216,
+          "ranking": 2
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "lantids",
+          "score": 201,
+          "elo": 170,
+          "ranking": 1
+        },
+        {
+          "name": "Lacha",
+          "faction": "taklons",
+          "score": 22,
+          "elo": 0,
+          "ranking": 4
+        }
+      ]
+    },
+    "S3-0200": {
+      "id": "S3-0200",
+      "endedAt": "2026-05-23T15:14:17.331Z",
+      "num_moves": 494,
+      "max_score": 196,
+      "factions": [
+        "lantids",
+        "hadsch-hallas",
+        "nevlas",
+        "firaks"
+      ],
+      "players": [
+        {
+          "name": "kupawang",
+          "faction": "lantids",
+          "score": 168,
+          "elo": 203,
+          "ranking": 3
+        },
+        {
+          "name": "doldole",
+          "faction": "hadsch-hallas",
+          "score": 186,
+          "elo": 189,
+          "ranking": 2
+        },
+        {
+          "name": "Adriano",
+          "faction": "nevlas",
+          "score": 196,
+          "elo": 197,
+          "ranking": 1
+        },
+        {
+          "name": "hykkk",
+          "faction": "firaks",
+          "score": 158,
+          "elo": 164,
+          "ranking": 4
+        }
+      ]
+    },
+    "Inspiring-cock-2987": {
+      "id": "Inspiring-cock-2987",
+      "endedAt": "2026-05-23T05:16:52.212Z",
+      "num_moves": 328,
+      "max_score": 192,
+      "factions": [
+        "ivits",
+        "nevlas",
+        "bescods",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Aldousx",
+          "faction": "ivits",
+          "score": 129,
+          "elo": 77,
+          "ranking": 3
+        },
+        {
+          "name": "MorislavKuapcjernata",
+          "faction": "nevlas",
+          "score": 164,
+          "elo": 174,
+          "ranking": 2
+        },
+        {
+          "name": "Boucha",
+          "faction": "bescods",
+          "score": 87,
+          "elo": 178,
+          "ranking": 4
+        },
+        {
+          "name": "Babbuc49",
+          "faction": "gleens",
+          "score": 192,
+          "elo": 421,
+          "ranking": 1
+        }
+      ]
+    },
+    "GPS23-G": {
+      "id": "GPS23-G",
+      "endedAt": "2026-05-22T12:36:17.250Z",
+      "num_moves": 343,
+      "max_score": 188,
+      "factions": [
+        "itars",
+        "taklons",
+        "baltaks",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "Stardusting",
+          "faction": "itars",
+          "score": 97,
+          "elo": 276,
+          "ranking": 3
+        },
+        {
+          "name": "KelvinAllton",
+          "faction": "taklons",
+          "score": 96,
+          "elo": 158,
+          "ranking": 4
+        },
+        {
+          "name": "PeteC",
+          "faction": "baltaks",
+          "score": 169,
+          "elo": 357,
+          "ranking": 2
+        },
+        {
+          "name": "MedicineDan",
+          "faction": "lantids",
+          "score": 188,
+          "elo": 422,
+          "ranking": 1
+        }
+      ]
+    },
+    "Obedient-connection-3316": {
+      "id": "Obedient-connection-3316",
+      "endedAt": "2026-05-21T23:03:50.872Z",
+      "num_moves": 391,
+      "max_score": 173,
+      "factions": [
+        "gleens",
+        "baltaks",
+        "lantids",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "ukin",
+          "faction": "gleens",
+          "score": 170,
+          "elo": 391,
+          "ranking": 2
+        },
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "baltaks",
+          "score": 159,
+          "elo": 455,
+          "ranking": 3
+        },
+        {
+          "name": "ashwinik23",
+          "faction": "lantids",
+          "score": 173,
+          "elo": 125,
+          "ranking": 1
+        },
+        {
+          "name": "Mouthbreather907",
+          "faction": "itars",
+          "score": 135,
+          "elo": 164,
+          "ranking": 4
+        }
+      ]
+    },
+    "Milky-robot-3638": {
+      "id": "Milky-robot-3638",
+      "endedAt": "2026-05-19T19:27:28.499Z",
+      "num_moves": 392,
+      "max_score": 190,
+      "factions": [
+        "lantids",
+        "geodens",
+        "ivits",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Hamilton",
+          "faction": "lantids",
+          "score": 181,
+          "elo": 373,
+          "ranking": 2
+        },
+        {
+          "name": "Svenbossi",
+          "faction": "geodens",
+          "score": 168,
+          "elo": 258,
+          "ranking": 3
+        },
+        {
+          "name": "Jirayia",
+          "faction": "ivits",
+          "score": 133,
+          "elo": 213,
+          "ranking": 4
+        },
+        {
+          "name": "Stevoid",
+          "faction": "taklons",
+          "score": 190,
+          "elo": 426,
+          "ranking": 1
+        }
+      ]
+    },
+    "parallel-universe194": {
+      "id": "parallel-universe194",
+      "endedAt": "2026-05-19T17:45:54.648Z",
+      "num_moves": 274,
+      "max_score": 217,
+      "factions": [
+        "geodens",
+        "terrans",
+        "gleens",
+        "bescods"
+      ],
+      "players": [
+        {
+          "name": "Waranicaton",
+          "faction": "geodens",
+          "score": 27,
+          "elo": 0,
+          "ranking": 4
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "terrans",
+          "score": 217,
+          "elo": 224,
+          "ranking": 1
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "gleens",
+          "score": 155,
+          "elo": 197,
+          "ranking": 2
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "bescods",
+          "score": 98,
+          "elo": 225,
+          "ranking": 3
+        }
+      ]
+    },
+    "GPS23-H": {
+      "id": "GPS23-H",
+      "endedAt": "2026-05-19T10:26:18.864Z",
+      "num_moves": 350,
+      "max_score": 177,
+      "factions": [
+        "xenos",
+        "lantids",
+        "itars",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "PeteC",
+          "faction": "xenos",
+          "score": 165,
+          "elo": 352,
+          "ranking": 2
+        },
+        {
+          "name": "ray298",
+          "faction": "lantids",
+          "score": 123,
+          "elo": 378,
+          "ranking": 3
+        },
+        {
+          "name": "MedicineDan",
+          "faction": "itars",
+          "score": 177,
+          "elo": 409,
+          "ranking": 1
+        },
+        {
+          "name": "Ghostly 1",
+          "faction": "taklons",
+          "score": 105,
+          "elo": 197,
+          "ranking": 4
+        }
+      ]
+    },
+    "S3-0100": {
+      "id": "S3-0100",
+      "endedAt": "2026-05-15T04:00:15.349Z",
+      "num_moves": 396,
+      "max_score": 175,
+      "factions": [
+        "baltaks",
+        "bescods",
+        "lantids",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "doldole",
+          "faction": "baltaks",
+          "score": 175,
+          "elo": 170,
+          "ranking": 1
+        },
+        {
+          "name": "kupawang",
+          "faction": "bescods",
+          "score": 163,
+          "elo": 211,
+          "ranking": 3
+        },
+        {
+          "name": "Adriano",
+          "faction": "lantids",
+          "score": 165,
+          "elo": 191,
+          "ranking": 2
+        },
+        {
+          "name": "hykkk",
+          "faction": "ivits",
+          "score": 133,
+          "elo": 182,
+          "ranking": 4
+        }
+      ]
+    },
+    "AboveAndBeyond": {
+      "id": "AboveAndBeyond",
+      "endedAt": "2026-05-14T22:50:23.666Z",
+      "num_moves": 349,
+      "max_score": 176,
+      "factions": [
+        "firaks",
+        "terrans",
+        "geodens",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Tigerfood27",
+          "faction": "firaks",
+          "score": 173,
+          "elo": 256,
+          "ranking": 2
+        },
+        {
+          "name": "Roon",
+          "faction": "terrans",
+          "score": 134,
+          "elo": 131,
+          "ranking": 3
+        },
+        {
+          "name": "Swejie",
+          "faction": "geodens",
+          "score": 176,
+          "elo": 181,
+          "ranking": 1
+        },
+        {
+          "name": "Landryn",
+          "faction": "taklons",
+          "score": 109,
+          "elo": 225,
+          "ranking": 4
+        }
+      ]
+    },
+    "Rosa-2028-reign": {
+      "id": "Rosa-2028-reign",
+      "endedAt": "2026-05-14T21:11:06.756Z",
+      "num_moves": 331,
+      "max_score": 218,
+      "factions": [
+        "baltaks",
+        "firaks",
+        "terrans",
+        "nevlas"
+      ],
+      "players": [
+        {
+          "name": "Arctic",
+          "faction": "baltaks",
+          "score": 159,
+          "elo": 146,
+          "ranking": 2
+        },
+        {
+          "name": "Kennenth",
+          "faction": "firaks",
+          "score": 218,
+          "elo": 466,
+          "ranking": 1
+        },
+        {
+          "name": "Accend",
+          "faction": "terrans",
+          "score": 140,
+          "elo": 194,
+          "ranking": 3
+        },
+        {
+          "name": "Rosa",
+          "faction": "nevlas",
+          "score": 127,
+          "elo": 113,
+          "ranking": 4
+        }
+      ]
+    },
+    "S3-0000": {
+      "id": "S3-0000",
+      "endedAt": "2026-05-11T07:45:24.379Z",
+      "num_moves": 396,
+      "max_score": 172,
+      "factions": [
+        "itars",
+        "geodens",
+        "terrans",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Adriano",
+          "faction": "itars",
+          "score": 154,
+          "elo": 210,
+          "ranking": 4
+        },
+        {
+          "name": "hykkk",
+          "faction": "geodens",
+          "score": 163,
+          "elo": 175,
+          "ranking": 2
+        },
+        {
+          "name": "kupawang",
+          "faction": "terrans",
+          "score": 157,
+          "elo": 219,
+          "ranking": 3
+        },
+        {
+          "name": "doldole",
+          "faction": "taklons",
+          "score": 172,
+          "elo": 149,
+          "ranking": 1
+        }
+      ]
+    },
+    "Looping-front-5574": {
+      "id": "Looping-front-5574",
+      "endedAt": "2026-05-11T00:27:50.151Z",
+      "num_moves": 367,
+      "max_score": 174,
+      "factions": [
+        "taklons",
+        "nevlas",
+        "firaks",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Jirayia",
+          "faction": "taklons",
+          "score": 120,
+          "elo": 227,
+          "ranking": 4
+        },
+        {
+          "name": "GhostArth",
+          "faction": "nevlas",
+          "score": 156,
+          "elo": 150,
+          "ranking": 2
+        },
+        {
+          "name": "Stevoid",
+          "faction": "firaks",
+          "score": 174,
+          "elo": 415,
+          "ranking": 1
+        },
+        {
+          "name": "ukin",
+          "faction": "gleens",
+          "score": 153,
+          "elo": 403,
+          "ranking": 3
+        }
+      ]
+    },
+    "Always-Be-Gaming-0098": {
+      "id": "Always-Be-Gaming-0098",
+      "endedAt": "2026-05-11T00:21:57.212Z",
+      "num_moves": 395,
+      "max_score": 177,
+      "factions": [
+        "xenos",
+        "itars",
+        "terrans",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Stevoid",
+          "faction": "xenos",
+          "score": 168,
+          "elo": 415,
+          "ranking": 2
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "itars",
+          "score": 166,
+          "elo": 366,
+          "ranking": 3
+        },
+        {
+          "name": "rahoi",
+          "faction": "terrans",
+          "score": 119,
+          "elo": 100,
+          "ranking": 4
+        },
+        {
+          "name": "cheeyup",
+          "faction": "taklons",
+          "score": 177,
+          "elo": 346,
+          "ranking": 1
+        }
+      ]
+    },
+    "hardgame282": {
+      "id": "hardgame282",
+      "endedAt": "2026-05-08T17:00:54.013Z",
+      "num_moves": 317,
+      "max_score": 180,
+      "factions": [
+        "nevlas",
+        "taklons",
+        "gleens",
+        "terrans"
+      ],
+      "players": [
+        {
+          "name": "SergeyGein",
+          "faction": "nevlas",
+          "score": 180,
+          "elo": 183,
+          "ranking": 1
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "taklons",
+          "score": 145,
+          "elo": 200,
+          "ranking": 2
+        },
+        {
+          "name": "secondAfterGod",
+          "faction": "gleens",
+          "score": 137,
+          "elo": 219,
+          "ranking": 4
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "terrans",
+          "score": 144,
+          "elo": 228,
+          "ranking": 3
+        }
+      ]
+    },
+    "joguem-gaia-desgracados": {
+      "id": "joguem-gaia-desgracados",
+      "endedAt": "2026-05-05T17:18:09.142Z",
+      "num_moves": 287,
+      "max_score": 191,
+      "factions": [
+        "terrans",
+        "ivits",
+        "xenos",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "moraesm",
+          "faction": "terrans",
+          "score": 191,
+          "elo": 367,
+          "ranking": 1
+        },
+        {
+          "name": "Tereteteia",
+          "faction": "ivits",
+          "score": 58,
+          "elo": 11,
+          "ranking": 4
+        },
+        {
+          "name": "Guta",
+          "faction": "xenos",
+          "score": 160,
+          "elo": 319,
+          "ranking": 2
+        },
+        {
+          "name": "silvadcl",
+          "faction": "itars",
+          "score": 92,
+          "elo": 47,
+          "ranking": 3
+        }
+      ]
+    },
+    "Yielding-amount-3991": {
+      "id": "Yielding-amount-3991",
+      "endedAt": "2026-05-03T18:37:28.717Z",
+      "num_moves": 372,
+      "max_score": 179,
+      "factions": [
+        "terrans",
+        "baltaks",
+        "itars",
+        "firaks"
+      ],
+      "players": [
+        {
+          "name": "PlntCrvn",
+          "faction": "terrans",
+          "score": 73,
+          "elo": 275,
+          "ranking": 4
+        },
+        {
+          "name": "GhostArth",
+          "faction": "baltaks",
+          "score": 132,
+          "elo": 173,
+          "ranking": 3
+        },
+        {
+          "name": "TimmyOTool",
+          "faction": "itars",
+          "score": 160,
+          "elo": 235,
+          "ranking": 2
+        },
+        {
+          "name": "Esdia",
+          "faction": "firaks",
+          "score": 179,
+          "elo": 204,
+          "ranking": 1
+        }
+      ]
+    },
+    "115-03-11-01": {
+      "id": "115-03-11-01",
+      "endedAt": "2026-04-26T12:08:19.938Z",
+      "num_moves": 343,
+      "max_score": 175,
+      "factions": [
+        "terrans",
+        "ivits",
+        "itars",
+        "ambas"
+      ],
+      "players": [
+        {
+          "name": "NesticLee",
+          "faction": "terrans",
+          "score": 175,
+          "elo": 352,
+          "ranking": 1
+        },
+        {
+          "name": "Huang3315",
+          "faction": "ivits",
+          "score": 129,
+          "elo": 166,
+          "ranking": 3
+        },
+        {
+          "name": "Pikacha",
+          "faction": "itars",
+          "score": 111,
+          "elo": 243,
+          "ranking": 4
+        },
+        {
+          "name": "MakotoMorichika",
+          "faction": "ambas",
+          "score": 136,
+          "elo": 322,
+          "ranking": 2
+        }
+      ]
+    },
+    "Frozen-guacamole-860": {
+      "id": "Frozen-guacamole-860",
+      "endedAt": "2026-04-21T11:55:45.205Z",
+      "num_moves": 413,
+      "max_score": 180,
+      "factions": [
+        "itars",
+        "firaks",
+        "hadsch-hallas",
+        "xenos"
+      ],
+      "players": [
+        {
+          "name": "Boucha",
+          "faction": "itars",
+          "score": 180,
+          "elo": 130,
+          "ranking": 1
+        },
+        {
+          "name": "Babbuc49",
+          "faction": "firaks",
+          "score": 176,
+          "elo": 426,
+          "ranking": 2
+        },
+        {
+          "name": "Faidazz",
+          "faction": "hadsch-hallas",
+          "score": 159,
+          "elo": 196,
+          "ranking": 4
+        },
+        {
+          "name": "MorislavKuapcjernata",
+          "faction": "xenos",
+          "score": 163,
+          "elo": 180,
+          "ranking": 3
+        }
+      ]
+    },
+    "Always-Be-Gaming-0097": {
+      "id": "Always-Be-Gaming-0097",
+      "endedAt": "2026-04-21T05:35:21.722Z",
+      "num_moves": 357,
+      "max_score": 187,
+      "factions": [
+        "bescods",
+        "gleens",
+        "terrans",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "rahoi",
+          "faction": "bescods",
+          "score": 83,
+          "elo": 106,
+          "ranking": 4
+        },
+        {
+          "name": "Stevoid",
+          "faction": "gleens",
+          "score": 187,
+          "elo": 420,
+          "ranking": 1
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "terrans",
+          "score": 165,
+          "elo": 363,
+          "ranking": 2
+        },
+        {
+          "name": "cheeyup",
+          "faction": "hadsch-hallas",
+          "score": 116,
+          "elo": 354,
+          "ranking": 3
+        }
+      ]
+    },
+    "Master-of-Orion-16": {
+      "id": "Master-of-Orion-16",
+      "endedAt": "2026-04-21T00:20:58.121Z",
+      "num_moves": 353,
+      "max_score": 187,
+      "factions": [
+        "itars",
+        "terrans",
+        "baltaks",
+        "xenos"
+      ],
+      "players": [
+        {
+          "name": "TimmyOTool",
+          "faction": "itars",
+          "score": 138,
+          "elo": 238,
+          "ranking": 3
+        },
+        {
+          "name": "Stevoid",
+          "faction": "terrans",
+          "score": 187,
+          "elo": 410,
+          "ranking": 1
+        },
+        {
+          "name": "Svenbossi",
+          "faction": "baltaks",
+          "score": 165,
+          "elo": 250,
+          "ranking": 2
+        },
+        {
+          "name": "GhostArth",
+          "faction": "xenos",
+          "score": 133,
+          "elo": 212,
+          "ranking": 4
+        }
+      ]
+    },
+    "hardgame280": {
+      "id": "hardgame280",
+      "endedAt": "2026-04-12T18:55:47.891Z",
+      "num_moves": 381,
+      "max_score": 188,
+      "factions": [
+        "nevlas",
+        "xenos",
+        "geodens",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "Alexey_Kz",
+          "faction": "nevlas",
+          "score": 188,
+          "elo": 175,
+          "ranking": 1
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "xenos",
+          "score": 170,
+          "elo": 232,
+          "ranking": 3
+        },
+        {
+          "name": "secondAfterGod",
+          "faction": "geodens",
+          "score": 127,
+          "elo": 261,
+          "ranking": 4
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "lantids",
+          "score": 176,
+          "elo": 147,
+          "ranking": 2
+        }
+      ]
+    },
+    "s1-5233": {
+      "id": "s1-5233",
+      "endedAt": "2026-04-11T05:05:06.434Z",
+      "num_moves": 446,
+      "max_score": 172,
+      "factions": [
+        "lantids",
+        "baltaks",
+        "gleens",
+        "nevlas"
+      ],
+      "players": [
+        {
+          "name": "kupawang",
+          "faction": "lantids",
+          "score": 139,
+          "elo": 209,
+          "ranking": 3
+        },
+        {
+          "name": "doldole",
+          "faction": "baltaks",
+          "score": 172,
+          "elo": 146,
+          "ranking": 1
+        },
+        {
+          "name": "hykkk",
+          "faction": "gleens",
+          "score": 116,
+          "elo": 200,
+          "ranking": 4
+        },
+        {
+          "name": "Adriano",
+          "faction": "nevlas",
+          "score": 155,
+          "elo": 199,
+          "ranking": 2
+        }
+      ]
+    },
+    "ABitMuch": {
+      "id": "ABitMuch",
+      "endedAt": "2026-04-06T14:38:53.227Z",
+      "num_moves": 367,
+      "max_score": 176,
+      "factions": [
+        "firaks",
+        "terrans",
+        "xenos",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "Tigerfood27",
+          "faction": "firaks",
+          "score": 131,
+          "elo": 262,
+          "ranking": 3
+        },
+        {
+          "name": "Roon",
+          "faction": "terrans",
+          "score": 74,
+          "elo": 141,
+          "ranking": 4
+        },
+        {
+          "name": "eclipz905",
+          "faction": "xenos",
+          "score": 169,
+          "elo": 251,
+          "ranking": 2
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "ivits",
+          "score": 176,
+          "elo": 405,
+          "ranking": 1
+        }
+      ]
+    },
+    "s1-4222": {
+      "id": "s1-4222",
+      "endedAt": "2026-04-03T06:22:28.787Z",
+      "num_moves": 389,
+      "max_score": 174,
+      "factions": [
+        "itars",
+        "baltaks",
+        "taklons",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "doldole",
+          "faction": "itars",
+          "score": 161,
+          "elo": 167,
+          "ranking": 3
+        },
+        {
+          "name": "kupawang",
+          "faction": "baltaks",
+          "score": 174,
+          "elo": 200,
+          "ranking": 1
+        },
+        {
+          "name": "Adriano",
+          "faction": "taklons",
+          "score": 115,
+          "elo": 206,
+          "ranking": 4
+        },
+        {
+          "name": "hykkk",
+          "faction": "ivits",
+          "score": 167,
+          "elo": 182,
+          "ranking": 2
+        }
+      ]
+    },
+    "Cynical-shield-3074": {
+      "id": "Cynical-shield-3074",
+      "endedAt": "2026-04-02T00:26:37.031Z",
+      "num_moves": 347,
+      "max_score": 201,
+      "factions": [
+        "lantids",
+        "nevlas",
+        "gleens",
+        "bescods"
+      ],
+      "players": [
+        {
+          "name": "CountRobert",
+          "faction": "lantids",
+          "score": 142,
+          "elo": 153,
+          "ranking": 3
+        },
+        {
+          "name": "GhostArth",
+          "faction": "nevlas",
+          "score": 135,
+          "elo": 224,
+          "ranking": 4
+        },
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "gleens",
+          "score": 169,
+          "elo": 437,
+          "ranking": 2
+        },
+        {
+          "name": "ejsby",
+          "faction": "bescods",
+          "score": 201,
+          "elo": 330,
+          "ranking": 1
+        }
+      ]
+    },
+    "Always-Be-Gaming-0096": {
+      "id": "Always-Be-Gaming-0096",
+      "endedAt": "2026-04-01T23:11:06.115Z",
+      "num_moves": 370,
+      "max_score": 188,
+      "factions": [
+        "itars",
+        "taklons",
+        "ivits",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "moonbeardesmond",
+          "faction": "itars",
+          "score": 149,
+          "elo": 385,
+          "ranking": 4
+        },
+        {
+          "name": "cheeyup",
+          "faction": "taklons",
+          "score": 171,
+          "elo": 350,
+          "ranking": 2
+        },
+        {
+          "name": "rahoi",
+          "faction": "ivits",
+          "score": 150,
+          "elo": 100,
+          "ranking": 3
+        },
+        {
+          "name": "Stevoid",
+          "faction": "gleens",
+          "score": 188,
+          "elo": 396,
+          "ranking": 1
+        }
+      ]
+    },
+    "s1-4212": {
+      "id": "s1-4212",
+      "endedAt": "2026-03-31T03:25:07.622Z",
+      "num_moves": 427,
+      "max_score": 223,
+      "factions": [
+        "gleens",
+        "bescods",
+        "geodens",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "kupawang",
+          "faction": "gleens",
+          "score": 171,
+          "elo": 194,
+          "ranking": 2
+        },
+        {
+          "name": "Adriano",
+          "faction": "bescods",
+          "score": 168,
+          "elo": 214,
+          "ranking": 3
+        },
+        {
+          "name": "doldole",
+          "faction": "geodens",
+          "score": 136,
+          "elo": 185,
+          "ranking": 4
+        },
+        {
+          "name": "hykkk",
+          "faction": "lantids",
+          "score": 223,
+          "elo": 162,
+          "ranking": 1
+        }
+      ]
+    },
+    "Deceitful-mushroom-9047": {
+      "id": "Deceitful-mushroom-9047",
+      "endedAt": "2026-03-30T14:30:38.996Z",
+      "num_moves": 336,
+      "max_score": 174,
+      "factions": [
+        "itars",
+        "bescods",
+        "gleens",
+        "ambas"
+      ],
+      "players": [
+        {
+          "name": "TimmyOTool",
+          "faction": "itars",
+          "score": 144,
+          "elo": 224,
+          "ranking": 3
+        },
+        {
+          "name": "maa11",
+          "faction": "bescods",
+          "score": 174,
+          "elo": 281,
+          "ranking": 1
+        },
+        {
+          "name": "GhostArth",
+          "faction": "gleens",
+          "score": 99,
+          "elo": 221,
+          "ranking": 4
+        },
+        {
+          "name": "Norbit",
+          "faction": "ambas",
+          "score": 162,
+          "elo": 381,
+          "ranking": 2
+        }
+      ]
+    },
+    "Firm-sea-9660": {
+      "id": "Firm-sea-9660",
+      "endedAt": "2026-03-30T11:34:22.424Z",
+      "num_moves": 323,
+      "max_score": 194,
+      "factions": [
+        "taklons",
+        "terrans",
+        "ivits",
+        "nevlas"
+      ],
+      "players": [
+        {
+          "name": "BioClimbingRay",
+          "faction": "taklons",
+          "score": 43,
+          "elo": 0,
+          "ranking": 4
+        },
+        {
+          "name": "Jollah",
+          "faction": "terrans",
+          "score": 121,
+          "elo": 100,
+          "ranking": 3
+        },
+        {
+          "name": "GhostArth",
+          "faction": "ivits",
+          "score": 194,
+          "elo": 218,
+          "ranking": 1
+        },
+        {
+          "name": "TimmyOTool",
+          "faction": "nevlas",
+          "score": 154,
+          "elo": 221,
+          "ranking": 2
+        }
+      ]
+    },
+    "Long-words-1458": {
+      "id": "Long-words-1458",
+      "endedAt": "2026-03-29T00:26:00.782Z",
+      "num_moves": 306,
+      "max_score": 173,
+      "factions": [
+        "terrans",
+        "bescods",
+        "xenos",
+        "hadsch-hallas"
+      ],
+      "players": [
+        {
+          "name": "ukin",
+          "faction": "terrans",
+          "score": 173,
+          "elo": 395,
+          "ranking": 1
+        },
+        {
+          "name": "njmarshall727",
+          "faction": "bescods",
+          "score": 71,
+          "elo": 45,
+          "ranking": 4
+        },
+        {
+          "name": "GhostArth",
+          "faction": "xenos",
+          "score": 134,
+          "elo": 203,
+          "ranking": 2
+        },
+        {
+          "name": "CountRobert",
+          "faction": "hadsch-hallas",
+          "score": 130,
+          "elo": 157,
+          "ranking": 3
+        }
+      ]
+    },
+    "S1-3211": {
+      "id": "S1-3211",
+      "endedAt": "2026-03-23T22:40:12.062Z",
+      "num_moves": 424,
+      "max_score": 181,
+      "factions": [
+        "taklons",
+        "nevlas",
+        "baltaks",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "hykkk",
+          "faction": "taklons",
+          "score": 152,
+          "elo": 184,
+          "ranking": 4
+        },
+        {
+          "name": "doldole",
+          "faction": "nevlas",
+          "score": 166,
+          "elo": 212,
+          "ranking": 3
+        },
+        {
+          "name": "Adriano",
+          "faction": "baltaks",
+          "score": 171,
+          "elo": 191,
+          "ranking": 2
+        },
+        {
+          "name": "kupawang",
+          "faction": "ivits",
+          "score": 181,
+          "elo": 169,
+          "ranking": 1
+        }
+      ]
+    },
+    "Holistic-rainbow-2719": {
+      "id": "Holistic-rainbow-2719",
+      "endedAt": "2026-03-23T18:56:08.064Z",
+      "num_moves": 389,
+      "max_score": 177,
+      "factions": [
+        "baltaks",
+        "ivits",
+        "firaks",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Faidazz",
+          "faction": "baltaks",
+          "score": 177,
+          "elo": 166,
+          "ranking": 1
+        },
+        {
+          "name": "MorislavKuapcjernata",
+          "faction": "ivits",
+          "score": 177,
+          "elo": 159,
+          "ranking": 1
+        },
+        {
+          "name": "Boucha",
+          "faction": "firaks",
+          "score": 169,
+          "elo": 143,
+          "ranking": 3
+        },
+        {
+          "name": "Aldousx",
+          "faction": "taklons",
+          "score": 116,
+          "elo": 77,
+          "ranking": 4
+        }
+      ]
+    },
+    "DumpsterFire": {
+      "id": "DumpsterFire",
+      "endedAt": "2026-03-18T23:21:49.737Z",
+      "num_moves": 363,
+      "max_score": 176,
+      "factions": [
+        "nevlas",
+        "ivits",
+        "xenos",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Roon",
+          "faction": "nevlas",
+          "score": 143,
+          "elo": 143,
+          "ranking": 3
+        },
+        {
+          "name": "Tigerfood27",
+          "faction": "ivits",
+          "score": 152,
+          "elo": 260,
+          "ranking": 2
+        },
+        {
+          "name": "Landryn",
+          "faction": "xenos",
+          "score": 176,
+          "elo": 184,
+          "ranking": 1
+        },
+        {
+          "name": "Swejie",
+          "faction": "taklons",
+          "score": 141,
+          "elo": 213,
+          "ranking": 4
+        }
+      ]
+    },
+    "S1-2111": {
+      "id": "S1-2111",
+      "endedAt": "2026-03-17T09:42:54.814Z",
+      "num_moves": 437,
+      "max_score": 172,
+      "factions": [
+        "xenos",
+        "hadsch-hallas",
+        "firaks",
+        "nevlas"
+      ],
+      "players": [
+        {
+          "name": "doldole",
+          "faction": "xenos",
+          "score": 172,
+          "elo": 189,
+          "ranking": 1
+        },
+        {
+          "name": "kupawang",
+          "faction": "hadsch-hallas",
+          "score": 142,
+          "elo": 193,
+          "ranking": 3
+        },
+        {
+          "name": "hykkk",
+          "faction": "firaks",
+          "score": 166,
+          "elo": 184,
+          "ranking": 2
+        },
+        {
+          "name": "Adriano",
+          "faction": "nevlas",
+          "score": 94,
+          "elo": 190,
+          "ranking": 4
+        }
+      ]
+    },
+    "Always-Be-Gaming-0095": {
+      "id": "Always-Be-Gaming-0095",
+      "endedAt": "2026-03-16T17:46:34.043Z",
+      "num_moves": 341,
+      "max_score": 206,
+      "factions": [
+        "ambas",
+        "terrans",
+        "gleens",
+        "geodens"
+      ],
+      "players": [
+        {
+          "name": "Stevoid",
+          "faction": "ambas",
+          "score": 160,
+          "elo": 395,
+          "ranking": 2
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "terrans",
+          "score": 206,
+          "elo": 371,
+          "ranking": 1
+        },
+        {
+          "name": "cheeyup",
+          "faction": "gleens",
+          "score": 120,
+          "elo": 359,
+          "ranking": 3
+        },
+        {
+          "name": "rahoi",
+          "faction": "geodens",
+          "score": 103,
+          "elo": 100,
+          "ranking": 4
+        }
+      ]
+    },
+    "parallel-universe184": {
+      "id": "parallel-universe184",
+      "endedAt": "2026-03-15T17:53:38.994Z",
+      "num_moves": 363,
+      "max_score": 171,
+      "factions": [
+        "itars",
+        "ivits",
+        "taklons",
+        "xenos"
+      ],
+      "players": [
+        {
+          "name": "SergeyGein",
+          "faction": "itars",
+          "score": 171,
+          "elo": 194,
+          "ranking": 1
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "ivits",
+          "score": 144,
+          "elo": 172,
+          "ranking": 2
+        },
+        {
+          "name": "Jirayia",
+          "faction": "taklons",
+          "score": 134,
+          "elo": 250,
+          "ranking": 3
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "xenos",
+          "score": 114,
+          "elo": 183,
+          "ranking": 4
+        }
+      ]
+    },
+    "S1-2100": {
+      "id": "S1-2100",
+      "endedAt": "2026-03-12T15:02:45.193Z",
+      "num_moves": 440,
+      "max_score": 222,
+      "factions": [
+        "xenos",
+        "ambas",
+        "lantids",
+        "baltaks"
+      ],
+      "players": [
+        {
+          "name": "doldole",
+          "faction": "xenos",
+          "score": 158,
+          "elo": 195,
+          "ranking": 3
+        },
+        {
+          "name": "Adriano",
+          "faction": "ambas",
+          "score": 155,
+          "elo": 209,
+          "ranking": 4
+        },
+        {
+          "name": "hykkk",
+          "faction": "lantids",
+          "score": 222,
+          "elo": 164,
+          "ranking": 1
+        },
+        {
+          "name": "kupawang",
+          "faction": "baltaks",
+          "score": 167,
+          "elo": 187,
+          "ranking": 2
+        }
+      ]
+    },
+    "Rolling-signal-3397": {
+      "id": "Rolling-signal-3397",
+      "endedAt": "2026-03-11T02:56:54.016Z",
+      "num_moves": 354,
+      "max_score": 194,
+      "factions": [
+        "ambas",
+        "bescods",
+        "hadsch-hallas",
+        "terrans"
+      ],
+      "players": [
+        {
+          "name": "GhostArth",
+          "faction": "ambas",
+          "score": 163,
+          "elo": 244,
+          "ranking": 2
+        },
+        {
+          "name": "Stevoid",
+          "faction": "bescods",
+          "score": 132,
+          "elo": 408,
+          "ranking": 3
+        },
+        {
+          "name": "CountRobert",
+          "faction": "hadsch-hallas",
+          "score": 115,
+          "elo": 145,
+          "ranking": 4
+        },
+        {
+          "name": "ukin",
+          "faction": "terrans",
+          "score": 194,
+          "elo": 382,
+          "ranking": 1
+        }
+      ]
+    },
+    "S1-1000": {
+      "id": "S1-1000",
+      "endedAt": "2026-03-09T05:52:34.884Z",
+      "num_moves": 418,
+      "max_score": 193,
+      "factions": [
+        "hadsch-hallas",
+        "nevlas",
+        "taklons",
+        "xenos"
+      ],
+      "players": [
+        {
+          "name": "kupawang",
+          "faction": "hadsch-hallas",
+          "score": 152,
+          "elo": 179,
+          "ranking": 3
+        },
+        {
+          "name": "Adriano",
+          "faction": "nevlas",
+          "score": 193,
+          "elo": 200,
+          "ranking": 1
+        },
+        {
+          "name": "hykkk",
+          "faction": "taklons",
+          "score": 116,
+          "elo": 200,
+          "ranking": 4
+        },
+        {
+          "name": "doldole",
+          "faction": "xenos",
+          "score": 168,
+          "elo": 176,
+          "ranking": 2
+        }
+      ]
+    },
+    "GPS22-B": {
+      "id": "GPS22-B",
+      "endedAt": "2026-03-07T17:53:07.488Z",
+      "num_moves": 287,
+      "max_score": 205,
+      "factions": [
+        "hadsch-hallas",
+        "ambas",
+        "itars",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Ramanujan1729",
+          "faction": "hadsch-hallas",
+          "score": 205,
+          "elo": 447,
+          "ranking": 1
+        },
+        {
+          "name": "Julietvdv",
+          "faction": "ambas",
+          "score": 127,
+          "elo": 111,
+          "ranking": 3
+        },
+        {
+          "name": "ray298",
+          "faction": "itars",
+          "score": 141,
+          "elo": 393,
+          "ranking": 2
+        },
+        {
+          "name": "Almart",
+          "faction": "gleens",
+          "score": 119,
+          "elo": 145,
+          "ranking": 4
+        }
+      ]
+    },
+    "S1-0000": {
+      "id": "S1-0000",
+      "endedAt": "2026-03-06T03:41:30.599Z",
+      "num_moves": 389,
+      "max_score": 201,
+      "factions": [
+        "ambas",
+        "baltaks",
+        "terrans",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "Adriano",
+          "faction": "ambas",
+          "score": 201,
+          "elo": 181,
+          "ranking": 1
+        },
+        {
+          "name": "doldole",
+          "faction": "baltaks",
+          "score": 169,
+          "elo": 182,
+          "ranking": 3
+        },
+        {
+          "name": "kupawang",
+          "faction": "terrans",
+          "score": 170,
+          "elo": 172,
+          "ranking": 2
+        },
+        {
+          "name": "hykkk",
+          "faction": "itars",
+          "score": 143,
+          "elo": 220,
+          "ranking": 4
+        }
+      ]
+    },
+    "Advanced-ghost-1835": {
+      "id": "Advanced-ghost-1835",
+      "endedAt": "2026-03-04T19:43:23.037Z",
+      "num_moves": 289,
+      "max_score": 175,
+      "factions": [
+        "ivits",
+        "lantids",
+        "itars",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "moraesm",
+          "faction": "ivits",
+          "score": 175,
+          "elo": 350,
+          "ranking": 1
+        },
+        {
+          "name": "silvadcl",
+          "faction": "lantids",
+          "score": 67,
+          "elo": 47,
+          "ranking": 4
+        },
+        {
+          "name": "Guta",
+          "faction": "itars",
+          "score": 169,
+          "elo": 305,
+          "ranking": 2
+        },
+        {
+          "name": "Cyberduck",
+          "faction": "taklons",
+          "score": 111,
+          "elo": 181,
+          "ranking": 3
+        }
+      ]
+    },
+    "Princely-knowledge-8319": {
+      "id": "Princely-knowledge-8319",
+      "endedAt": "2026-03-04T10:07:34.993Z",
+      "num_moves": 361,
+      "max_score": 172,
+      "factions": [
+        "nevlas",
+        "terrans",
+        "baltaks",
+        "firaks"
+      ],
+      "players": [
+        {
+          "name": "GhostArth",
+          "faction": "nevlas",
+          "score": 172,
+          "elo": 242,
+          "ranking": 1
+        },
+        {
+          "name": "ign0relee",
+          "faction": "terrans",
+          "score": 124,
+          "elo": 260,
+          "ranking": 3
+        },
+        {
+          "name": "TimmyOTool",
+          "faction": "baltaks",
+          "score": 111,
+          "elo": 256,
+          "ranking": 4
+        },
+        {
+          "name": "Jirayia",
+          "faction": "firaks",
+          "score": 144,
+          "elo": 244,
+          "ranking": 2
+        }
+      ]
+    },
+    "Always-Be-Gaming-0094": {
+      "id": "Always-Be-Gaming-0094",
+      "endedAt": "2026-02-28T22:44:35.434Z",
+      "num_moves": 388,
+      "max_score": 185,
+      "factions": [
+        "lantids",
+        "taklons",
+        "itars",
+        "geodens"
+      ],
+      "players": [
+        {
+          "name": "cheeyup",
+          "faction": "lantids",
+          "score": 175,
+          "elo": 368,
+          "ranking": 3
+        },
+        {
+          "name": "Stevoid",
+          "faction": "taklons",
+          "score": 185,
+          "elo": 396,
+          "ranking": 1
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "itars",
+          "score": 180,
+          "elo": 368,
+          "ranking": 2
+        },
+        {
+          "name": "rahoi",
+          "faction": "geodens",
+          "score": 82,
+          "elo": 100,
+          "ranking": 4
+        }
+      ]
+    },
+    "Dubious-elf-5887": {
+      "id": "Dubious-elf-5887",
+      "endedAt": "2026-02-28T21:06:33.066Z",
+      "num_moves": 315,
+      "max_score": 173,
+      "factions": [
+        "baltaks",
+        "firaks",
+        "hadsch-hallas",
+        "gleens"
+      ],
+      "players": [
+        {
+          "name": "Faidazz",
+          "faction": "baltaks",
+          "score": 140,
+          "elo": 182,
+          "ranking": 3
+        },
+        {
+          "name": "Boucha",
+          "faction": "firaks",
+          "score": 142,
+          "elo": 122,
+          "ranking": 2
+        },
+        {
+          "name": "Babbuc49",
+          "faction": "hadsch-hallas",
+          "score": 173,
+          "elo": 420,
+          "ranking": 1
+        },
+        {
+          "name": "Aldousx",
+          "faction": "gleens",
+          "score": 106,
+          "elo": 77,
+          "ranking": 4
+        }
+      ]
+    },
+    "parallel-universe183": {
+      "id": "parallel-universe183",
+      "endedAt": "2026-02-25T07:50:12.661Z",
+      "num_moves": 384,
+      "max_score": 179,
+      "factions": [
+        "nevlas",
+        "firaks",
+        "hadsch-hallas",
+        "xenos"
+      ],
+      "players": [
+        {
+          "name": "GhostArth",
+          "faction": "nevlas",
+          "score": 179,
+          "elo": 207,
+          "ranking": 1
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "firaks",
+          "score": 143,
+          "elo": 193,
+          "ranking": 3
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "hadsch-hallas",
+          "score": 113,
+          "elo": 207,
+          "ranking": 4
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "xenos",
+          "score": 165,
+          "elo": 182,
+          "ranking": 2
+        }
+      ]
+    },
+    "Spotless-piece-3979": {
+      "id": "Spotless-piece-3979",
+      "endedAt": "2026-02-24T10:53:58.540Z",
+      "num_moves": 352,
+      "max_score": 185,
+      "factions": [
+        "xenos",
+        "hadsch-hallas",
+        "taklons",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "Howger1996",
+          "faction": "xenos",
+          "score": 131,
+          "elo": 105,
+          "ranking": 3
+        },
+        {
+          "name": "frankie10loiol01",
+          "faction": "hadsch-hallas",
+          "score": 114,
+          "elo": 100,
+          "ranking": 4
+        },
+        {
+          "name": "ch021112",
+          "faction": "taklons",
+          "score": 166,
+          "elo": 377,
+          "ranking": 2
+        },
+        {
+          "name": "wcps0401",
+          "faction": "itars",
+          "score": 185,
+          "elo": 236,
+          "ranking": 1
+        }
+      ]
+    },
+    "hardgame275": {
+      "id": "hardgame275",
+      "endedAt": "2026-02-24T07:22:32.377Z",
+      "num_moves": 361,
+      "max_score": 181,
+      "factions": [
+        "hadsch-hallas",
+        "geodens",
+        "firaks",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "secondAfterGod",
+          "faction": "hadsch-hallas",
+          "score": 152,
+          "elo": 229,
+          "ranking": 2
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "geodens",
+          "score": 125,
+          "elo": 200,
+          "ranking": 4
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "firaks",
+          "score": 181,
+          "elo": 173,
+          "ranking": 1
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "itars",
+          "score": 137,
+          "elo": 214,
+          "ranking": 3
+        }
+      ]
+    },
+    "parallel-universe176": {
+      "id": "parallel-universe176",
+      "endedAt": "2026-02-23T23:40:03.059Z",
+      "num_moves": 346,
+      "max_score": 180,
+      "factions": [
+        "ivits",
+        "taklons",
+        "baltaks",
+        "itars"
+      ],
+      "players": [
+        {
+          "name": "Mouthbreather907",
+          "faction": "ivits",
+          "score": 165,
+          "elo": 130,
+          "ranking": 2
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "taklons",
+          "score": 180,
+          "elo": 177,
+          "ranking": 1
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "baltaks",
+          "score": 111,
+          "elo": 196,
+          "ranking": 4
+        },
+        {
+          "name": "Alexey_Kz",
+          "faction": "itars",
+          "score": 121,
+          "elo": 201,
+          "ranking": 3
+        }
+      ]
+    },
+    "Agile-dreams-5998": {
+      "id": "Agile-dreams-5998",
+      "endedAt": "2026-02-21T23:40:39.536Z",
+      "num_moves": 361,
+      "max_score": 198,
+      "factions": [
+        "nevlas",
+        "baltaks",
+        "gleens",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "GhostArth",
+          "faction": "nevlas",
+          "score": 198,
+          "elo": 165,
+          "ranking": 1
+        },
+        {
+          "name": "Jirayia",
+          "faction": "baltaks",
+          "score": 147,
+          "elo": 259,
+          "ranking": 4
+        },
+        {
+          "name": "ukin",
+          "faction": "gleens",
+          "score": 151,
+          "elo": 380,
+          "ranking": 3
+        },
+        {
+          "name": "Stevoid",
+          "faction": "lantids",
+          "score": 171,
+          "elo": 396,
+          "ranking": 2
+        }
+      ]
+    },
+    "DropTheBall": {
+      "id": "DropTheBall",
+      "endedAt": "2026-02-20T15:28:10.948Z",
+      "num_moves": 398,
+      "max_score": 192,
+      "factions": [
+        "nevlas",
+        "terrans",
+        "geodens",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "eclipz905",
+          "faction": "nevlas",
+          "score": 110,
+          "elo": 271,
+          "ranking": 4
+        },
+        {
+          "name": "Roon",
+          "faction": "terrans",
+          "score": 192,
+          "elo": 117,
+          "ranking": 1
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "geodens",
+          "score": 156,
+          "elo": 421,
+          "ranking": 3
+        },
+        {
+          "name": "Landryn",
+          "faction": "taklons",
+          "score": 162,
+          "elo": 174,
+          "ranking": 2
+        }
+      ]
+    },
+    "Spotless-mischief-2736": {
+      "id": "Spotless-mischief-2736",
+      "endedAt": "2026-02-17T23:28:30.545Z",
+      "num_moves": 347,
+      "max_score": 175,
+      "factions": [
+        "baltaks",
+        "ivits",
+        "gleens",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "GhostArth",
+          "faction": "baltaks",
+          "score": 175,
+          "elo": 151,
+          "ranking": 1
+        },
+        {
+          "name": "rahoi",
+          "faction": "ivits",
+          "score": 132,
+          "elo": 100,
+          "ranking": 4
+        },
+        {
+          "name": "ukin",
+          "faction": "gleens",
+          "score": 166,
+          "elo": 393,
+          "ranking": 3
+        },
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "lantids",
+          "score": 172,
+          "elo": 424,
+          "ranking": 2
+        }
+      ]
+    },
+    "Always-Be-Gaming-0093": {
+      "id": "Always-Be-Gaming-0093",
+      "endedAt": "2026-02-13T02:38:07.039Z",
+      "num_moves": 350,
+      "max_score": 194,
+      "factions": [
+        "ivits",
+        "gleens",
+        "firaks",
+        "nevlas"
+      ],
+      "players": [
+        {
+          "name": "rahoi",
+          "faction": "ivits",
+          "score": 160,
+          "elo": 100,
+          "ranking": 4
+        },
+        {
+          "name": "Stevoid",
+          "faction": "gleens",
+          "score": 194,
+          "elo": 382,
+          "ranking": 1
+        },
+        {
+          "name": "cheeyup",
+          "faction": "firaks",
+          "score": 164,
+          "elo": 378,
+          "ranking": 3
+        },
+        {
+          "name": "moonbeardesmond",
+          "faction": "nevlas",
+          "score": 169,
+          "elo": 365,
+          "ranking": 2
+        }
+      ]
+    },
+    "GPS22-H": {
+      "id": "GPS22-H",
+      "endedAt": "2026-02-09T21:33:29.982Z",
+      "num_moves": 330,
+      "max_score": 181,
+      "factions": [
+        "ivits",
+        "taklons",
+        "nevlas",
+        "baltaks"
+      ],
+      "players": [
+        {
+          "name": "Ghostly 1",
+          "faction": "ivits",
+          "score": 144,
+          "elo": 185,
+          "ranking": 3
+        },
+        {
+          "name": "MedicineDan",
+          "faction": "taklons",
+          "score": 181,
+          "elo": 417,
+          "ranking": 1
+        },
+        {
+          "name": "KelvinAllton",
+          "faction": "nevlas",
+          "score": 118,
+          "elo": 145,
+          "ranking": 4
+        },
+        {
+          "name": "Ramanujan1729",
+          "faction": "baltaks",
+          "score": 167,
+          "elo": 450,
+          "ranking": 2
+        }
+      ]
+    },
+    "Ancient-supply-1428": {
+      "id": "Ancient-supply-1428",
+      "endedAt": "2026-02-06T20:29:09.204Z",
+      "num_moves": 303,
+      "max_score": 173,
+      "factions": [
+        "ivits",
+        "ambas",
+        "geodens",
+        "terrans"
+      ],
+      "players": [
+        {
+          "name": "silvadcl",
+          "faction": "ivits",
+          "score": 99,
+          "elo": 47,
+          "ranking": 4
+        },
+        {
+          "name": "Cyberduck",
+          "faction": "ambas",
+          "score": 116,
+          "elo": 187,
+          "ranking": 3
+        },
+        {
+          "name": "moraesm",
+          "faction": "geodens",
+          "score": 173,
+          "elo": 341,
+          "ranking": 1
+        },
+        {
+          "name": "vicoraio",
+          "faction": "terrans",
+          "score": 127,
+          "elo": 164,
+          "ranking": 2
+        }
+      ]
+    },
+    "Frozen-visit-9580": {
+      "id": "Frozen-visit-9580",
+      "endedAt": "2026-02-05T22:34:42.740Z",
+      "num_moves": 398,
+      "max_score": 239,
+      "factions": [
+        "gleens",
+        "baltaks",
+        "firaks",
+        "lantids"
+      ],
+      "players": [
+        {
+          "name": "D\u00fcsentrieb",
+          "faction": "gleens",
+          "score": 180,
+          "elo": 426,
+          "ranking": 2
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "baltaks",
+          "score": 146,
+          "elo": 216,
+          "ranking": 4
+        },
+        {
+          "name": "GhostArth",
+          "faction": "firaks",
+          "score": 154,
+          "elo": 192,
+          "ranking": 3
+        },
+        {
+          "name": "Hamilton",
+          "faction": "lantids",
+          "score": 239,
+          "elo": 383,
+          "ranking": 1
+        }
+      ]
+    },
+    "WetBlanket": {
+      "id": "WetBlanket",
+      "endedAt": "2026-02-02T20:33:16.733Z",
+      "num_moves": 406,
+      "max_score": 198,
+      "factions": [
+        "terrans",
+        "itars",
+        "gleens",
+        "taklons"
+      ],
+      "players": [
+        {
+          "name": "Swejie",
+          "faction": "terrans",
+          "score": 115,
+          "elo": 227,
+          "ranking": 4
+        },
+        {
+          "name": "WillisSpace",
+          "faction": "itars",
+          "score": 198,
+          "elo": 411,
+          "ranking": 1
+        },
+        {
+          "name": "eclipz905",
+          "faction": "gleens",
+          "score": 131,
+          "elo": 276,
+          "ranking": 3
+        },
+        {
+          "name": "Tigerfood27",
+          "faction": "taklons",
+          "score": 193,
+          "elo": 251,
+          "ranking": 2
+        }
+      ]
+    },
+    "Forbidden-xenos-1656": {
+      "id": "Forbidden-xenos-1656",
+      "endedAt": "2026-01-29T22:59:23.697Z",
+      "num_moves": 362,
+      "max_score": 191,
+      "factions": [
+        "baltaks",
+        "gleens",
+        "terrans",
+        "firaks"
+      ],
+      "players": [
+        {
+          "name": "rahoi",
+          "faction": "baltaks",
+          "score": 107,
+          "elo": 113,
+          "ranking": 4
+        },
+        {
+          "name": "ukin",
+          "faction": "gleens",
+          "score": 191,
+          "elo": 407,
+          "ranking": 1
+        },
+        {
+          "name": "Stevoid",
+          "faction": "terrans",
+          "score": 167,
+          "elo": 391,
+          "ranking": 2
+        },
+        {
+          "name": "GhostArth",
+          "faction": "firaks",
+          "score": 143,
+          "elo": 181,
+          "ranking": 3
+        }
+      ]
+    },
+    "parallel-universe175": {
+      "id": "parallel-universe175",
+      "endedAt": "2026-01-27T20:07:08.601Z",
+      "num_moves": 334,
+      "max_score": 182,
+      "factions": [
+        "terrans",
+        "gleens",
+        "firaks",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "Alexey_Kz",
+          "faction": "terrans",
+          "score": 131,
+          "elo": 196,
+          "ranking": 3
+        },
+        {
+          "name": "SergeyGein",
+          "faction": "gleens",
+          "score": 122,
+          "elo": 186,
+          "ranking": 4
+        },
+        {
+          "name": "Brains-on-ice",
+          "faction": "firaks",
+          "score": 182,
+          "elo": 214,
+          "ranking": 1
+        },
+        {
+          "name": "Mouthbreather907",
+          "faction": "ivits",
+          "score": 151,
+          "elo": 129,
+          "ranking": 2
+        }
+      ]
+    },
+    "115-12-18-01": {
+      "id": "115-12-18-01",
+      "endedAt": "2026-01-27T07:49:41.216Z",
+      "num_moves": 314,
+      "max_score": 173,
+      "factions": [
+        "terrans",
+        "baltaks",
+        "xenos",
+        "ivits"
+      ],
+      "players": [
+        {
+          "name": "Pikacha",
+          "faction": "terrans",
+          "score": 127,
+          "elo": 184,
+          "ranking": 3
+        },
+        {
+          "name": "MakotoMorichika",
+          "faction": "baltaks",
+          "score": 173,
+          "elo": 336,
+          "ranking": 1
+        },
+        {
+          "name": "NesticLee",
+          "faction": "xenos",
+          "score": 131,
+          "elo": 323,
+          "ranking": 2
+        },
+        {
+          "name": "Huang3315",
+          "faction": "ivits",
+          "score": 117,
+          "elo": 242,
+          "ranking": 4
+        }
+      ]
+    }
+  }
+}

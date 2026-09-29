@@ -6,6 +6,7 @@ __pycache__/
 # PyTorch checkpoints
 *.pt
 *.pth
+!scraper/data/dataset/*.pt
 
 # Rust build artifacts
 target/
@@ -16,3 +17,4 @@ Cargo.lock
 .pytest_cache/
 .vscode/
 .vs/
+scratch/
