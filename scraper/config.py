@@ -50,7 +50,7 @@ class ScraperConfig:
     
     # Target criteria
     target_per_faction: int = 1000      # Target number of games per faction
-    min_winning_score: int = 171       # Minimum winning score strictly > 170 VP
+    min_winning_score: int = 150       # Minimum winning score (tournament level >= 150 VP)
     min_player_score: int = 60         # Minimum score for each participant (filters ragequits)
     required_num_players: int = 4      # Standard tournament setup: 4 players
     base_game_only: bool = True        # Exclude Lost Fleet factions
@@ -58,7 +58,7 @@ class ScraperConfig:
     # Scraping & rate limiting
     page_size: int = 50                # Max items per listing page
     max_skip: int = 10000              # Max skip supported by BGS API
-    request_delay: float = 0.6         # Seconds to sleep between requests (polite scraping)
+    request_delay: float = 0.4         # Seconds to sleep between requests (polite & fast)
     max_retries: int = 5               # Retry attempts on 429 or network glitch
     backoff_factor: float = 2.0        # Exponential backoff multiplier
     user_agent: str = "GaiaProjectRLAgentScraper/1.0 (Research/Academic project; thibaulttoth@psl.eu)"

@@ -237,7 +237,7 @@ def build_expert_dataset(
 
 def main():
     parser = argparse.ArgumentParser(description="Convert scraped games to training dataset")
-    parser.add_argument("--min-vp", type=int, default=140, help="Minimum winning score threshold")
+    parser.add_argument("--min-vp", type=int, default=150, help="Minimum winning score threshold")
     parser.add_argument("--raw-dir", type=str, default=str(RAW_GAMES_DIR))
     parser.add_argument("--out-dir", type=str, default=str(DATASET_DIR))
     args = parser.parse_args()
