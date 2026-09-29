@@ -169,3 +169,65 @@ class RolloutBuffer:
                     device, non_blocking=non_blocking
                 ),
             )
+
+
+class PrioritizedStateBuffer:
+    """Prioritized State Buffer for Regret-Guided Search Control (RGSC / Go-Exploit / Jeu sur Problème).
+
+    Stores mid-game game environments where the agent suffered high counterfactual regret
+    (ΔV = V(s_t) - V(s_{t+1}) >= threshold). Allows resetting games directly into mid-game
+    crisis puzzles (Rounds 2-5) to master critical decision points instead of over-fitting
+    to early openings.
+    """
+
+    def __init__(self, capacity: int = 200, regret_threshold: float = 0.40):
+        self.capacity = capacity
+        self.regret_threshold = regret_threshold
+        self.states: List[dict] = []
+
+    def __len__(self) -> int:
+        return len(self.states)
+
+    def add(self, env: any, regret: float, round_num: int = 0) -> bool:
+        """Stores a cloned copy of env if regret exceeds threshold."""
+        if regret < self.regret_threshold:
+            return False
+
+        try:
+            cloned = env.clone()
+        except Exception:
+            return False
+
+        import time
+        if len(self.states) >= self.capacity:
+            # Evict state with lowest regret
+            min_idx = int(np.argmin([s["regret"] for s in self.states]))
+            self.states.pop(min_idx)
+
+        self.states.append({
+            "env": cloned,
+            "regret": float(regret),
+            "round": round_num,
+            "added_at": time.time(),
+        })
+        return True
+
+    def sample(self) -> Optional[any]:
+        """Samples a crisis puzzle clone with probability proportional to regret."""
+        if not self.states:
+            return None
+        regrets = np.array([s["regret"] for s in self.states], dtype=np.float64)
+        total = float(regrets.sum())
+        if total <= 1e-8:
+            idx = int(np.random.randint(0, len(self.states)))
+        else:
+            probs = regrets / total
+            idx = int(np.random.choice(len(self.states), p=probs))
+        try:
+            return self.states[idx]["env"].clone()
+        except Exception:
+            return None
+
+    def clear(self) -> None:
+        self.states.clear()
+

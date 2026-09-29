@@ -14,6 +14,8 @@ import threading
 from config import AppConfig
 from models import DualGaiaAgent
 from mcts import MultiPlayerMCTS
+from league import LeagueManager, LeagueMember
+from buffer import PrioritizedStateBuffer
 
 class AlphaZeroReplayBuffer:
     """Stores (observation, action_mask, mcts_policy, mcts_value) tuples from self-play."""
@@ -69,6 +71,9 @@ class EpochMetrics:
     duration: float
     win_rate: float = 0.5
     steps_per_sec: float = 0.0
+    league_elo: float = 1200.0
+    league_size: int = 2
+    rgsc_puzzles: int = 0
 
 class AlphaZeroTrainer:
     def __init__(self, config: AppConfig, agent: DualGaiaAgent = None):
@@ -84,6 +89,26 @@ class AlphaZeroTrainer:
             
         self.mcts = MultiPlayerMCTS(self.agent, config.mcts, self.device)
         self.replay_buffer = AlphaZeroReplayBuffer(self.az_config.replay_buffer_size)
+
+        # Population-Based League Training (Fictitious Self-Play)
+        self.league_manager = None
+        if getattr(self.config.league, "enabled", True):
+            self.league_manager = LeagueManager(self.config.league, device=self.device)
+            loaded = self.league_manager.load_existing_checkpoints(
+                obs_dim=self.config.model.obs_dim,
+                action_dim=self.config.model.action_dim,
+                model_config=self.config.model,
+            )
+            if loaded > 0:
+                print(f"[LeagueManager] Initialized with {loaded} historical snapshot(s).")
+
+        # Regret-Guided Search Control (RGSC / Jeu sur Problème / Go-Exploit)
+        self.state_buffer = None
+        if getattr(self.config.training, "rgsc_enabled", True):
+            self.state_buffer = PrioritizedStateBuffer(
+                capacity=getattr(self.config.training, "rgsc_buffer_capacity", 200),
+                regret_threshold=getattr(self.config.training, "rgsc_regret_threshold", 0.30),
+            )
         
         parameters = list(self.agent.parameters())
         self.optimizer = torch.optim.AdamW(
@@ -118,7 +143,32 @@ class AlphaZeroTrainer:
         self._is_running = False
 
     def self_play_game(self, env: Any) -> Tuple[List[Tuple[np.ndarray, np.ndarray, np.ndarray, float]], float, bool, int]:
-        env.reset()
+        # 1. Reset or Jump into a Mid-Game Crisis Puzzle (RGSC / Jeu sur problème)
+        if (
+            getattr(self.config.training, "rgsc_enabled", True)
+            and self.state_buffer is not None
+            and len(self.state_buffer) > 0
+            and np.random.rand() < getattr(self.config.training, "rgsc_reset_prob", 0.30)
+        ):
+            sampled_env = self.state_buffer.sample()
+            if sampled_env is not None:
+                env = sampled_env
+            else:
+                env.reset()
+        else:
+            env.reset()
+
+        # 2. Opponent Matchmaking from League Pool (Population / Historical)
+        num_players = getattr(env, "num_players", 4)
+        if getattr(self.config.league, "enabled", True) and self.league_manager is not None:
+            opponents = self.league_manager.sample_opponents(
+                self.agent, num_opponents=max(1, num_players - 1)
+            )
+            participants = ["CurrentPolicy"] + [name for name, _ in opponents]
+        else:
+            opponents = []
+            participants = ["CurrentPolicy"] * num_players
+
         history = []
         move_count = 0
         total_game_steps = 0
@@ -146,6 +196,17 @@ class AlphaZeroTrainer:
             if current_player == 0:
                 temp = self.az_config.temperature_high if move_count < self.az_config.temperature_threshold_move else self.az_config.temperature_low
                 
+                # Clone state for regret tracking if in round >= 2
+                need_rgsc_clone = (
+                    getattr(self.config.training, "rgsc_enabled", True)
+                    and self.state_buffer is not None
+                    and getattr(env, "round", 1) >= 2
+                )
+                try:
+                    env_before_step = env.clone() if need_rgsc_clone else None
+                except Exception:
+                    env_before_step = None
+
                 action, probs, _ = self.mcts.search(
                     env, 
                     num_simulations=self.az_config.num_simulations, 
@@ -156,23 +217,47 @@ class AlphaZeroTrainer:
                 history.append((obs, mask, probs, 0.0))
                 move_count += 1
             else:
-                obs_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
-                mask_t = torch.from_numpy(mask).bool().to(self.device).unsqueeze(0)
-                with torch.no_grad():
-                    # In AlphaZero self-play, opponents play using the current policy network
-                    logits = self.agent.action_net(obs_t, mask_t)
-                    probs_t = F.softmax(logits, dim=-1)
-                    probs = probs_t.squeeze(0).cpu().numpy()
-                
-                p_legal = probs[legal_indices]
-                p_sum = p_legal.sum()
-                if p_sum > 0:
-                    p_legal = p_legal / p_sum
-                    action = np.random.choice(legal_indices, p=p_legal)
+                # Opponents played by League Member action function or Current Policy
+                opp_idx = current_player - 1
+                if opp_idx < len(opponents):
+                    _, act_fn = opponents[opp_idx]
+                    action = act_fn(obs, mask)
                 else:
-                    action = int(np.random.choice(legal_indices))
+                    obs_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
+                    mask_t = torch.from_numpy(mask).bool().to(self.device).unsqueeze(0)
+                    with torch.no_grad():
+                        logits = self.agent.action_net(obs_t, mask_t)
+                        probs_t = F.softmax(logits, dim=-1)
+                        probs = probs_t.squeeze(0).cpu().numpy()
+                    
+                    p_legal = probs[legal_indices]
+                    p_sum = p_legal.sum()
+                    if p_sum > 0:
+                        p_legal = p_legal / p_sum
+                        action = np.random.choice(legal_indices, p=p_legal)
+                    else:
+                        action = int(np.random.choice(legal_indices))
                     
             step_res = env.step(action)
+
+            # Regret tracking for RGSC (Jeu sur problème / Crisis Puzzle Caching)
+            if current_player == 0 and env_before_step is not None and not env.terminated:
+                try:
+                    obs_before_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
+                    next_obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
+                    next_obs_t = torch.from_numpy(next_obs).float().to(self.device).unsqueeze(0)
+                    with torch.no_grad():
+                        v_before = float(self.agent.score_net(obs_before_t).item())
+                        v_after = float(self.agent.score_net(next_obs_t).item())
+                    
+                    regret = max(0.0, v_before - v_after)
+                    thresh = getattr(self.config.training, "rgsc_regret_threshold", 0.30)
+                    thresh_vp = thresh * 25.0 if thresh < 1.0 else thresh
+                    if regret >= thresh_vp:
+                        self.state_buffer.add(env_before_step, regret=regret, round_num=getattr(env_before_step, "round", 2))
+                except Exception:
+                    pass
+
             if hasattr(step_res, "info") and "error" in step_res.info:
                 consecutive_step_errors += 1
                 fallback_success = False
@@ -191,10 +276,18 @@ class AlphaZeroTrainer:
             else:
                 consecutive_step_errors = 0
             
-        raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)]
+        raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * num_players)]
         p0_vp = raw_vps[0] if len(raw_vps) > 0 else 50.0
         p0_won = bool(len(raw_vps) >= 2 and p0_vp > max(raw_vps[1:]))
         
+        # Update multi-player Elo in the League
+        if (
+            getattr(self.config.league, "enabled", True)
+            and self.league_manager is not None
+            and len(participants) == len(raw_vps)
+        ):
+            self.league_manager.update_match_results(participants, raw_vps)
+
         # Store true Victory Points (0 - 250+ VP) for natural calibration with MCTS and GUI
         final_history = [(obs, mask, probs, p0_vp) for obs, mask, probs, _ in history]
         return final_history, p0_vp, p0_won, move_count
@@ -322,6 +415,19 @@ class AlphaZeroTrainer:
             speed = epoch_moves / duration
             win_r = float(epoch_wins) / float(max(1, epoch_games))
             
+            # Snapshot policy into League pool
+            if (
+                getattr(self.config.league, "enabled", True)
+                and self.league_manager is not None
+                and epoch % getattr(self.config.league, "snapshot_interval_epochs", 10) == 0
+            ):
+                snap_name = self.league_manager.add_snapshot(self.agent, epoch)
+                print(f"[LeagueManager] Snapshot saved: {snap_name} (Current Elo: {self.league_manager.members['CurrentPolicy'].elo:.1f})")
+
+            curr_elo = self.league_manager.members["CurrentPolicy"].elo if self.league_manager else 1200.0
+            curr_league_size = len(self.league_manager.members) if self.league_manager else 1
+            puzzles_count = len(self.state_buffer) if self.state_buffer else 0
+
             if steps > 0:
                 metrics = EpochMetrics(
                     epoch=epoch,
@@ -333,6 +439,9 @@ class AlphaZeroTrainer:
                     duration=duration,
                     win_rate=win_r,
                     steps_per_sec=speed,
+                    league_elo=curr_elo,
+                    league_size=curr_league_size,
+                    rgsc_puzzles=puzzles_count,
                 )
                 
                 if callback:
@@ -420,3 +529,10 @@ class AlphaZeroTrainer:
 
     def resume_from_checkpoint(self, checkpoint_path: str) -> int:
         return self.load_checkpoint(checkpoint_path)
+
+    def get_league_leaderboard(self) -> List[Dict[str, Any]]:
+        """Returns leaderboard of current and historical league policies."""
+        if self.league_manager is not None:
+            return self.league_manager.get_leaderboard()
+        return []
+

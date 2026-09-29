@@ -89,6 +89,7 @@ class LeagueManager:
             torch.save(
                 {
                     "action_net_state": cloned_policy.state_dict(),
+                    "model_config": getattr(agent, "config", None),
                     "epoch": epoch,
                     "name": snapshot_name,
                     "created_at": time.time(),
@@ -176,18 +177,28 @@ class LeagueManager:
                 policy = hist_member.policy_net
 
                 def _act_hist(obs: np.ndarray, mask: np.ndarray, net=policy) -> int:
+                    legal = np.where(mask)[0]
+                    if len(legal) == 0:
+                        return 1412
+                    if len(legal) == 1:
+                        return int(legal[0])
                     if net is None:
-                        legal = np.where(mask)[0]
-                        return int(np.random.choice(legal)) if len(legal) > 0 else 15
+                        return int(np.random.choice(legal))
 
                     obs_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
                     mask_t = torch.from_numpy(mask).bool().to(self.device).unsqueeze(0)
                     with torch.no_grad():
                         logits = net(obs_t, mask_t)
-                        probs = F.softmax(logits, dim=-1)
-                        dist = Categorical(probs=probs)
-                        action = dist.sample()
-                    return int(action.item())
+                        probs = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
+                    
+                    p_legal = probs[legal]
+                    p_sum = float(p_legal.sum())
+                    if p_sum > 1e-7 and not np.isnan(p_sum):
+                        p_legal = p_legal / p_sum
+                        action = np.random.choice(legal, p=p_legal)
+                    else:
+                        action = np.random.choice(legal)
+                    return int(action)
 
                 opponents.append((hist_name, _act_hist))
 
@@ -197,7 +208,7 @@ class LeagueManager:
 
                 def _act_random(obs: np.ndarray, mask: np.ndarray) -> int:
                     legal = np.where(mask)[0]
-                    return int(np.random.choice(legal)) if len(legal) > 0 else 15
+                    return int(np.random.choice(legal)) if len(legal) > 0 else 1412
 
                 opponents.append((member_name, _act_random))
 
@@ -271,8 +282,9 @@ class LeagueManager:
 
     def load_existing_checkpoints(
         self,
-        obs_dim: int = 42,
-        action_dim: int = 16,
+        obs_dim: int = 2476,
+        action_dim: int = 3130,
+        model_config: Optional[ModelConfig] = None,
     ) -> int:
         """Scans disk checkpoints and loads compatible models into the league pool."""
         pattern = os.path.join(self.config.league_dir, "*.pt")
@@ -286,16 +298,36 @@ class LeagueManager:
                 except TypeError:
                     ckpt = torch.load(fpath, map_location=self.device)
 
-                if "action_net_state" not in ckpt:
+                if "action_net_state" not in ckpt and "agent_state_dict" not in ckpt:
                     continue
 
-                state_dict = ckpt["action_net_state"]
-                # Verify dimension compatibility
-                first_weight = state_dict.get("input_proj.0.weight")
-                if first_weight is not None and first_weight.shape[1] != obs_dim:
-                    continue
+                state_dict = ckpt.get("action_net_state")
+                cfg_obj = ckpt.get("model_config", model_config)
 
-                policy = ActionOptimizerNet(obs_dim=obs_dim, action_dim=action_dim).to(self.device)
+                if state_dict is None and "agent_state_dict" in ckpt:
+                    full_sd = ckpt["agent_state_dict"]
+                    state_dict = {
+                        k.replace("action_net.", ""): v
+                        for k, v in full_sd.items()
+                        if k.startswith("action_net.") or k.startswith("shared_backbone.")
+                    }
+
+                if cfg_obj is not None:
+                    policy = ActionOptimizerNet(
+                        obs_dim=getattr(cfg_obj, "obs_dim", obs_dim),
+                        action_dim=getattr(cfg_obj, "action_dim", action_dim),
+                        hidden_layers=getattr(cfg_obj, "policy_hidden_layers", None),
+                        dropout=getattr(cfg_obj, "policy_dropout", 0.05),
+                        activation=getattr(cfg_obj, "policy_activation", "silu"),
+                        block_type=getattr(cfg_obj, "block_type", "swiglu"),
+                        use_input_norm=getattr(cfg_obj, "use_input_norm", True),
+                        use_gnn_map=getattr(cfg_obj, "use_gnn_map", True),
+                        gnn_hidden_dim=getattr(cfg_obj, "gnn_hidden_dim", 64),
+                        gnn_layers=getattr(cfg_obj, "gnn_layers", 3),
+                    ).to(self.device)
+                else:
+                    policy = ActionOptimizerNet(obs_dim=obs_dim, action_dim=action_dim).to(self.device)
+
                 policy.load_state_dict(state_dict, strict=False)
                 policy.eval()
 
