@@ -246,13 +246,13 @@ impl GaiaEnv {
         if !(2..=MAX_PLAYERS).contains(&config.players) {
             return Err(EnvError::InvalidPlayerCount(config.players));
         }
-        if let Some(factions) = &config.factions
-            && factions.len() != config.players
-        {
-            return Err(EnvError::InvalidFactionCount {
-                expected: config.players,
-                actual: factions.len(),
-            });
+        if let Some(factions) = &config.factions {
+            if factions.len() != config.players {
+                return Err(EnvError::InvalidFactionCount {
+                    expected: config.players,
+                    actual: factions.len(),
+                });
+            }
         }
         let mut environment = Self {
             rng_state: config.seed,
