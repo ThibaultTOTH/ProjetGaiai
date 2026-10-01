@@ -4,6 +4,8 @@ import importlib.util
 import os
 import sys
 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 root_dir = os.path.dirname(os.path.abspath(__file__))
 train_dir = os.path.join(root_dir, "training the model")
 if train_dir not in sys.path:

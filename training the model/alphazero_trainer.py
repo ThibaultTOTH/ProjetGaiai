@@ -37,8 +37,7 @@ class AlphaZeroReplayBuffer:
             indices = np.random.choice(len(self.buffer), size=batch_size, replace=True)
             batch = [self.buffer[i] for i in indices]
         else:
-            # Approximate max VP across all players in each sample for optimism weighting
-            vps = np.array([np.max(x[3]) for x in self.buffer], dtype=np.float32)
+            vps = np.array([float(x[3]) if not hasattr(x[3], '__iter__') else float(np.max(x[3])) for x in self.buffer], dtype=np.float32)
             v_min = float(np.min(vps))
             v_max = float(np.max(vps))
             if v_max > v_min and optimism_power > 0.0:
@@ -55,7 +54,7 @@ class AlphaZeroReplayBuffer:
             np.stack(obs),
             np.stack(action_mask),
             np.stack(mcts_policy),
-            np.stack(value_target)
+            np.array(value_target, dtype=np.float32)
         )
 
     def __len__(self):
@@ -285,11 +284,10 @@ class AlphaZeroTrainer:
             self.league_manager.update_match_results(participants, raw_vps)
 
         # Store true Victory Points (0 - 250+ VP) for natural calibration with MCTS and GUI
-        raw_vps_padded = np.zeros(4, dtype=np.float32)
-        for i, vp in enumerate(raw_vps):
-            if i < 4:
-                raw_vps_padded[i] = vp
-        final_history = [(obs, mask, probs, raw_vps_padded) for p, obs, mask, probs in history]
+        final_history = [
+            (obs, mask, probs, float(raw_vps[p]) if p < len(raw_vps) else 0.0)
+            for p, obs, mask, probs in history
+        ]
         return final_history, p0_vp, p0_won, move_count
 
     def train_on_batch(self, batch: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> Tuple[float, float, float, float]:
@@ -308,7 +306,7 @@ class AlphaZeroTrainer:
             logits = self.agent.action_net(obs_t, mask_t)
             
             # Huber Smooth L1 loss on VP prevents gradient explosion
-            value_loss = F.smooth_l1_loss(pred_values, value_t)
+            value_loss = F.smooth_l1_loss(pred_values.view(-1), value_t.view(-1))
             
             # Safe Cross-Entropy / Policy Loss:
             # 1. Normalize target policy over legal actions only

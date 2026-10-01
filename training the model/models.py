@@ -219,7 +219,7 @@ class HexGNNEncoder(nn.Module):
             adj_tensor = adj_table_or_norm
         self.adj_norm = adj_tensor.to(device=self.adj_norm.device, dtype=self.adj_norm.dtype)
 
-    def forward(self, map_flat: torch.Tensor, adj_norm: Optional[torch.Tensor] = None, return_nodes: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    def forward(self, map_flat: torch.Tensor, adj_norm: Optional[torch.Tensor] = None) -> torch.Tensor:
         # map_flat: (B, 2000) -> reshape to (B, 200, in_features)
         batch_size = map_flat.size(0)
         x = map_flat.view(batch_size, 200, self.in_features)
@@ -229,10 +229,7 @@ class HexGNNEncoder(nn.Module):
         mean_p = x.mean(dim=1)
         max_p = x.max(dim=1).values
         pool = torch.cat([mean_p, max_p], dim=-1)
-        pooled = self.proj(pool)
-        if return_nodes:
-            return pooled, x
-        return pooled
+        return self.proj(pool)
 
 
 class DualStreamBackbone(nn.Module):
@@ -304,11 +301,11 @@ class DualStreamBackbone(nn.Module):
             self.output_dim = curr_dim
 
     def set_map_adjacency(self, adj_table_or_norm: Union[np.ndarray, torch.Tensor]):
-        """Sets the adjacency matrix for spatial GNN map encoding."""
-        if self.use_gnn_map and hasattr(self, "map_encoder"):
+        """Sets map adjacency matrix on the spatial map encoder."""
+        if hasattr(self, "map_encoder") and hasattr(self.map_encoder, "set_adjacency"):
             self.map_encoder.set_adjacency(adj_table_or_norm)
 
-    def forward(self, obs: torch.Tensor, adj_norm: Optional[torch.Tensor] = None, return_map: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, Optional[torch.Tensor]]]:
+    def forward(self, obs: torch.Tensor, adj_norm: Optional[torch.Tensor] = None) -> torch.Tensor:
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
 
@@ -317,23 +314,13 @@ class DualStreamBackbone(nn.Module):
             map_x = obs[:, self.scalar_dim:self.scalar_dim + self.map_dim]
 
             e_scalar = self.scalar_proj(self.scalar_norm(scalar_x))
-            if return_map:
-                e_map, node_feat = self.map_encoder(map_x, adj_norm=adj_norm, return_nodes=True)
-            else:
-                e_map = self.map_encoder(map_x, adj_norm=adj_norm)
-                node_feat = None
+            e_map = self.map_encoder(map_x, adj_norm=adj_norm)
             fused = torch.cat([e_scalar, e_map], dim=-1)
-            out = self.trunk(fused)
-            if return_map:
-                return out, node_feat
-            return out
+            return self.trunk(fused)
         else:
             x = self.flat_norm(obs)
             x = self.flat_proj(x)
-            out = self.trunk(x)
-            if return_map:
-                return out, None
-            return out
+            return self.trunk(x)
 
 
 class ScorePredictorNet(nn.Module):
@@ -383,7 +370,7 @@ class ScorePredictorNet(nn.Module):
         self.head = nn.Sequential(
             nn.Linear(self.backbone.output_dim, 128),
             get_activation(activation),
-            nn.Linear(128, 4),
+            nn.Linear(128, 1),
         )
 
         self._init_weights()
@@ -406,22 +393,22 @@ class ScorePredictorNet(nn.Module):
             self.backbone.set_map_adjacency(adj_table_or_norm)
 
     def forward(self, obs: torch.Tensor, adj_norm: Optional[torch.Tensor] = None) -> torch.Tensor:
-        feat = self.backbone(obs, adj_norm=adj_norm)
+        feat = self.backbone(obs, adj_norm=adj_norm) if hasattr(self.backbone, "forward") else self.backbone(obs)
         score = self.head(feat)
-        return score
+        return score.squeeze(-1)
 
     @torch.no_grad()
-    def predict_score(self, obs: torch.Tensor) -> np.ndarray:
+    def predict_score(self, obs: torch.Tensor) -> float:
         self.eval()
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
         val = self.forward(obs)
-        return val.cpu().numpy()[0]
+        return float(val.item())
 
     @torch.no_grad()
     def predict_score_with_uncertainty(
         self, obs: torch.Tensor, num_passes: int = 4
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[float, float]:
         """Estimates expected score and epistemic uncertainty sigma_V via parallel MC-Dropout passes.
 
         Dropout layers are set to train mode while LayerNorms remain frozen in eval mode.
@@ -429,7 +416,7 @@ class ScorePredictorNet(nn.Module):
         """
         if num_passes <= 1:
             val = self.predict_score(obs)
-            return val, np.zeros_like(val)
+            return val, 0.0
 
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
@@ -442,9 +429,9 @@ class ScorePredictorNet(nn.Module):
         self.apply(_set_dropout_train)
         try:
             repeated = obs.repeat(num_passes, 1)
-            scores = self.forward(repeated)  # shape (num_passes, 4)
-            mean_val = scores.mean(dim=0).cpu().numpy()
-            std_val = scores.std(dim=0).cpu().numpy()
+            scores = self.forward(repeated)  # shape (num_passes,)
+            mean_val = float(scores.mean().item())
+            std_val = float(scores.std().item())
         finally:
             self.eval()
 
@@ -477,7 +464,6 @@ class ActionOptimizerNet(nn.Module):
         self.block_type = block_type
         self.use_input_norm = use_input_norm
         self.use_gnn_map = use_gnn_map and (obs_dim == 2476)
-        self.gnn_hidden_dim = gnn_hidden_dim
 
         if backbone is not None:
             self.backbone = backbone
@@ -498,25 +484,11 @@ class ActionOptimizerNet(nn.Module):
                 use_gnn_map=self.use_gnn_map,
             )
 
-        if self.use_gnn_map:
-            # Spatial actions: 0-1399 (7*200) and 2308-3107 (4*200) => 11 types * 200 hexes = 2200 actions
-            self.spatial_head = nn.Sequential(
-                nn.Linear(self.backbone.output_dim + gnn_hidden_dim, 64),
-                get_activation(activation),
-                nn.Linear(64, 11),
-            )
-            # Scalar actions: 1400-2307 (908) and 3108-3129 (22) => 930 actions
-            self.scalar_head = nn.Sequential(
-                nn.Linear(self.backbone.output_dim, 128),
-                get_activation(activation),
-                nn.Linear(128, 930),
-            )
-        else:
-            self.policy_head = nn.Sequential(
-                nn.Linear(self.backbone.output_dim, 128),
-                get_activation(activation),
-                nn.Linear(128, action_dim),
-            )
+        self.policy_head = nn.Sequential(
+            nn.Linear(self.backbone.output_dim, 128),
+            get_activation(activation),
+            nn.Linear(128, action_dim),
+        )
 
         self.opponent_head = nn.Sequential(
             nn.Linear(self.backbone.output_dim, 128),
@@ -535,10 +507,6 @@ class ActionOptimizerNet(nn.Module):
                     nn.init.constant_(m.bias, 0.0)
         if hasattr(self, "policy_head") and len(self.policy_head) > 0 and isinstance(self.policy_head[-1], nn.Linear):
             nn.init.orthogonal_(self.policy_head[-1].weight, gain=0.01)
-        if hasattr(self, "spatial_head") and len(self.spatial_head) > 0 and isinstance(self.spatial_head[-1], nn.Linear):
-            nn.init.orthogonal_(self.spatial_head[-1].weight, gain=0.01)
-        if hasattr(self, "scalar_head") and len(self.scalar_head) > 0 and isinstance(self.scalar_head[-1], nn.Linear):
-            nn.init.orthogonal_(self.scalar_head[-1].weight, gain=0.01)
         if hasattr(self, "opponent_head") and len(self.opponent_head) > 0 and isinstance(self.opponent_head[-1], nn.Linear):
             nn.init.orthogonal_(self.opponent_head[-1].weight, gain=0.01)
 
@@ -547,29 +515,6 @@ class ActionOptimizerNet(nn.Module):
         if hasattr(self.backbone, "set_map_adjacency"):
             self.backbone.set_map_adjacency(adj_table_or_norm)
 
-    def _compute_logits(self, feat: torch.Tensor, node_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
-        if self.use_gnn_map and hasattr(self, "spatial_head") and node_feat is not None:
-            # feat: (B, trunk_dim) -> (B, 200, trunk_dim)
-            B = feat.size(0)
-            feat_expanded = feat.unsqueeze(1).expand(-1, 200, -1)
-            # node_feat: (B, 200, gnn_hidden_dim)
-            spatial_in = torch.cat([feat_expanded, node_feat], dim=-1) # (B, 200, trunk_dim + gnn_hidden_dim)
-            spatial_logits = self.spatial_head(spatial_in) # (B, 200, 11)
-            spatial_logits = spatial_logits.transpose(1, 2).reshape(B, 2200) # (B, 11, 200) -> (B, 2200)
-            
-            scalar_logits = self.scalar_head(feat) # (B, 930)
-            
-            # Reconstruct 3130 logits
-            logits = torch.cat([
-                spatial_logits[:, :1400], # 0 to 1399
-                scalar_logits[:, :908],   # 1400 to 2307
-                spatial_logits[:, 1400:], # 2308 to 3107
-                scalar_logits[:, 908:]    # 3108 to 3129
-            ], dim=-1)
-            return logits
-        else:
-            return self.policy_head(feat)
-
     def forward(
         self,
         obs: torch.Tensor,
@@ -577,14 +522,8 @@ class ActionOptimizerNet(nn.Module):
         return_opponent: bool = False,
         adj_norm: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        if self.use_gnn_map and hasattr(self, "spatial_head"):
-            feat, node_feat = self.backbone(obs, adj_norm=adj_norm, return_map=True)
-            logits = self._compute_logits(feat, node_feat)
-        else:
-            feat = self.backbone(obs, adj_norm=adj_norm)
-            if isinstance(feat, tuple):
-                feat = feat[0]
-            logits = self._compute_logits(feat)
+        feat = self.backbone(obs, adj_norm=adj_norm) if hasattr(self.backbone, "forward") else self.backbone(obs)
+        logits = self.policy_head(feat)
 
         if action_mask is not None:
             if action_mask.dim() == 1 and logits.dim() == 2:
@@ -603,8 +542,6 @@ class ActionOptimizerNet(nn.Module):
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
         feat = self.backbone(obs)
-        if isinstance(feat, tuple):
-            feat = feat[0]
         opp_logits = self.opponent_head(feat)
         return F.softmax(opp_logits, dim=-1)
 
@@ -791,7 +728,7 @@ class DualGaiaAgent(nn.Module):
         return self
 
     def set_map_adjacency(self, adj_table_or_norm: Union[np.ndarray, torch.Tensor]):
-        """Sets the map adjacency matrix across all backbones in the agent."""
+        """Sets map adjacency on map_encoder in backbone, score_net, and action_net."""
         if hasattr(self.shared_backbone, "set_map_adjacency"):
             self.shared_backbone.set_map_adjacency(adj_table_or_norm)
         if hasattr(self.score_net, "set_map_adjacency"):
@@ -804,7 +741,7 @@ class DualGaiaAgent(nn.Module):
         obs: torch.Tensor,
         action_mask: Optional[torch.Tensor] = None,
         deterministic: bool = False,
-    ) -> Tuple[int, float, np.ndarray, torch.Tensor]:
+    ) -> Tuple[int, float, float, torch.Tensor]:
         """Returns (action, log_prob, predicted_score, action_probabilities)."""
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
@@ -827,7 +764,7 @@ class DualGaiaAgent(nn.Module):
         return (
             int(action.item()),
             float(log_prob.item()),
-            score_val.squeeze(0).cpu().numpy(),
+            float(score_val.item()),
             probs.squeeze(0),
         )
 
@@ -905,14 +842,12 @@ class DualGaiaAgent(nn.Module):
         obs: torch.Tensor,
         action_mask: Optional[torch.Tensor] = None,
         leaf_actor: int = 0,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[float, np.ndarray]:
         """Ultra-fast joint evaluation of both value and policy prior with a SINGLE shared backbone forward pass."""
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
         feat = self.shared_backbone(obs)
-        if isinstance(feat, tuple):
-            feat = feat[0]
-        val = self.score_net.head(feat).squeeze(0).cpu().numpy()
+        val = self.score_net.head(feat).squeeze(-1)
         neg_val = torch.tensor(-1e4, dtype=feat.dtype, device=feat.device)
         if leaf_actor == 0 or not getattr(self.config, "use_opponent_modeling", False):
             logits = self.action_net.policy_head(feat)
@@ -928,7 +863,7 @@ class DualGaiaAgent(nn.Module):
                     action_mask = action_mask.unsqueeze(0)
                 opp_logits = torch.where(action_mask, opp_logits, neg_val)
             priors = F.softmax(opp_logits, dim=-1).squeeze(0).cpu().numpy()
-        return val, priors
+        return float(val.item()), priors
 
     def predict_score_with_uncertainty(
         self, obs: torch.Tensor, num_passes: int = 4

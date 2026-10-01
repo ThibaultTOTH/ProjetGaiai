@@ -19,11 +19,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-# Add 'training the model' to sys.path
+# Clean sys.path to avoid module shadowing with scraper.py
+SCRAPER_DIR = str(Path(__file__).resolve().parent)
+while sys.path and sys.path[0] == SCRAPER_DIR:
+    sys.path.pop(0)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TRAINING_DIR = PROJECT_ROOT / "training the model"
 CHECKPOINTS_DIR = PROJECT_ROOT / "checkpoints"
-sys.path.insert(0, str(TRAINING_DIR))
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+if str(TRAINING_DIR) not in sys.path:
+    sys.path.insert(1, str(TRAINING_DIR))
 
 from config import AppConfig, ModelConfig
 from models import DualGaiaAgent
@@ -116,21 +124,22 @@ def train_supervised(
                 t[88] = float(f_idx) / 17.0
                 faction_templates[f_idx] = t
 
+    template_tensor = None
+    if observations is None:
+        template_tensor = torch.stack([
+            faction_templates.get(i, faction_templates.get(0, torch.zeros(obs_dim)))
+            for i in range(18)
+        ]).to(device)
+
     def _build_batch_obs(batch):
         if len(batch) == 4:
             # We have true observations (obs, act, val, fac)
             b_obs = batch[0].to(device)
             return b_obs
         else:
-            # Fallback to templates (act, val, fac)
-            b_fac = batch[2]
-            B_len = b_fac.size(0)
-            out = torch.zeros((B_len, obs_dim), device=device)
-            for i_idx in range(B_len):
-                f_id = b_fac[i_idx].item()
-                tmpl = faction_templates.get(f_id, faction_templates[0]).clone().to(device)
-                out[i_idx] = tmpl
-            return out
+            # Vectorized O(1) template lookup by faction index
+            b_fac = batch[2].to(device).clamp(0, 17)
+            return template_tensor[b_fac]
 
     # Joint optimizer with cosine annealing
     optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=1e-4)
@@ -240,6 +249,8 @@ def train_supervised(
             checkpoint_data = {
                 "epoch": epoch,
                 "agent_state_dict": agent.state_dict(),
+                "score_net_state": agent.score_net.state_dict(),
+                "action_net_state": agent.action_net.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "config": config,
                 "val_top1_acc": val_top1,

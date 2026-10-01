@@ -175,6 +175,8 @@ def main():
             auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_latest.pt")
             if not os.path.exists(auto_path):
                 auto_path = os.path.join(cfg.training.checkpoint_dir, "az_checkpoint_500.pt")
+            if not os.path.exists(auto_path):
+                auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_supervised_pretrained.pt")
             if os.path.exists(auto_path):
                 resume_target = auto_path
             else:

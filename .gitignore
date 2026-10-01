@@ -11,6 +11,10 @@ __pycache__/
 # Rust build artifacts
 target/
 **/target/
+cargo_target/
+**/cargo_target/
+%USERPROFILE%/
+**/%USERPROFILE%/
 Cargo.lock
 
 # Test & IDE
