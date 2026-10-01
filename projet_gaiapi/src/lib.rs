@@ -8,6 +8,7 @@ pub mod map_serialize;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use board::HexCoord;
 
 pub mod actions;
 pub mod action_space;
@@ -583,10 +584,10 @@ impl GaiaEnv {
                             self.current_player = self.active_player_before_leech;
                         }
                     } else {
-                        return Err(ActionError::SpecialActionUnavailable(SpecialAction::AmbasSwapPi)); // Dummy error
+                        return Err(ActionError::SpecialActionUnavailable(crate::rules::SpecialAction::AmbasPiSwap)); // Dummy error
                     }
                 } else {
-                    return Err(ActionError::SpecialActionUnavailable(SpecialAction::AmbasSwapPi));
+                    return Err(ActionError::SpecialActionUnavailable(crate::rules::SpecialAction::AmbasPiSwap));
                 }
             }
             GameCommand::BoardAction {

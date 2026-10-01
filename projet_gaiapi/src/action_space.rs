@@ -120,6 +120,8 @@ pub fn decode_action(index: usize, map: &crate::map::Map) -> Option<GameCommand>
             return Some(GameCommand::ChargePower { charge_amount: 1 }); // Let engine handle true amount
         }
     }
+    
+    if index < A_SPECIAL_ACTION_OFFSET {
         let i = index - A_BOARD_ACTION_OFFSET;
         let action = match i {
             0 => BoardAction::Power1,
@@ -320,7 +322,7 @@ pub fn encode_action(cmd: &GameCommand, map: &crate::map::Map) -> Option<usize> 
         GameCommand::ChargePower { .. } => {
             Some(A_CHARGE_POWER_OFFSET + 1)
         }
-        GameCommand::DeclineLeech => {
+        &GameCommand::DeclineLeech => {
             Some(A_CHARGE_POWER_OFFSET + 0)
         }
         GameCommand::BoardAction { action, .. } => {

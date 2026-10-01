@@ -181,7 +181,8 @@ class AlphaZeroTrainer:
         move_count = 0
         total_game_steps = 0
         consecutive_step_errors = 0
-        MAX_TOTAL_STEPS = 400
+        # Increased to 1200 to accommodate Free Actions and Leech interrupts in a 4-player game.
+        MAX_TOTAL_STEPS = 1200
         
         while not env.terminated and total_game_steps < MAX_TOTAL_STEPS:
             if self._stop_event.is_set():
