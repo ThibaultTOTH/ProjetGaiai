@@ -238,8 +238,8 @@ class AlphaZeroTrainer:
                     next_obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
                     next_obs_t = torch.from_numpy(next_obs).float().to(self.device).unsqueeze(0)
                     with torch.no_grad():
-                        v_before = float(self.agent.score_net(obs_before_t).squeeze(0).cpu().numpy()[current_player])
-                        v_after = float(self.agent.score_net(next_obs_t).squeeze(0).cpu().numpy()[current_player])
+                        v_before = float(self.agent.score_net(obs_before_t).view(-1)[0].item())
+                        v_after = float(self.agent.score_net(next_obs_t).view(-1)[0].item())
                     
                     regret = max(0.0, v_before - v_after)
                     thresh = getattr(self.config.training, "rgsc_regret_threshold", 0.30)

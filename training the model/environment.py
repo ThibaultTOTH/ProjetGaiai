@@ -534,7 +534,7 @@ class NativeGaiaEnv:
         new_env.round = self.round
         new_env.current_player = self.current_player
         new_env.terminated = self.terminated
-        new_env.egocentric = getattr(self, "egocentric", False)
+        new_env.egocentric = getattr(self, "egocentric", True)
         new_env._faction_ids = list(self._faction_ids)
         new_env._obs_buf = (ctypes.c_float * self.obs_dim)()
         new_env._mask_buf = (ctypes.c_uint8 * self.action_dim)()

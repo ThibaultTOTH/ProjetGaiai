@@ -109,9 +109,8 @@ def print_banner(cfg: AppConfig, device: torch.device, hw_info: dict, preset_nam
     else:
         dev_desc = "💻 Device: CPU (Optimized multi-threaded)"
     print(f"  {dev_desc}")
-    if not cuda_avail:
-        print("  ⚠️ INFO GPU : PyTorch tourne sur CPU car CUDA n'est pas détecté dans cet environnement.")
-        print("     Si cette machine a un GPU NVIDIA, installez le support CUDA officiel via :")
+    if not cuda_avail and getattr(cfg.hardware, "device_override", "auto") != "cpu":
+        print("  💡 INFO GPU : PyTorch tourne actuellement sur CPU. Sur votre machine dédiée avec GPU NVIDIA, activez CUDA via :")
         print("     pip install --upgrade --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu124")
     print(f"  ⚡ Mixed Precision: {'ON (AMP FP16/BF16)' if cfg.hardware.use_mixed_precision and cuda_avail else 'OFF'} | TF32: {'ON' if cfg.hardware.enable_tf32 and cuda_avail else 'OFF'}")
     print(f"  ⚙️ Preset: [{preset_name.upper()}] | Target Epochs: {cfg.training.total_episodes} | Batch: {cfg.training.batch_size}")

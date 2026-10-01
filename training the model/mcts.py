@@ -175,7 +175,8 @@ class MultiPlayerMCTS:
         mask_tensor = torch.from_numpy(root_mask).bool().to(self.device).unsqueeze(0)
 
         with torch.no_grad():
-            if root_actor == 0:
+            use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+            if not use_opp_model or root_actor == 0:
                 logits_tensor = self.agent.action_net(obs_tensor, mask_tensor)
             else:
                 opp_probs = self.agent.predict_opponent_action(obs_tensor, mask_tensor)
@@ -285,7 +286,8 @@ class MultiPlayerMCTS:
                                 pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
                                     obs_t, num_passes=dropout_passes
                                 )
-                                if leaf_actor == 0:
+                                use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+                                if not use_opp_model or leaf_actor == root_actor:
                                     leaf_logits = self.agent.action_net(obs_t, mask_t)
                                     leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                                 else:
@@ -298,7 +300,8 @@ class MultiPlayerMCTS:
                                     )
                                 else:
                                     pred_score = float(self.agent.score_net(obs_t).item())
-                                    if leaf_actor == 0:
+                                    use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+                                    if not use_opp_model or leaf_actor == root_actor:
                                         leaf_logits = self.agent.action_net(obs_t, mask_t)
                                         leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                                     else:
@@ -326,19 +329,20 @@ class MultiPlayerMCTS:
                         delta_vps = leaf_vps - root_vps
 
                         milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
-                        cand_bonus = milestone_w * cand_milestone if root_actor == 0 else 0.0
+                        cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
 
                         # Optimism & Concrete Intermediate VP projection:
                         # Ensures high-scoring actions (federations +7..12 VP, research, scoring tiles)
                         # receive immediate discriminative advantage instead of being squashed by flat pred_score
                         optimism_weight = getattr(self.config, "optimism_weight", 0.35)
-                        p0_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                        p0_projected = pred_score + delta_vps[0] + cand_bonus + p0_optimism
+                        ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
+                        leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
 
                         raw_vps = np.zeros(4, dtype=np.float32)
-                        raw_vps[0] = p0_projected
-                        for i in range(1, 4):
-                            raw_vps[i] = pred_score + (root_vps[i] - root_vps[0]) + delta_vps[i]
+                        raw_vps[leaf_actor] = leaf_projected
+                        for i in range(4):
+                            if i != leaf_actor:
+                                raw_vps[i] = pred_score + (root_vps[i] - root_vps[leaf_actor]) + (delta_vps[i] - delta_vps[leaf_actor])
 
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                         margin = (raw_vps - mean_vp) / 25.0
@@ -442,7 +446,8 @@ class MultiPlayerMCTS:
         mask_tensor = torch.from_numpy(root_mask).bool().to(self.device).unsqueeze(0)
 
         with torch.no_grad():
-            if root_actor == 0:
+            use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+            if not use_opp_model or root_actor == 0:
                 logits = self.agent.action_net(obs_tensor, mask_tensor)
                 priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
             else:
@@ -517,7 +522,8 @@ class MultiPlayerMCTS:
                         pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
                             obs_t, num_passes=dropout_passes
                         )
-                        if leaf_actor == 0:
+                        use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+                        if not use_opp_model or leaf_actor == root_actor:
                             leaf_logits = self.agent.action_net(obs_t, mask_t)
                             leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                         else:
@@ -530,7 +536,8 @@ class MultiPlayerMCTS:
                             )
                         else:
                             pred_score = float(self.agent.score_net(obs_t).item())
-                            if leaf_actor == 0:
+                            use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+                            if not use_opp_model or leaf_actor == root_actor:
                                 leaf_logits = self.agent.action_net(obs_t, mask_t)
                                 leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                             else:
@@ -561,16 +568,17 @@ class MultiPlayerMCTS:
                 first_action = search_path[1].action_from_parent if len(search_path) > 1 and search_path[1].action_from_parent is not None else -1
                 cand_milestone = compute_milestone_bonus(first_action) if first_action >= 0 else 0.0
                 milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
-                cand_bonus = milestone_w * cand_milestone if root_actor == 0 else 0.0
+                cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
 
                 optimism_weight = getattr(self.config, "optimism_weight", 0.25)
-                p0_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                p0_projected = pred_score + delta_vps[0] + cand_bonus + p0_optimism
+                ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
+                leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
 
                 raw_vps = np.zeros(4, dtype=np.float32)
-                raw_vps[0] = p0_projected
-                for i in range(1, 4):
-                    raw_vps[i] = pred_score + (root_vps[i] - root_vps[0]) + delta_vps[i]
+                raw_vps[leaf_actor] = leaf_projected
+                for i in range(4):
+                    if i != leaf_actor:
+                        raw_vps[i] = pred_score + (root_vps[i] - root_vps[leaf_actor]) + (delta_vps[i] - delta_vps[leaf_actor])
 
                 mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                 value_vector = (raw_vps - mean_vp) / 25.0

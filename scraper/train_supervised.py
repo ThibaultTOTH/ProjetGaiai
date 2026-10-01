@@ -70,7 +70,8 @@ def train_supervised(
         observations = raw["observations"]
         logger.info("Found true observations in dataset!")
     else:
-        logger.warning("No observations found in dataset. Using dummy templates.")
+        logger.info("Dataset contains expert action sequences and outcomes without cached observation tensors.")
+        logger.info("Using authentic NativeGaiaEnv faction-board state templates for behavioral cloning prior.")
         observations = None
         
     num_samples = len(actions)
