@@ -70,8 +70,8 @@ def parse_args():
     parser.add_argument(
         "--resume",
         type=str,
-        default=None,
-        help="Checkpoint path to resume from ('auto' checks checkpoints/gaia_latest.pt)",
+        default="auto",
+        help="Checkpoint path to resume from ('auto' checks checkpoints/gaia_latest.pt or gaia_supervised_pretrained.pt)",
     )
     parser.add_argument(
         "--async-appo",

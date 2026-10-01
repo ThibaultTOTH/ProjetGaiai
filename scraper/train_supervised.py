@@ -135,7 +135,7 @@ def train_supervised(
     def _build_batch_obs(batch):
         if len(batch) == 4:
             # We have true observations (obs, act, val, fac)
-            b_obs = batch[0].to(device)
+            b_obs = batch[0].to(device).float()
             return b_obs
         else:
             # Vectorized O(1) template lookup by faction index
