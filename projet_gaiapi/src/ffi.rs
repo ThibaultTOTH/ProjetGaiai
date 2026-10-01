@@ -86,6 +86,29 @@ pub unsafe extern "C" fn gaiapi_get_observation(
     }
 }
 
+/// Copies egocentric observation vector into `out_ptr`. Returns number of floats copied.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gaiapi_get_observation_egocentric(
+    env: *mut GaiaEnv,
+    out_ptr: *mut f32,
+    max_len: u32,
+) -> u32 {
+    if let Some(env) = unsafe { env.as_ref() } {
+        if out_ptr.is_null() {
+            return 0;
+        }
+        let obs = env.observe_egocentric();
+        let copy_len = obs.values.len().min(max_len as usize);
+        let out_slice = unsafe { slice::from_raw_parts_mut(out_ptr, copy_len) };
+        out_slice.copy_from_slice(&obs.values[..copy_len]);
+        copy_len as u32
+    } else {
+        0
+    }
+}
+
+
+
 /// Copies boolean legality mask into `out_ptr` as bytes (0 or 1). Returns elements written.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn gaiapi_get_action_mask(

@@ -232,6 +232,7 @@ pub enum GameCommand {
     ChargePower {
         charge_amount: u8,
     },
+    DeclineLeech,
     BoardAction {
         action: BoardAction,
         target_mine: Option<HexCoord>,
@@ -330,10 +331,14 @@ pub fn calculate_build_mine_cost(
         return Err(ActionError::CannotBuildOnTransdimDirectly);
     }
 
-    // Occupancy check (Lantids special exception)
-    if hex.occupied() {
+    // Occupancy check (Lantids special exception & Gaiaformer on Gaia planet exception)
+    let has_own_gaiaformer = hex.planet == Planet::Gaia
+        && hex.building == Some(Building::GaiaFormer)
+        && hex.player == Some(player.seat);
+
+    if hex.occupied() && !has_own_gaiaformer {
         if player.faction == Faction::Lantids {
-            if hex.additional_mine.is_some() || hex.player == Some(player.seat) {
+            if hex.additional_mine.is_some() || hex.player == Some(player.seat) || hex.building == Some(Building::GaiaFormer) {
                 return Err(ActionError::HexAlreadyOccupied);
             }
         } else {
@@ -341,21 +346,25 @@ pub fn calculate_build_mine_cost(
         }
     }
 
-    // Distance and range check
-    let dist = match map.min_distance_from_player(player.seat, hex_idx) {
-        Some(d) => d,
-        None => {
-            // First mine in game setup can be placed without range starting point
-            if player.buildings[Building::Mine as usize] == 0 {
-                0
-            } else {
-                return Err(ActionError::UnreachableHex);
+    // Distance and range check (no range needed if Gaiaformer already on site)
+    let qic_for_dist = if has_own_gaiaformer {
+        0
+    } else {
+        let dist = match map.min_distance_from_player(player.seat, hex_idx) {
+            Some(d) => d,
+            None => {
+                // First mine in game setup can be placed without range starting point
+                if player.buildings[Building::Mine as usize] == 0 {
+                    0
+                } else {
+                    return Err(ActionError::UnreachableHex);
+                }
             }
-        }
-    };
+        };
 
-    let base_range = player.effective_range();
-    let qic_for_dist = qic_for_distance(dist, base_range, 0) as i16;
+        let base_range = player.effective_range();
+        qic_for_distance(dist, base_range, 0) as i16
+    };
 
     // Special planet type costs:
     let mut credits = 2;
@@ -1045,33 +1054,18 @@ pub fn execute_form_federation(
     Ok(())
 }
 
-pub fn execute_form_federation_auto(
-    player: &mut PlayerData,
-    map: &mut Map,
-    token: FederationToken,
-) -> Result<(), ActionError> {
-    let mut planets = Vec::new();
-    let mut total_power = 0;
-    
-    let has_pi = player.buildings[Building::PlanetaryInstitute as usize] > 0;
-    let home_planet = faction_planet(player.faction);
-
-    for i in 0..map.count {
-        let hex = map.hexes[i];
-        if hex.belongs_to_federation_of(player.seat) {
-            continue;
-        }
-        if let Some(building) = hex.building_of(player.seat) {
-            planets.push(map.coords[i]);
-            total_power += building_power_value(
-                building,
-                player.faction,
-                has_pi,
-                hex.planet == home_planet,
-            );
-        }
+/// Finds the minimal set of candidate planets and satellites needed to form a valid federation.
+/// Returns Ok((planets, satellites)) or an ActionError explaining why forming a federation is impossible.
+pub fn find_minimal_federation(
+    player: &PlayerData,
+    map: &Map,
+) -> Result<(Vec<HexCoord>, Vec<HexCoord>), ActionError> {
+    if player.passed {
+        return Err(ActionError::PlayerAlreadyPassed);
     }
 
+    let has_pi = player.buildings[Building::PlanetaryInstitute as usize] > 0;
+    let home_planet = faction_planet(player.faction);
     let required_power = if player.faction == Faction::Xenos && has_pi {
         6
     } else if player.faction == Faction::Ivits {
@@ -1080,20 +1074,236 @@ pub fn execute_form_federation_auto(
         7
     };
 
-    if total_power < required_power {
+    let mut candidate_planets: Vec<(usize, u8)> = Vec::new();
+    let mut total_cand_power = 0u8;
+
+    for i in 0..map.count {
+        let hex = map.hexes[i];
+        if hex.belongs_to_federation_of(player.seat) {
+            continue;
+        }
+        if let Some(building) = hex.building_of(player.seat) {
+            let p_val = building_power_value(
+                building,
+                player.faction,
+                has_pi,
+                hex.planet == home_planet,
+            );
+            candidate_planets.push((i, p_val));
+            total_cand_power += p_val;
+        }
+    }
+
+    if total_cand_power < required_power {
         return Err(ActionError::InsufficientFederationPower {
             needed: required_power,
-            have: total_power,
+            have: total_cand_power,
         });
     }
 
-    for &coord in &planets {
-        let hex_idx = map.index_of(coord).unwrap();
-        map.hexes[hex_idx].add_to_federation(player.seat);
+    // 1. Check if any connected component of candidate planets has power >= required_power with 0 satellites
+    let n = candidate_planets.len();
+    let mut visited = vec![false; n];
+    for start in 0..n {
+        if visited[start] {
+            continue;
+        }
+        let mut comp = Vec::new();
+        let mut comp_power = 0u8;
+        let mut q = std::collections::VecDeque::new();
+        q.push_back(start);
+        visited[start] = true;
+
+        while let Some(u) = q.pop_front() {
+            comp.push(candidate_planets[u].0);
+            comp_power += candidate_planets[u].1;
+            for v in 0..n {
+                if !visited[v] && map.distance(candidate_planets[u].0, candidate_planets[v].0) == 1 {
+                    visited[v] = true;
+                    q.push_back(v);
+                }
+            }
+        }
+
+        if comp_power >= required_power {
+            let mut sub_planets: Vec<(usize, u8)> = comp.iter().map(|&idx| {
+                let p_val = candidate_planets.iter().find(|&&(c, _)| c == idx).map(|&(_, v)| v).unwrap_or(1);
+                (idx, p_val)
+            }).collect();
+            let mut cur_p = comp_power;
+
+            let mut pruned = true;
+            while pruned && cur_p > required_power {
+                pruned = false;
+                for i in 0..sub_planets.len() {
+                    let cand_val = sub_planets[i].1;
+                    if cur_p.saturating_sub(cand_val) >= required_power {
+                        let remaining: Vec<usize> = sub_planets.iter().enumerate().filter(|&(j, _)| j != i).map(|(_, p)| p.0).collect();
+                        if !remaining.is_empty() {
+                            let mut test_vis = vec![false; remaining.len()];
+                            let mut test_q = std::collections::VecDeque::new();
+                            test_q.push_back(0);
+                            test_vis[0] = true;
+                            while let Some(tu) = test_q.pop_front() {
+                                for tv in 0..remaining.len() {
+                                    if !test_vis[tv] && map.distance(remaining[tu], remaining[tv]) == 1 {
+                                        test_vis[tv] = true;
+                                        test_q.push_back(tv);
+                                    }
+                                }
+                            }
+                            if test_vis.iter().all(|&v| v) {
+                                cur_p -= cand_val;
+                                sub_planets.remove(i);
+                                pruned = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            let planets = sub_planets.into_iter().map(|(idx, _)| map.coords[idx]).collect();
+            return Ok((planets, Vec::new()));
+        }
     }
 
-    player.claim_federation_token(token);
-    Ok(())
+    // 2. We need satellites to bridge separated candidate planets.
+    let max_sats = if player.faction == Faction::Ivits {
+        (player.available_satellites() as usize).min(player.qic.max(0) as usize)
+    } else {
+        let total_bowl = (player.power.area1 + player.power.area2 + player.power.area3) as usize;
+        (player.available_satellites() as usize).min(total_bowl)
+    };
+
+    if max_sats == 0 {
+        return Err(ActionError::InsufficientSatellites {
+            needed: 1,
+            available: 0,
+        });
+    }
+
+    // Helper: is a hex valid as a satellite?
+    let is_valid_satellite_hex = |hex_idx: usize| -> bool {
+        let hex = map.hexes[hex_idx];
+        !hex.has_planet() && !hex.belongs_to_federation_of(player.seat)
+    };
+
+    // Helper: check if hex is candidate planet
+    let is_candidate_planet = |hex_idx: usize| -> Option<u8> {
+        candidate_planets.iter().find(|&&(idx, _)| idx == hex_idx).map(|&(_, p)| p)
+    };
+
+    let mut best_solution: Option<(Vec<HexCoord>, Vec<HexCoord>)> = None;
+    let mut min_sat_count = usize::MAX;
+
+    // Try growing a tree from each candidate planet
+    for root_idx in 0..n {
+        let root_hex = candidate_planets[root_idx].0;
+
+        let mut tree_planets = vec![root_hex];
+        let mut tree_satellites: Vec<usize> = Vec::new();
+        let mut tree_hexes = std::collections::HashSet::new();
+        tree_hexes.insert(root_hex);
+        let mut cur_power = candidate_planets[root_idx].1;
+
+        while cur_power < required_power {
+            // Multi-source BFS from all hexes currently in the tree
+            // To find the closest unadded candidate planet
+            let mut dist = vec![usize::MAX; map.count];
+            let mut parent = vec![None; map.count];
+            let mut q = std::collections::VecDeque::new();
+
+            for &th in &tree_hexes {
+                dist[th] = 0;
+                q.push_back(th);
+            }
+
+            let mut target_planet = None;
+
+            while let Some(u) = q.pop_front() {
+                // If u is a candidate planet not yet in tree, we reached it!
+                if !tree_hexes.contains(&u) && is_candidate_planet(u).is_some() {
+                    target_planet = Some(u);
+                    break;
+                }
+
+                // Expand to adjacent hexes
+                for v in 0..map.count {
+                    if map.distance(u, v) == 1 {
+                        let is_cand = is_candidate_planet(v).is_some();
+                        let is_sat = is_valid_satellite_hex(v);
+
+                        if is_cand || is_sat {
+                            let new_cost = dist[u] + if is_cand { 0 } else { 1 };
+                            if new_cost < dist[v] {
+                                dist[v] = new_cost;
+                                parent[v] = Some(u);
+                                q.push_back(v);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let Some(tp) = target_planet else {
+                break; // Could not reach another candidate planet
+            };
+
+            // Trace path from target_planet back to tree_hexes
+            let mut curr = tp;
+            let mut new_sats = Vec::new();
+            while !tree_hexes.contains(&curr) {
+                if is_candidate_planet(curr).is_none() {
+                    new_sats.push(curr);
+                }
+                if let Some(p) = parent[curr] {
+                    curr = p;
+                } else {
+                    break;
+                }
+            }
+
+            // Add new satellites and the target planet to the tree
+            for &s in &new_sats {
+                if !tree_hexes.contains(&s) {
+                    tree_hexes.insert(s);
+                    tree_satellites.push(s);
+                }
+            }
+            tree_hexes.insert(tp);
+            tree_planets.push(tp);
+            cur_power += is_candidate_planet(tp).unwrap_or(0);
+        }
+
+        if cur_power >= required_power
+            && tree_satellites.len() <= max_sats
+            && tree_satellites.len() <= 16
+            && tree_planets.len() <= 8
+        {
+            if tree_satellites.len() < min_sat_count {
+                min_sat_count = tree_satellites.len();
+                let planets = tree_planets.into_iter().map(|idx| map.coords[idx]).collect();
+                let sats = tree_satellites.into_iter().map(|idx| map.coords[idx]).collect();
+                best_solution = Some((planets, sats));
+            }
+        }
+    }
+
+    if let Some((planets, satellites)) = best_solution {
+        Ok((planets, satellites))
+    } else {
+        Err(ActionError::PlanetsNotConnected)
+    }
+}
+
+pub fn execute_form_federation_auto(
+    player: &mut PlayerData,
+    map: &mut Map,
+    token: FederationToken,
+) -> Result<(), ActionError> {
+    let (planets, satellites) = find_minimal_federation(player, map)?;
+    execute_form_federation(player, map, &planets, &satellites, token)
 }
 
 /// Executes a free conversion action for a player (no turn consumed).
@@ -1266,27 +1476,37 @@ pub fn find_leech_opportunities(
     opps
 }
 
-/// Executes a leeching decision for a player: spends VP (if > 1 power) and charges power.
+/// Executes a leeching decision for a player: spends VP (if > 1 power gained) and charges power.
+/// Follows Gaia Project official rule: VP is only deducted for power actually gained,
+/// and never if the player cannot charge power (or gains 0 power).
 pub fn execute_leech(
     player: &mut PlayerData,
     charge_amount: u8,
 ) -> Result<(), ActionError> {
-    if charge_amount == 0 {
+    if charge_amount == 0 || !player.power.can_charge() {
         return Ok(());
     }
-    let vp_cost = (charge_amount as i16 - 1).max(0);
-    if player.victory_points < vp_cost {
-        return Err(ActionError::InsufficientCredits {
-            needed: vp_cost,
-            have: player.victory_points,
-        });
-    }
-    player.victory_points -= vp_cost;
+
     // Taklons PI: each time charging from passive leech, gain 1 power token
     if player.faction == Faction::Taklons && player.buildings[Building::PlanetaryInstitute as usize] > 0 {
         player.power.area1 += 1;
     }
-    player.power.charge(charge_amount);
+
+    // Maximum power player can afford based on VP (0 VP allows charging 1 power for 0 VP cost)
+    let max_affordable = if player.victory_points <= 0 {
+        1u8
+    } else {
+        (player.victory_points as u8).saturating_add(1)
+    };
+
+    let target = charge_amount.min(max_affordable);
+    let (charged, _wasted) = player.power.charge(target);
+
+    if charged > 0 {
+        let vp_cost = (charged as i16 - 1).max(0);
+        player.victory_points = player.victory_points.saturating_sub(vp_cost);
+    }
+
     Ok(())
 }
 
@@ -1409,8 +1629,19 @@ pub fn execute_special_action(
             {
                 return Err(ActionError::SpecialActionUnavailable(action));
             }
-            let coord = target_coord.ok_or(ActionError::HexNotFound)?;
-            let hex_idx = map.index_of(coord).ok_or(ActionError::HexNotFound)?;
+            let hex_idx = match target_coord {
+                Some(coord) => map.index_of(coord).ok_or(ActionError::HexNotFound)?,
+                None => {
+                    let mut cand = None;
+                    for (idx, hex) in map.hexes[..map.count].iter().enumerate() {
+                        if hex.player == Some(player.seat) && hex.building == Some(Building::Mine) {
+                            cand = Some(idx);
+                            break;
+                        }
+                    }
+                    cand.ok_or(ActionError::NotYourStructure)?
+                }
+            };
             if map.hexes[hex_idx].player != Some(player.seat)
                 || map.hexes[hex_idx].building != Some(Building::Mine)
             {
@@ -1435,8 +1666,19 @@ pub fn execute_special_action(
             {
                 return Err(ActionError::SpecialActionUnavailable(action));
             }
-            let coord = target_coord.ok_or(ActionError::HexNotFound)?;
-            let hex_idx = map.index_of(coord).ok_or(ActionError::HexNotFound)?;
+            let hex_idx = match target_coord {
+                Some(coord) => map.index_of(coord).ok_or(ActionError::HexNotFound)?,
+                None => {
+                    let mut cand = None;
+                    for (idx, hex) in map.hexes[..map.count].iter().enumerate() {
+                        if hex.player == Some(player.seat) && hex.building == Some(Building::ResearchLab) {
+                            cand = Some(idx);
+                            break;
+                        }
+                    }
+                    cand.ok_or(ActionError::NotYourStructure)?
+                }
+            };
             if map.hexes[hex_idx].player != Some(player.seat)
                 || map.hexes[hex_idx].building != Some(Building::ResearchLab)
             {
@@ -1448,9 +1690,26 @@ pub fn execute_special_action(
             map.hexes[hex_idx].building = Some(Building::TradingStation);
             player.buildings[Building::ResearchLab as usize] -= 1;
             player.buildings[Building::TradingStation as usize] += 1;
-            if let Some(field) = target_field {
-                let _ = advance_research_free(player, field, claimed_l5);
-            }
+            let field = target_field.unwrap_or_else(|| {
+                let mut best_f = ResearchField::Terraforming;
+                let mut min_l = 255;
+                for &f in &[
+                    ResearchField::Terraforming,
+                    ResearchField::Navigation,
+                    ResearchField::Intelligence,
+                    ResearchField::GaiaProject,
+                    ResearchField::Economy,
+                    ResearchField::Science,
+                ] {
+                    let l = player.research_level(f);
+                    if l < 5 && l < min_l {
+                        min_l = l;
+                        best_f = f;
+                    }
+                }
+                best_f
+            });
+            let _ = advance_research_free(player, field, claimed_l5);
         }
         SpecialAction::BescodsAdvanceLowest => {
             if player.faction != Faction::Bescods {
@@ -1486,8 +1745,25 @@ pub fn execute_special_action(
             if player.buildings_available(Building::SpaceStation) == 0 {
                 return Err(ActionError::BuildingMaxReached(Building::SpaceStation));
             }
-            let coord = target_coord.ok_or(ActionError::HexNotFound)?;
-            let hex_idx = map.index_of(coord).ok_or(ActionError::HexNotFound)?;
+            let hex_idx = match target_coord {
+                Some(coord) => map.index_of(coord).ok_or(ActionError::HexNotFound)?,
+                None => {
+                    let mut cand = None;
+                    let mut best_dist = 255;
+                    for (idx, hex) in map.hexes[..map.count].iter().enumerate() {
+                        if hex.planet == Planet::Empty && !hex.has_structure() && hex.building.is_none() {
+                            if let Some(d) = map.min_distance_from_player(player.seat, idx) {
+                                if d < best_dist {
+                                    best_dist = d;
+                                    cand = Some(idx);
+                                    if d == 1 { break; }
+                                }
+                            }
+                        }
+                    }
+                    cand.ok_or(ActionError::HexNotColonizable)?
+                }
+            };
             if map.hexes[hex_idx].planet != Planet::Empty || map.hexes[hex_idx].has_structure() {
                 return Err(ActionError::HexNotColonizable);
             }
@@ -1499,7 +1775,23 @@ pub fn execute_special_action(
             if player.faction != Faction::SpaceGiants {
                 return Err(ActionError::SpecialActionUnavailable(action));
             }
-            let coord = target_coord.ok_or(ActionError::HexNotFound)?;
+            let coord = match target_coord {
+                Some(c) => c,
+                None => {
+                    let mut best_c = None;
+                    for i in 0..map.count {
+                        let c = map.coords[i];
+                        player.temporary_step = 2;
+                        let ok = calculate_build_mine_cost(player, map, c).is_ok();
+                        player.temporary_step = 0;
+                        if ok {
+                            best_c = Some(c);
+                            break;
+                        }
+                    }
+                    best_c.ok_or(ActionError::HexNotFound)?
+                }
+            };
             player.temporary_step = 2;
             let res = execute_build_mine(player, map, coord);
             player.temporary_step = 0;
@@ -1554,6 +1846,7 @@ pub fn execute_claim_tech_tile(
         return Err(ActionError::TechTileAlreadyOwned(tech));
     }
     player.tech_tiles[tech as usize] = true;
+    player.pending_tech_claim = false;
 
     match tech {
         TechTile::Tech1 => {
@@ -2061,6 +2354,42 @@ pub fn legal_commands(
         return cmds;
     }
 
+    // If player has upgraded to ResearchLab or Academy, they MUST claim a tech tile first
+    if player.pending_tech_claim {
+        let all_techs = [
+            TechTile::Tech1, TechTile::Tech2, TechTile::Tech3,
+            TechTile::Tech4, TechTile::Tech5, TechTile::Tech6,
+            TechTile::Tech7, TechTile::Tech8, TechTile::Tech9,
+        ];
+        let all_fields = [
+            ResearchField::Terraforming, ResearchField::Navigation, ResearchField::Intelligence,
+            ResearchField::GaiaProject, ResearchField::Economy, ResearchField::Science,
+        ];
+        for &tech in &all_techs {
+            if !player.tech_tiles[tech as usize] {
+                // Option without research advancement
+                cmds.push(GameCommand::ClaimTechTile { tech, advance_field: None });
+                // Options with research advancement
+                for &field in &all_fields {
+                    let cur = player.research_level(field);
+                    if cur < 5 {
+                        if cur == 4 {
+                            if claimed_l5[field as usize].is_none() && player.green_federation_tokens > 0 {
+                                cmds.push(GameCommand::ClaimTechTile { tech, advance_field: Some(field) });
+                            }
+                        } else if !(player.faction == Faction::BalTaks
+                            && field == ResearchField::Navigation
+                            && player.buildings[Building::PlanetaryInstitute as usize] == 0)
+                        {
+                            cmds.push(GameCommand::ClaimTechTile { tech, advance_field: Some(field) });
+                        }
+                    }
+                }
+            }
+        }
+        return cmds;
+    }
+
     // 1. Build Mine
     if player.buildings_available(Building::Mine) > 0 {
         for i in 0..map.count {
@@ -2443,7 +2772,39 @@ pub fn legal_commands(
         }
     }
 
-    // 9. Pass
+    // 9. Form Federation
+    if find_minimal_federation(player, map).is_ok() {
+        for &tok in &[
+            FederationToken::Fed1,
+            FederationToken::Fed2,
+            FederationToken::Fed3,
+            FederationToken::Fed4,
+            FederationToken::Fed5,
+            FederationToken::Fed6,
+        ] {
+            cmds.push(GameCommand::FormFederationAuto { token: tok });
+        }
+    }
+
+    // 10. Free Actions (Universal conversions)
+    if player.power.spendable_power() >= 4 {
+        cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::PowerToQic });
+        cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::PowerToKnowledge });
+    }
+    if player.power.spendable_power() >= 3 {
+        cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::PowerToOre });
+    }
+    if player.power.spendable_power() >= 1 {
+        cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::PowerToCredit });
+    }
+    if player.qic >= 1 {
+        cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::QicToOre });
+    }
+    if player.ore >= 1 {
+        cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::OreToToken });
+    }
+
+    // 11. Pass
     if is_final_round {
         cmds.push(GameCommand::Pass { new_booster: None });
     } else {

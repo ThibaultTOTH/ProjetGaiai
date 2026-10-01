@@ -259,32 +259,73 @@ class AIEvaluator:
                 sys.path.insert(0, model_dir)
             
             from models import DualGaiaAgent
-            from config import ModelConfig
+            from config import ModelConfig, AppConfig
             
-            cfg = ModelConfig(obs_dim=2476, action_dim=3130)
-            self.agent = DualGaiaAgent(config=cfg)
-            self.agent.eval()
-            
-            # Recherche de checkpoints entraînés
+            project_root = os.path.abspath(os.path.join(model_dir, ".."))
             ckpt_paths = [
-                os.path.join(model_dir, "checkpoints", "gaia_latest.pt"),
+                os.path.join(project_root, "checkpoints", "gaia_supervised_pretrained.pt"),
+                os.path.join(model_dir, "checkpoints", "gaia_supervised_pretrained.pt"),
+                os.path.join(project_root, "checkpoints", "gaia_best_elo.pt"),
                 os.path.join(model_dir, "checkpoints", "gaia_best_elo.pt"),
+                os.path.join(project_root, "checkpoints", "gaia_latest.pt"),
+                os.path.join(model_dir, "checkpoints", "gaia_latest.pt"),
                 os.path.join(model_dir, "checkpoints", "best_model.pt"),
-                os.path.join(model_dir, "checkpoints", "checkpoint_latest.pt"),
                 os.path.join(model_dir, "best_model.pt"),
             ]
+            
+            loaded = False
             for p in ckpt_paths:
-                if os.path.exists(p):
-                    try:
-                        data = torch.load(p, map_location="cpu", weights_only=False)
-                        if isinstance(data, dict) and "model_state_dict" in data:
-                            self.agent.load_state_dict(data["model_state_dict"], strict=False)
-                        elif isinstance(data, dict):
-                            self.agent.load_state_dict(data, strict=False)
-                        print(f"[AIEvaluator] Modèle RL chargé : {p}")
+                p_norm = os.path.normpath(p)
+                if not os.path.exists(p_norm):
+                    continue
+                try:
+                    data = torch.load(p_norm, map_location="cpu", weights_only=False)
+                    if not isinstance(data, dict):
+                        continue
+                    
+                    cfg = None
+                    if "config" in data:
+                        raw_cfg = data["config"]
+                        if isinstance(raw_cfg, AppConfig):
+                            cfg = raw_cfg.model
+                        elif isinstance(raw_cfg, ModelConfig):
+                            cfg = raw_cfg
+                    
+                    # Ensure modern action/obs dimension compatibility (2476 obs, 3130 actions)
+                    if cfg is not None and (cfg.obs_dim != 2476 or cfg.action_dim != 3130):
+                        print(f"[AIEvaluator] Ignoré (checkpoint hérité incompatible {cfg.obs_dim}d/{cfg.action_dim}a) : {p_norm}")
+                        continue
+                    
+                    if cfg is None:
+                        cfg = ModelConfig(obs_dim=2476, action_dim=3130, block_type="swiglu", use_gnn_map=True)
+                    
+                    self.agent = DualGaiaAgent(config=cfg)
+                    
+                    if "agent_state_dict" in data:
+                        self.agent.load_state_dict(data["agent_state_dict"], strict=True)
+                        print(f"[AIEvaluator] Modèle supervisé chargé avec succès (100% concordant) : {p_norm}")
+                        loaded = True
                         break
-                    except Exception as e:
-                        print(f"[AIEvaluator] Avertissement checkpoint {p}: {e}")
+                    elif "model_state_dict" in data:
+                        self.agent.load_state_dict(data["model_state_dict"], strict=False)
+                        print(f"[AIEvaluator] Modèle RL chargé (model_state_dict) : {p_norm}")
+                        loaded = True
+                        break
+                    elif "score_net_state" in data and "action_net_state" in data:
+                        self.agent.score_net.load_state_dict(data["score_net_state"], strict=False)
+                        self.agent.action_net.load_state_dict(data["action_net_state"], strict=False)
+                        print(f"[AIEvaluator] Modèle RL chargé (score_net + action_net) : {p_norm}")
+                        loaded = True
+                        break
+                except Exception as e:
+                    print(f"[AIEvaluator] Avertissement lors de la lecture de {p_norm}: {e}")
+
+            if not loaded:
+                default_cfg = ModelConfig(obs_dim=2476, action_dim=3130, block_type="swiglu", use_gnn_map=True)
+                self.agent = DualGaiaAgent(config=default_cfg)
+                print("[AIEvaluator] Aucun checkpoint compatible trouvé, initialisation agent aléatoire (2476/3130).")
+            
+            self.agent.eval()
             self.is_loaded = True
             print("[AIEvaluator] Modèle neuronal IA (obs: 2476, actions: 3130) prêt pour l'analyse en temps réel.")
         except Exception as e:

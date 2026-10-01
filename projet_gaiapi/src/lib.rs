@@ -239,6 +239,8 @@ pub struct GaiaEnv {
     pub round: u8,
     pub terminated: bool,
     pub rng_state: u64,
+    pub pending_leeches: Vec<crate::actions::LeechOpportunity>,
+    pub active_player_before_leech: usize,
 }
 
 impl GaiaEnv {
@@ -277,6 +279,8 @@ impl GaiaEnv {
             current_player: 0,
             round: 1,
             terminated: false,
+            pending_leeches: Vec::new(),
+            active_player_before_leech: 0,
         };
         environment.reset();
         Ok(environment)
@@ -287,6 +291,8 @@ impl GaiaEnv {
         self.map = crate::map::Map::generate_standard(self.config.players, self.config.seed);
         self.round = 1;
         self.terminated = false;
+        self.pending_leeches.clear();
+        self.active_player_before_leech = 0;
         self.claimed_artefacts = [false; 13];
         if self.players.len() != self.config.players {
             self.players = (0..self.config.players)
@@ -465,16 +471,8 @@ impl GaiaEnv {
                         _ => {}
                     }
                 }
-                // Passive leeching: opponents within range 2 may charge power (automatic max leech)
-                {
-                    let opps = actions::find_leech_opportunities(&self.map, coord, player as u8, &self.players);
-                    for opp in &opps {
-                        if let Some(opp) = opp {
-                            // Auto-accept maximum leech for the opponent (simplified: always leech max)
-                            let _ = actions::execute_leech(&mut self.players[opp.seat as usize], opp.power_value);
-                        }
-                    }
-                }
+                // Passive leeching queue
+                self.queue_leeching(coord, player as u8);
             }
             GameCommand::StartGaiaProject { coord } => {
                 actions::execute_start_gaia_project(&mut self.players[player], &mut self.map, coord)?;
@@ -506,15 +504,8 @@ impl GaiaEnv {
                         _ => {}
                     }
                 }
-                // Passive leeching: opponents within range 2 may charge power (automatic max leech)
-                {
-                    let opps = actions::find_leech_opportunities(&self.map, coord, player as u8, &self.players);
-                    for opp in &opps {
-                        if let Some(opp) = opp {
-                            let _ = actions::execute_leech(&mut self.players[opp.seat as usize], opp.power_value);
-                        }
-                    }
-                }
+                // Passive leeching queue
+                self.queue_leeching(coord, player as u8);
                 // Mandatory tech tile claim trigger on Lab/Academy upgrade
                 // (The agent MUST follow up with a ClaimTechTile command; this is enforced by legal_commands)
                 // Note: actual claiming is done via ClaimTechTile command in the next action.
@@ -564,7 +555,39 @@ impl GaiaEnv {
                 self.pass_order.push(player as u8);
             }
             GameCommand::ChargePower { charge_amount } => {
-                actions::execute_leech(&mut self.players[player], charge_amount)?;
+                let mut actual_amount = charge_amount;
+                if let Some(opp) = self.pending_leeches.first() {
+                    if opp.seat as usize == player {
+                        actual_amount = opp.power_value;
+                    }
+                }
+                actions::execute_leech(&mut self.players[player], actual_amount)?;
+                if let Some(opp) = self.pending_leeches.first() {
+                    if opp.seat as usize == player {
+                        self.pending_leeches.remove(0);
+                        if let Some(next_opp) = self.pending_leeches.first() {
+                            self.current_player = next_opp.seat as usize;
+                        } else {
+                            self.current_player = self.active_player_before_leech;
+                        }
+                    }
+                }
+            }
+            GameCommand::DeclineLeech => {
+                if let Some(opp) = self.pending_leeches.first() {
+                    if opp.seat as usize == player {
+                        self.pending_leeches.remove(0);
+                        if let Some(next_opp) = self.pending_leeches.first() {
+                            self.current_player = next_opp.seat as usize;
+                        } else {
+                            self.current_player = self.active_player_before_leech;
+                        }
+                    } else {
+                        return Err(ActionError::SpecialActionUnavailable(SpecialAction::AmbasSwapPi)); // Dummy error
+                    }
+                } else {
+                    return Err(ActionError::SpecialActionUnavailable(SpecialAction::AmbasSwapPi));
+                }
             }
             GameCommand::BoardAction {
                 action,
@@ -726,16 +749,18 @@ impl GaiaEnv {
 
 
     /// Returns a fixed-size legality mask aligned with [`Action::ALL`].
+    /// Computed in O(K) time using direct command enumeration and action encoding,
+    /// avoiding 3,130 deep environment clones per step.
     pub fn action_mask(&self) -> Vec<bool> {
         let mut mask = vec![false; ACTION_SPACE];
         if self.terminated {
             return mask;
         }
-        for i in 0..ACTION_SPACE {
-            if let Some(cmd) = crate::action_space::decode_action(i, &self.map) {
-                let mut cloned = self.clone();
-                if cloned.execute_command(self.current_player, cmd).is_ok() {
-                    mask[i] = true;
+        let cmds = self.legal_commands(self.current_player);
+        for cmd in &cmds {
+            if let Some(idx) = crate::action_space::encode_action(cmd, &self.map) {
+                if idx < ACTION_SPACE {
+                    mask[idx] = true;
                 }
             }
         }
@@ -987,6 +1012,279 @@ impl GaiaEnv {
             free_actions: vec![],
         }
     }
+
+    /// Returns an egocentric observation vector where the active player (`self.current_player`)
+    /// is always placed at relative seat 0, and opponents are ordered rotationally (left, opposite, right).
+    /// This eliminates seat bias and ensures absolute symmetry across all seats.
+    pub fn observe_egocentric(&self) -> Observation {
+        let mut v = vec![0.0f32; OBS_SPACE];
+        let num_players = self.config.players;
+        let cp = self.current_player;
+
+        let to_actual_seat = |rel_s: usize| -> usize {
+            (cp + rel_s) % num_players
+        };
+        let to_rel_seat = |act_s: usize| -> usize {
+            (act_s + num_players - (cp % num_players)) % num_players
+        };
+
+        // =========================================================================
+        // PART A: GLOBAL STATE & COMMON MARKET (88 floats, indices 0..87)
+        // =========================================================================
+        v[0] = 0.0;
+        v[1] = (self.round as f32) / (self.config.max_rounds as f32);
+
+        // Pass order ranking for 4 relative seats (indices 2..6)
+        for rel_s in 0..4 {
+            if rel_s < num_players {
+                let act_s = to_actual_seat(rel_s);
+                if let Some(pos) = self.pass_order.iter().position(|&seat| seat == act_s as u8) {
+                    v[2 + rel_s] = (pos + 1) as f32 / 4.0;
+                } else {
+                    v[2 + rel_s] = 0.0;
+                }
+            } else {
+                v[2 + rel_s] = 0.0;
+            }
+        }
+
+        // Round scoring tiles (indices 6..12)
+        for i in 0..6 {
+            v[6 + i] = (self.round_scoring_tiles[i] as u8 as f32) / 13.0;
+        }
+
+        // Final scoring tiles (indices 12..14)
+        for i in 0..2 {
+            v[12 + i] = (self.final_scoring_tiles[i] as u8 as f32) / 9.0;
+        }
+
+        // Research level 5 claimed by relative seat (indices 14..20)
+        for i in 0..6 {
+            if let Some(c) = self.research_level_5_claimed[i] {
+                let rel_c = to_rel_seat(c as usize);
+                v[14 + i] = (rel_c as f32 + 1.0) / 4.0;
+            } else {
+                v[14 + i] = 0.0;
+            }
+        }
+
+        // Standard tech tiles remaining (indices 20..29)
+        for tech_idx in 0..9 {
+            let claimed_count = self.players.iter().filter(|p| tech_idx < p.tech_tiles.len() && p.tech_tiles[tech_idx]).count();
+            v[20 + tech_idx] = (4.0 - claimed_count as f32).max(0.0) / 4.0;
+        }
+
+        // Advanced tech tiles available (indices 29..44)
+        for adv_idx in 0..15 {
+            v[29 + adv_idx] = if self.claimed_adv_techs[adv_idx] { 0.0 } else { 1.0 };
+        }
+
+        // Board power actions claimed (indices 44..54)
+        for b_idx in 0..10 {
+            v[44 + b_idx] = if self.claimed_board_actions[b_idx].is_some() { 1.0 } else { 0.0 };
+        }
+
+        // Federation tokens stock remaining (indices 54..62)
+        {
+            let fed_variants = [
+                rules::FederationToken::Fed1,
+                rules::FederationToken::Fed2,
+                rules::FederationToken::Fed3,
+                rules::FederationToken::Fed4,
+                rules::FederationToken::Fed5,
+                rules::FederationToken::Fed6,
+                rules::FederationToken::Gleens,
+            ];
+            let fed_stock: [u8; 7] = [3, 3, 3, 3, 3, 3, 1];
+            for (f_idx, (&variant, &stock)) in fed_variants.iter().zip(fed_stock.iter()).enumerate() {
+                let claimed: u8 = self.players.iter().map(|p| {
+                    p.claimed_federations.iter().filter(|&&f| f == Some(variant)).count() as u8
+                }).sum();
+                v[54 + f_idx] = (stock.saturating_sub(claimed) as f32) / (stock.max(1) as f32);
+            }
+            v[61] = 0.0;
+        }
+
+        // Boosters held by relative player seat (indices 62..72)
+        for b_id in 0..10 {
+            let booster_num = (b_id + 1) as u8;
+            let held_by = self.players.iter().position(|p| p.current_booster == Some(booster_num));
+            v[62 + b_id] = match held_by {
+                Some(p_idx) => {
+                    let rel_s = to_rel_seat(p_idx);
+                    (rel_s as f32 + 2.0) / 6.0
+                }
+                None => 1.0,
+            };
+        }
+
+        // Spaceship actions claimed (indices 72..88, 4x4)
+        let mut idx_s = 72;
+        for s_idx in 0..4 {
+            for act_idx in 0..4 {
+                v[idx_s] = if self.claimed_spaceship_actions[s_idx][act_idx] { 1.0 } else { 0.0 };
+                idx_s += 1;
+            }
+        }
+
+        // =========================================================================
+        // PART B: 4 PLAYERS DETAILED STATE (4 x 97 = 388 floats, indices 88..475)
+        // Ordered by relative seat: rel 0 = current player, rel 1 = next player, etc.
+        // =========================================================================
+        let mut base_idx = 88;
+        for rel_s in 0..4 {
+            if rel_s < num_players {
+                let act_s = to_actual_seat(rel_s);
+                let p = &self.players[act_s];
+
+                // 1. Identity & Score (3)
+                v[base_idx + 0] = (p.faction as u8 as f32) / 17.0;
+                v[base_idx + 1] = (rel_s as f32) / 3.0; // Relative seat index
+                v[base_idx + 2] = (p.victory_points as f32) / 300.0;
+
+                // 2. Wallet Resources (4)
+                v[base_idx + 3] = (p.credits as f32) / 30.0;
+                v[base_idx + 4] = (p.ore as f32) / 15.0;
+                v[base_idx + 5] = (p.knowledge as f32) / 15.0;
+                v[base_idx + 6] = (p.qic as f32) / 15.0;
+
+                // 3. Power Bowls & Energy (7)
+                v[base_idx + 7] = (p.power.area1 as f32) / 15.0;
+                v[base_idx + 8] = (p.power.area2 as f32) / 15.0;
+                v[base_idx + 9] = (p.power.area3 as f32) / 15.0;
+                v[base_idx + 10] = (p.power.gaia as f32) / 15.0;
+                v[base_idx + 11] = match p.power.brainstone {
+                    Some(crate::rules::PowerArea::Area1) => 1.0 / 4.0,
+                    Some(crate::rules::PowerArea::Area2) => 2.0 / 4.0,
+                    Some(crate::rules::PowerArea::Area3) => 3.0 / 4.0,
+                    Some(crate::rules::PowerArea::Gaia) => 4.0 / 4.0,
+                    None => 0.0,
+                };
+                v[base_idx + 12] = (p.power.spendable_power() as f32) / 15.0;
+                v[base_idx + 13] = ((p.power.area1 + p.power.area2 + p.power.area3) as f32) / 15.0;
+
+                // 4. Research Tracks (6)
+                for t_idx in 0..6 {
+                    v[base_idx + 14 + t_idx] = (p.research[t_idx] as f32) / 5.0;
+                }
+
+                // 5. Buildings Stocks & Deployed (9)
+                v[base_idx + 20] = (p.buildings[crate::rules::Building::Mine as usize] as f32) / 8.0;
+                v[base_idx + 21] = (p.buildings[crate::rules::Building::TradingStation as usize] as f32) / 4.0;
+                v[base_idx + 22] = (p.buildings[crate::rules::Building::ResearchLab as usize] as f32) / 3.0;
+                v[base_idx + 23] = (p.buildings[crate::rules::Building::PlanetaryInstitute as usize] as f32) / 1.0;
+                v[base_idx + 24] = (p.buildings[crate::rules::Building::Academy1 as usize] as f32) / 1.0;
+                v[base_idx + 25] = (p.buildings[crate::rules::Building::Academy2 as usize] as f32) / 1.0;
+                v[base_idx + 26] = (p.gaiaformers_unlocked as f32) / 3.0;
+                v[base_idx + 27] = (p.gaiaformers_in_gaia as f32) / 3.0;
+                v[base_idx + 28] = (p.satellites as f32) / 15.0;
+
+                // 6. Federations (12)
+                v[base_idx + 29] = (p.green_federation_tokens as f32) / 5.0;
+                v[base_idx + 30] = (p.gray_federation_tokens as f32) / 5.0;
+                v[base_idx + 31] = (p.total_federation_tokens() as f32) / 6.0;
+                v[base_idx + 32] = (p.buildings[crate::rules::Building::Mine as usize] as f32
+                    + (p.buildings[crate::rules::Building::TradingStation as usize] as f32) * 2.0
+                    + (p.buildings[crate::rules::Building::ResearchLab as usize] as f32) * 2.0
+                    + (p.buildings[crate::rules::Building::PlanetaryInstitute as usize] as f32) * 3.0
+                    + ((p.buildings[crate::rules::Building::Academy1 as usize] + p.buildings[crate::rules::Building::Academy2 as usize]) as f32) * 3.0) / 30.0;
+                let fed_tokens = [
+                    crate::rules::FederationToken::Fed1,
+                    crate::rules::FederationToken::Fed2,
+                    crate::rules::FederationToken::Fed3,
+                    crate::rules::FederationToken::Fed4,
+                    crate::rules::FederationToken::Fed5,
+                    crate::rules::FederationToken::Fed6,
+                    crate::rules::FederationToken::Gleens,
+                ];
+                for f_idx in 0..7 {
+                    v[base_idx + 33 + f_idx] = if p.claimed_federations.iter().any(|f| *f == Some(fed_tokens[f_idx])) { 1.0 } else { 0.0 };
+                }
+                v[base_idx + 40] = 0.0;
+
+                // 7. Tech Tiles (33)
+                for i in 0..9 {
+                    v[base_idx + 41 + i] = if p.tech_tiles[i] { 1.0 } else { 0.0 };
+                }
+                for i in 0..9 {
+                    v[base_idx + 50 + i] = if p.covered_tech_tiles[i] { 1.0 } else { 0.0 };
+                }
+                for i in 0..15 {
+                    v[base_idx + 59 + i] = if p.adv_tech_tiles[i] { 1.0 } else { 0.0 };
+                }
+
+                // 8. Turn, Booster & Special Actions (12)
+                v[base_idx + 74] = if p.passed { 1.0 } else { 0.0 };
+                v[base_idx + 75] = p.current_booster.map(|b| b as f32).unwrap_or(0.0) / 10.0;
+                for i in 0..10 {
+                    v[base_idx + 76 + i] = if p.special_actions_used[i] { 1.0 } else { 0.0 };
+                }
+
+                // 9. Lost Fleet Exploration (5)
+                v[base_idx + 86] = (p.deployed_shuttles() as f32) / 3.0;
+                for i in 0..4 {
+                    v[base_idx + 87 + i] = if p.exploration_ships[i].is_some() { 1.0 } else { 0.0 };
+                }
+
+                // 10. Final Scoring Metrics (6)
+                v[base_idx + 91] = (10.0f32).min((p.buildings[crate::rules::Building::Mine as usize] + p.buildings[crate::rules::Building::TradingStation as usize]) as f32) / 10.0;
+                v[base_idx + 92] = (10.0f32).min(p.buildings[crate::rules::Building::Mine as usize] as f32 + 1.0) / 10.0;
+                v[base_idx + 93] = (p.gaiaformers_unlocked as f32) / 6.0;
+                v[base_idx + 94] = (p.total_federation_tokens() as f32) / 15.0;
+                v[base_idx + 95] = (p.satellites as f32) / 15.0;
+                v[base_idx + 96] = (6.0f32).min(p.deployed_shuttles() as f32) / 6.0;
+            }
+            base_idx += 97;
+        }
+
+        // =========================================================================
+        // PART C: GALAXY MAP BOARD (200 Hexes x 10 features = 2000 floats, indices 476..2475)
+        // With player occupancy rotated to relative perspective
+        // =========================================================================
+        let mut map_idx = 476;
+        for k in 0..200 {
+            if k < self.map.count {
+                let h = &self.map.hexes[k];
+                v[map_idx + 0] = (h.planet as u8 as f32) / 13.0;
+                v[map_idx + 1] = match h.building {
+                    Some(b) => (b as usize + 1) as f32,
+                    None => 0.0,
+                } / 9.0;
+                v[map_idx + 2] = match h.player {
+                    Some(p) => {
+                        let rel_p = to_rel_seat(p as usize);
+                        (rel_p as f32 + 1.0) / 4.0
+                    }
+                    None => 0.0,
+                };
+                v[map_idx + 3] = match h.additional_mine {
+                    Some(p) => {
+                        let rel_p = to_rel_seat(p as usize);
+                        (rel_p as f32 + 1.0) / 4.0
+                    }
+                    None => 0.0,
+                };
+                for rel_seat in 0..4 {
+                    let act_seat = to_actual_seat(rel_seat);
+                    v[map_idx + 4 + rel_seat] = if act_seat < 4 && h.in_federation[act_seat] { 1.0 } else { 0.0 };
+                }
+                v[map_idx + 8] = match h.spaceship {
+                    Some(s) => (s as usize as f32 + 1.0) / 4.0,
+                    None => 0.0,
+                };
+                v[map_idx + 9] = (h.sector_id as f32) / 10.0;
+            }
+            map_idx += 10;
+        }
+
+        Observation {
+            current_player: self.current_player,
+            round: self.round,
+            values: v,
+            action_mask: self.action_mask(),
+            free_actions: vec![],
+        }
+    }
     pub fn execute_command_from_rl(&mut self, actor: usize, cmd: crate::actions::GameCommand) -> Result<StepResult, EnvError> {
         if self.terminated {
             return Err(EnvError::EpisodeFinished);
@@ -995,7 +1293,7 @@ impl GaiaEnv {
             return Err(EnvError::IllegalAction { player: actor, action: 0 }); // dummy action ID
         }
         
-        let is_free_action = false;
+        let is_free_action = matches!(cmd, crate::actions::GameCommand::FreeAction { .. });
 
         let old_vps: Vec<i16> = self.players.iter().map(|p| p.victory_points).collect();
 
@@ -1022,6 +1320,24 @@ impl GaiaEnv {
             current_player: self.current_player,
         })
     }
+    
+    fn queue_leeching(&mut self, coord: HexCoord, player: u8) {
+        let opps = actions::find_leech_opportunities(&self.map, coord, player, &self.players);
+        for opp in &opps {
+            if let Some(opp) = opp {
+                if self.players[opp.seat as usize].power.can_charge() {
+                    self.pending_leeches.push(*opp);
+                }
+            }
+        }
+        if !self.pending_leeches.is_empty() {
+            let n_players = self.config.players as u8;
+            self.pending_leeches.sort_by_key(|opp| (opp.seat + n_players - player) % n_players);
+            self.active_player_before_leech = self.current_player;
+            self.current_player = self.pending_leeches[0].seat as usize;
+        }
+    }
+
     pub fn advance_turn(&mut self) {
         if self.players.iter().all(|player| player.passed) {
             self.round += 1;

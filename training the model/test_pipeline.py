@@ -858,6 +858,135 @@ def test_strategy_pdf_report_and_analytics():
                 pass
 
 
+def test_egocentric_observation():
+    print("[25/27] Testing Egocentric Invariant Observation Formulation & Rotational Symmetry...")
+    assert NativeGaiaEnv.is_available(), "Native gaiapi library is required"
+    env = NativeGaiaEnv(players=4, seed=42, egocentric=True)
+    obs_ego, mask = env.reset()
+    assert obs_ego.shape == (2476,), f"Expected obs shape (2476,), got {obs_ego.shape}"
+    assert np.all(np.isfinite(obs_ego)), "Observation tensor contains NaN or Inf"
+
+    # Verify public method get_observation
+    obs_ego2 = env.get_observation(egocentric=True)
+    assert np.allclose(obs_ego, obs_ego2), "Egocentric observations should be identical"
+
+    obs_std = env.get_observation(egocentric=False)
+    assert obs_std.shape == (2476,)
+
+    # In relative perspective, active seat is mapped to seat 0
+    legal = np.where(mask)[0]
+    if len(legal) > 0:
+        res = env.step(int(legal[0]), egocentric=True)
+        assert res.obs.shape == (2476,)
+        assert np.all(np.isfinite(res.obs))
+    print("      -> Egocentric Rotational Symmetry, Relative Perspective & Stability OK!")
+
+
+def test_dynamic_hex_gnn_adjacency():
+    print("[26/27] Testing Dynamic Procedural Map HexGNN Adjacency & Gradient Flow...")
+    assert NativeGaiaEnv.is_available(), "Native gaiapi library is required"
+    from models import compute_normalized_adjacency
+
+    env = NativeGaiaEnv(players=4, seed=777)
+    adj_table = env.get_map_adjacency()
+    assert adj_table.shape == (200, 6), f"Expected adjacency shape (200, 6), got {adj_table.shape}"
+    assert adj_table.dtype == np.uint8
+
+    # Spectral normalization
+    adj_norm = compute_normalized_adjacency(adj_table)
+    assert adj_norm.shape == (200, 200), f"Expected normalized adjacency (200, 200), got {adj_norm.shape}"
+    assert torch.all(torch.isfinite(adj_norm))
+
+    # Encoder with dynamic adjacency
+    encoder = HexGNNEncoder(in_features=10, hidden_dim=64, out_dim=256, layers=3)
+    encoder.set_adjacency(adj_table)
+    dummy_map = torch.randn(4, 2000)
+    out = encoder(dummy_map)
+    assert out.shape == (4, 256), f"Expected encoder output (4, 256), got {out.shape}"
+    assert torch.all(torch.isfinite(out))
+
+    # Agent dynamic adjacency injection & forward pass
+    agent = DualGaiaAgent()
+    agent.set_map_adjacency(adj_table)
+    dummy_obs = torch.randn(4, 2476)
+    dummy_mask = torch.ones(4, agent.config.action_dim, dtype=torch.bool)
+    score_pred = agent.score_net(dummy_obs)
+    logits = agent.action_net(dummy_obs, dummy_mask)
+    assert score_pred.shape == (4,)
+    assert logits.shape == (4, agent.config.action_dim)
+
+    # Test gradient backprop
+    loss = score_pred.mean() + logits.mean()
+    loss.backward()
+    assert agent.shared_backbone.map_encoder.convs[0].fc.weight.grad is not None, "GNN weights must receive gradients"
+    print("      -> Procedural Hex Graph Extraction, Spectral Normalization & Backprop OK!")
+
+
+def test_dataset_action_parser():
+    print("[27/27] Testing Scraped BGS Action Parser & 3130 Discrete Bijection...")
+    import sys
+    from pathlib import Path
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    from scraper.convert_to_dataset import parse_action_index, parse_hex_coord
+
+    # 1. Hex coordinate tests
+    assert parse_hex_coord("1A0") == 0
+    assert parse_hex_coord("1A11") == 11
+    assert parse_hex_coord("1B0") == 12
+    assert parse_hex_coord("1B5") == 17
+    assert parse_hex_coord("1C0") == 18
+    assert parse_hex_coord("2A0") == 19
+    assert parse_hex_coord("10A0") == 171
+    assert parse_hex_coord("10B5") == 188
+    assert parse_hex_coord("10C0") == 189
+    assert parse_hex_coord("invalid") is None
+    assert parse_hex_coord("11A0") is None  # only sectors 1..10
+
+    # 2. Building actions with exact spatial offsets
+    # Mine: 0 + hex_idx
+    h_4a6 = (4 - 1) * 19 + 6  # 3 * 19 + 6 = 63
+    assert parse_action_index("baltaks build m 4A6") == 0 + h_4a6
+
+    # TS: 400 + hex_idx
+    h_9a5 = (9 - 1) * 19 + 5  # 8 * 19 + 5 = 157
+    assert parse_action_index("taklons build ts 9A5") == 400 + h_9a5
+
+    # Lab: 600 + hex_idx
+    h_3b5 = (3 - 1) * 19 + 12 + 5  # 2 * 19 + 17 = 55
+    assert parse_action_index("itars build lab 3B5") == 600 + h_3b5
+
+    # PI: 800 + hex_idx
+    h_10a0 = (10 - 1) * 19 + 0  # 9 * 19 + 0 = 171
+    assert parse_action_index("lantids build PI 10A0") == 800 + h_10a0
+
+    # AC1: 1000 + hex_idx
+    h_1a11 = (1 - 1) * 19 + 11  # 11
+    assert parse_action_index("baltaks build ac1 1A11") == 1000 + h_1a11
+
+    # AC2: 1200 + hex_idx
+    h_1b2 = (1 - 1) * 19 + 12 + 2  # 14
+    assert parse_action_index("taklons build ac2 1B2") == 1200 + h_1b2
+
+    # Gaia project: 200 + hex_idx
+    h_7b0 = (7 - 1) * 19 + 12 + 0  # 6 * 19 + 12 = 126
+    assert parse_action_index("itars build gf 7B0") == 200 + h_7b0
+
+    # 3. Game controls
+    assert parse_action_index("taklons booster booster5") == 1412 + 4
+    assert parse_action_index("baltaks federation fed2") == 1400 + 1
+    assert parse_action_index("itars up gaia") == 1406 + 3
+    assert parse_action_index("baltaks charge 2pw") == 1422 + 1
+    assert parse_action_index("baltaks decline") == 1422 + 0
+    assert parse_action_index("itars action power3") == 1424 + 2
+    assert parse_action_index("taklons action qic1") == 1424 + 7 + 0
+    assert parse_action_index("taklons spend 3pw for 1o") == 3124 + 0
+
+    print("      -> BGS Coordinate Space, 3130 Discrete Offsets & Expert Moves OK!")
+
+
 if __name__ == "__main__":
     import os
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
@@ -891,7 +1020,10 @@ if __name__ == "__main__":
         test_flat_action_space_and_native_bridge()
         test_game_elements_and_lost_fleet_rules()
         test_strategy_pdf_report_and_analytics()
-        print("\n[SUCCESS] ALL 24 PIPELINE TESTS PASSED WITH 100% SUCCESS!")
+        test_egocentric_observation()
+        test_dynamic_hex_gnn_adjacency()
+        test_dataset_action_parser()
+        print("\n[SUCCESS] ALL 27 PIPELINE TESTS PASSED WITH 100% SUCCESS!")
         sys.exit(0)
     except Exception as e:
         print(f"\n[FAILED] TEST FAILED: {e}")

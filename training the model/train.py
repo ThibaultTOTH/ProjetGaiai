@@ -121,7 +121,7 @@ def print_banner(cfg: AppConfig, device: torch.device, hw_info: dict, preset_nam
     print(f"  🛡️ SOTA Modules: R-NaD={'ON' if cfg.training.rnad_enabled else 'OFF'} | RGSC Go-Exploit={'ON' if cfg.training.rgsc_enabled else 'OFF'} | RND Curiosity={'ON' if cfg.training.rnd_enabled else 'OFF'}")
     print(f"  🌲 MCTS Inference: {cfg.mcts.algorithm.upper()} GAZ ({cfg.mcts.num_simulations} sims) | MC-Dropout Epistemic Guidance={'ON' if cfg.mcts.use_epistemic_uncertainty else 'OFF'}")
     native_env = NativeGaiaEnv.is_available()
-    print(f"  🏎️ Game Engine: {'Rust Native C-ABI (DLL/so) [<2µs/step]' if native_env else 'FastGaiaSimEnv (Python simulation)'}")
+    print(f"  🏎️ Game Engine: {'Rust Native C-ABI (DLL/so) [<2µs/step]' if native_env else 'REST / Fallback Engine'}")
     if resumed_epoch > 0:
         print(f"  🔄 Resumed From Epoch: {resumed_epoch}")
     print("-" * 78)

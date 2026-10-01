@@ -2,7 +2,7 @@
 
 Implements:
 - Vectorized PUCT / Max^n search for 4-player non-zero-sum Eurogame dynamics.
-- Zero-overhead state cloning using native Rust gaiapi C-ABI or FastGaiaSimEnv.
+- Zero-overhead state cloning using native Rust gaiapi C-ABI.
 - Prior policy guidance via ActionOptimizerNet with legal action masking.
 - Leaf value estimation via ScorePredictorNet with relative table margin normalization.
 - Dirichlet noise injection for exploratory self-play rollouts.
@@ -174,8 +174,9 @@ class MultiPlayerMCTS:
         ).float().to(self.device).unsqueeze(0)
         mask_tensor = torch.from_numpy(root_mask).bool().to(self.device).unsqueeze(0)
 
+        is_egocentric = getattr(env, "egocentric", False)
         with torch.no_grad():
-            if root_actor == 0:
+            if is_egocentric or root_actor == 0:
                 logits_tensor = self.agent.action_net(obs_tensor, mask_tensor)
             else:
                 opp_probs = self.agent.predict_opponent_action(obs_tensor, mask_tensor)
@@ -282,10 +283,11 @@ class MultiPlayerMCTS:
 
                         with torch.no_grad():
                             if use_unc:
-                                pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
+                                pred_score, leaf_unc_arr = self.agent.predict_score_with_uncertainty(
                                     obs_t, num_passes=dropout_passes
                                 )
-                                if leaf_actor == 0:
+                                leaf_unc = float(np.mean(leaf_unc_arr))
+                                if is_egocentric or leaf_actor == 0:
                                     leaf_logits = self.agent.action_net(obs_t, mask_t)
                                     leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                                 else:
@@ -294,11 +296,11 @@ class MultiPlayerMCTS:
                             else:
                                 if hasattr(self.agent, "evaluate_leaf"):
                                     pred_score, leaf_priors = self.agent.evaluate_leaf(
-                                        obs_t, mask_t, leaf_actor=leaf_actor
+                                        obs_t, mask_t, leaf_actor=(0 if is_egocentric else leaf_actor)
                                     )
                                 else:
-                                    pred_score = float(self.agent.score_net(obs_t).item())
-                                    if leaf_actor == 0:
+                                    pred_score = self.agent.score_net(obs_t).squeeze(0).cpu().numpy()
+                                    if is_egocentric or leaf_actor == 0:
                                         leaf_logits = self.agent.action_net(obs_t, mask_t)
                                         leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                                     else:
@@ -328,17 +330,14 @@ class MultiPlayerMCTS:
                         milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
                         cand_bonus = milestone_w * cand_milestone if root_actor == 0 else 0.0
 
-                        # Optimism & Concrete Intermediate VP projection:
-                        # Ensures high-scoring actions (federations +7..12 VP, research, scoring tiles)
-                        # receive immediate discriminative advantage instead of being squashed by flat pred_score
                         optimism_weight = getattr(self.config, "optimism_weight", 0.35)
-                        p0_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                        p0_projected = pred_score + delta_vps[0] + cand_bonus + p0_optimism
+                        p0_optimism = optimism_weight * max(0.0, float(pred_score[0]) - 70.0)
+                        p0_projected = float(pred_score[0]) + cand_bonus + p0_optimism
 
                         raw_vps = np.zeros(4, dtype=np.float32)
                         raw_vps[0] = p0_projected
                         for i in range(1, 4):
-                            raw_vps[i] = pred_score + (root_vps[i] - root_vps[0]) + delta_vps[i]
+                            raw_vps[i] = float(pred_score[i])
 
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                         margin = (raw_vps - mean_vp) / 25.0
@@ -441,8 +440,9 @@ class MultiPlayerMCTS:
         ).float().to(self.device).unsqueeze(0)
         mask_tensor = torch.from_numpy(root_mask).bool().to(self.device).unsqueeze(0)
 
+        is_egocentric = getattr(env, "egocentric", False)
         with torch.no_grad():
-            if root_actor == 0:
+            if is_egocentric or root_actor == 0:
                 logits = self.agent.action_net(obs_tensor, mask_tensor)
                 priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
             else:
@@ -514,10 +514,11 @@ class MultiPlayerMCTS:
 
                 with torch.no_grad():
                     if use_unc:
-                        pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
+                        pred_score, leaf_unc_arr = self.agent.predict_score_with_uncertainty(
                             obs_t, num_passes=dropout_passes
                         )
-                        if leaf_actor == 0:
+                        leaf_unc = float(np.mean(leaf_unc_arr))
+                        if is_egocentric or leaf_actor == 0:
                             leaf_logits = self.agent.action_net(obs_t, mask_t)
                             leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                         else:
@@ -526,11 +527,11 @@ class MultiPlayerMCTS:
                     else:
                         if hasattr(self.agent, "evaluate_leaf"):
                             pred_score, leaf_priors = self.agent.evaluate_leaf(
-                                obs_t, mask_t, leaf_actor=leaf_actor
+                                obs_t, mask_t, leaf_actor=(0 if is_egocentric else leaf_actor)
                             )
                         else:
-                            pred_score = float(self.agent.score_net(obs_t).item())
-                            if leaf_actor == 0:
+                            pred_score = self.agent.score_net(obs_t).squeeze(0).cpu().numpy()
+                            if is_egocentric or leaf_actor == 0:
                                 leaf_logits = self.agent.action_net(obs_t, mask_t)
                                 leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
                             else:
@@ -564,13 +565,13 @@ class MultiPlayerMCTS:
                 cand_bonus = milestone_w * cand_milestone if root_actor == 0 else 0.0
 
                 optimism_weight = getattr(self.config, "optimism_weight", 0.25)
-                p0_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                p0_projected = pred_score + delta_vps[0] + cand_bonus + p0_optimism
+                p0_optimism = optimism_weight * max(0.0, float(pred_score[0]) - 70.0)
+                p0_projected = float(pred_score[0]) + cand_bonus + p0_optimism
 
                 raw_vps = np.zeros(4, dtype=np.float32)
                 raw_vps[0] = p0_projected
                 for i in range(1, 4):
-                    raw_vps[i] = pred_score + (root_vps[i] - root_vps[0]) + delta_vps[i]
+                    raw_vps[i] = float(pred_score[i])
 
                 mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                 value_vector = (raw_vps - mean_vp) / 25.0

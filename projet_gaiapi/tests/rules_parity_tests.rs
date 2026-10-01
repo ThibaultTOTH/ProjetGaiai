@@ -1,5 +1,5 @@
 use gaiapi::actions::{execute_examine_artefact, execute_free_action, GameCommand};
-use gaiapi::action_space::{decode_action, get_action_name, FLAT_ACTION_SPACE};
+use gaiapi::action_space::{decode_action, encode_action, get_action_name, FLAT_ACTION_SPACE};
 use gaiapi::map::Map;
 use gaiapi::player::PlayerData;
 use gaiapi::rules::{
@@ -347,3 +347,166 @@ fn test_full_game_turn_cycle_with_lost_fleet() {
     let outcome = res.unwrap();
     assert_eq!(outcome.rewards.len(), 4);
 }
+
+#[test]
+fn test_action_encoding_bijection_roundtrip() {
+    let map = Map::generate_standard(4, 42);
+    let mut roundtripped = 0;
+    for i in 0..FLAT_ACTION_SPACE {
+        if let Some(cmd) = decode_action(i, &map) {
+            let is_valid_map_hex = match &cmd {
+                GameCommand::BuildMine { coord } | GameCommand::StartGaiaProject { coord } => {
+                    map.index_of(*coord).is_some() && (i % 200 < map.count)
+                }
+                GameCommand::Upgrade { coord, .. } => {
+                    let hex_idx = (i - 400) / 5;
+                    map.index_of(*coord).is_some() && (hex_idx < map.count)
+                }
+                GameCommand::ExploreSpaceship { coord, .. } => {
+                    let hex_idx = (i - 2308) % 200;
+                    map.index_of(*coord).is_some() && (hex_idx < map.count)
+                }
+                _ => true,
+            };
+            if is_valid_map_hex {
+                let encoded = encode_action(&cmd, &map);
+                assert_eq!(encoded, Some(i), "Action {} failed roundtrip encoding! Decoded: {:?}", i, cmd);
+                roundtripped += 1;
+            }
+        }
+    }
+    assert!(roundtripped >= 2800, "Expected >= 2800 valid actions roundtripped, got {}", roundtripped);
+}
+
+#[test]
+fn test_canonical_coordinates_stability_across_seeds() {
+    let mut map1 = Map::generate_standard(4, 100);
+    map1.sort_canonical();
+    
+    // Verify canonical sort order: q ascending, then r ascending
+    for i in 1..map1.count {
+        let prev = map1.coords[i - 1];
+        let curr = map1.coords[i];
+        assert!(
+            curr.q > prev.q || (curr.q == prev.q && curr.r > prev.r),
+            "Hex coordinates not in canonical order at {}: {:?} then {:?}",
+            i, prev, curr
+        );
+        // Verify index_of binary search works
+        assert_eq!(map1.index_of(curr), Some(i));
+    }
+}
+
+#[test]
+fn test_form_federation_auto_graph_routing_and_power_discard() {
+    let mut map = Map::generate_standard(4, 42);
+    let mut player = PlayerData::new(0, Faction::Terrans);
+    player.power.area1 = 4;
+    player.power.area2 = 4;
+    player.power.area3 = 0;
+    assert_eq!(player.power.total_tokens(), 8);
+
+    // Place a Planetary Institute (power 3 in Gaia Project) on hex 0
+    map.hexes[0].player = Some(0);
+    map.hexes[0].building = Some(Building::PlanetaryInstitute);
+    player.buildings[Building::PlanetaryInstitute as usize] = 1;
+
+    // Place a Trading Station (power 2) on hex 1
+    map.hexes[1].player = Some(0);
+    map.hexes[1].building = Some(Building::TradingStation);
+    player.buildings[Building::TradingStation as usize] = 1;
+
+    // Total power = 3 + 2 = 5 < 7 -> should fail with InsufficientFederationPower
+    let res = gaiapi::actions::execute_form_federation_auto(&mut player, &mut map, gaiapi::rules::FederationToken::Fed1);
+    assert!(matches!(res, Err(gaiapi::actions::ActionError::InsufficientFederationPower { .. })));
+
+    // Place another Trading Station (power 2) on hex 2 (adjacent to hex 1)
+    map.hexes[2].player = Some(0);
+    map.hexes[2].building = Some(Building::TradingStation);
+    player.buildings[Building::TradingStation as usize] = 2;
+
+    // Total power = 3 + 2 + 2 = 7. Execute federation auto
+    let initial_sats = player.satellites;
+    let initial_tokens = player.power.total_tokens();
+    let res = gaiapi::actions::execute_form_federation_auto(&mut player, &mut map, gaiapi::rules::FederationToken::Fed1);
+    assert!(res.is_ok(), "Auto federation should succeed: {:?}", res);
+    assert!(player.claimed_federations[0].is_some(), "Federation token should be claimed");
+
+    // Satellites placed must equal power tokens discarded
+    let sats_placed = player.satellites - initial_sats;
+    let tokens_lost = initial_tokens - player.power.total_tokens();
+    assert_eq!(sats_placed, tokens_lost, "Tokens discarded must match satellites placed");
+}
+
+#[test]
+fn test_passive_leech_non_punitive_when_power_full() {
+    let mut player = PlayerData::new(0, Faction::Terrans);
+    player.victory_points = 15;
+    // Bowls 1 and 2 are empty, Bowl 3 has all 12 power tokens
+    player.power.area1 = 0;
+    player.power.area2 = 0;
+    player.power.area3 = 12;
+    assert!(!player.power.can_charge(), "Player with bowls 1 & 2 empty cannot charge");
+
+    // Attempt to leech 3 power
+    let res = gaiapi::actions::execute_leech(&mut player, 3);
+    assert!(res.is_ok());
+    // Victory points must NOT be penalized because no power was charged!
+    assert_eq!(player.victory_points, 15, "VP must not be lost when power cannot be charged");
+
+    // Now test with 1 power in Bowl 2: offered 3 power
+    player.power.area2 = 1;
+    player.power.area3 = 11;
+    assert!(player.power.can_charge());
+    let res = gaiapi::actions::execute_leech(&mut player, 3);
+    assert!(res.is_ok());
+    // Only 1 power could be charged (area2 -> area3), so charged = 1, cost = (1-1) = 0 VP!
+    assert_eq!(player.victory_points, 15, "Charging 1 power costs 0 VP");
+    assert_eq!(player.power.area2, 0);
+    assert_eq!(player.power.area3, 12);
+}
+
+#[test]
+fn test_observe_egocentric_symmetry() {
+    let mut env = GaiaEnv::new(GameConfig {
+        players: 4,
+        max_rounds: 6,
+        seed: 42,
+        factions: None,
+    }).unwrap();
+    env.reset();
+
+    // Verify Seat 0 perspective
+    env.current_player = 0;
+    let obs0 = env.observe_egocentric();
+    assert_eq!(obs0.values.len(), OBS_SPACE);
+    let p0_block = 88;
+    assert_eq!(obs0.values[p0_block + 1], 0.0);
+
+    // Verify Seat 2 perspective
+    env.current_player = 2;
+    let obs2 = env.observe_egocentric();
+    assert_eq!(obs2.values.len(), OBS_SPACE);
+    assert_eq!(obs2.values[p0_block + 1], 0.0);
+    let seat2_faction = (env.players[2].faction as u8 as f32) / 17.0;
+    assert_eq!(obs2.values[p0_block + 0], seat2_faction);
+}
+
+#[test]
+fn test_action_mask_fast_and_accurate() {
+    let mut env = GaiaEnv::new(GameConfig::default()).unwrap();
+    env.reset();
+
+    let start = std::time::Instant::now();
+    let mask = env.action_mask();
+    let elapsed = start.elapsed();
+    assert!(elapsed.as_millis() < 50, "action_mask should take < 50ms, took {:?}", elapsed);
+
+    let legal_cmds = env.legal_commands(env.current_player);
+    for cmd in &legal_cmds {
+        if let Some(idx) = gaiapi::action_space::encode_action(cmd, &env.map) {
+            assert!(mask[idx], "Action index {} encoded from {:?} must be true in mask", idx, cmd);
+        }
+    }
+}
+

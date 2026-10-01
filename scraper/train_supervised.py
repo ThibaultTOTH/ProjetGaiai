@@ -27,6 +27,7 @@ sys.path.insert(0, str(TRAINING_DIR))
 
 from config import AppConfig, ModelConfig
 from models import DualGaiaAgent
+from environment import NativeGaiaEnv
 from scraper.config import DATASET_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -55,16 +56,26 @@ def train_supervised(
     actions = raw["actions"]
     values = raw["values"]
     factions = raw["factions"]
+    
+    # If using rebuild_dataset_with_env.py, we have true observations!
+    if "observations" in raw:
+        observations = raw["observations"]
+        logger.info("Found true observations in dataset!")
+    else:
+        logger.warning("No observations found in dataset. Using dummy templates.")
+        observations = None
+        
     num_samples = len(actions)
     logger.info(f"Dataset contains {num_samples:,} expert action samples.")
 
-    # Create dummy observation vector [2476] conditioned on faction embedding
-    # (or full state if replayed through engine)
     obs_dim = 2476
     action_dim = 3130
 
-    # Build tensor dataset
-    dataset = TensorDataset(actions, values, factions)
+    if observations is not None:
+        dataset = TensorDataset(observations, actions, values, factions)
+    else:
+        dataset = TensorDataset(actions, values, factions)
+        
     train_size = int(0.9 * num_samples)
     val_size = num_samples - train_size
     train_ds, val_ds = torch.utils.data.random_split(dataset, [train_size, val_size])
@@ -77,6 +88,49 @@ def train_supervised(
     config.model.obs_dim = obs_dim
     config.model.action_dim = action_dim
     agent = DualGaiaAgent(config.model).to(device)
+
+    # Initialize GNN map adjacency & authentic observation templates
+    faction_templates = {}
+    if observations is None:
+        try:
+            base_env = NativeGaiaEnv(seed=42, egocentric=True)
+            if hasattr(base_env, "get_map_adjacency"):
+                adj = base_env.get_map_adjacency()
+                agent.set_map_adjacency(adj)
+
+            for f_idx in range(18):
+                f_env = NativeGaiaEnv(seed=42 + f_idx, egocentric=True)
+                if hasattr(f_env, "set_player_faction"):
+                    f_env.set_player_faction(0, f_idx)
+                    f_obs, _ = f_env.reset(seed=42 + f_idx)
+                else:
+                    f_obs = f_env.get_observation()
+                f_obs[88] = float(f_idx) / 17.0
+                f_obs[89] = 0.0  # relative seat 0
+                faction_templates[f_idx] = torch.from_numpy(f_obs.copy()).float()
+            logger.info(f"Initialized {len(faction_templates)} authentic faction templates and GNN adjacency.")
+        except Exception as e:
+            logger.warning(f"Failed to initialize NativeGaiaEnv templates: {e}. Falling back to default baseline.")
+            for f_idx in range(18):
+                t = torch.zeros(obs_dim, dtype=torch.float32)
+                t[88] = float(f_idx) / 17.0
+                faction_templates[f_idx] = t
+
+    def _build_batch_obs(batch):
+        if len(batch) == 4:
+            # We have true observations (obs, act, val, fac)
+            b_obs = batch[0].to(device)
+            return b_obs
+        else:
+            # Fallback to templates (act, val, fac)
+            b_fac = batch[2]
+            B_len = b_fac.size(0)
+            out = torch.zeros((B_len, obs_dim), device=device)
+            for i_idx in range(B_len):
+                f_id = b_fac[i_idx].item()
+                tmpl = faction_templates.get(f_id, faction_templates[0]).clone().to(device)
+                out[i_idx] = tmpl
+            return out
 
     # Joint optimizer with cosine annealing
     optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=1e-4)
@@ -98,18 +152,19 @@ def train_supervised(
         total_train_samples = 0
 
         t0 = time.time()
-        for batch_act, batch_val, batch_fac in train_loader:
+        for batch in train_loader:
+            if len(batch) == 4:
+                batch_obs, batch_act, batch_val, batch_fac = batch
+            else:
+                batch_act, batch_val, batch_fac = batch
+                
             batch_act = batch_act.to(device)
             batch_val = batch_val.to(device).unsqueeze(-1)
             batch_fac = batch_fac.to(device)
             B = batch_act.size(0)
 
-            # Construct dummy observation vector seeded with faction indicator
-            batch_obs = torch.zeros((B, obs_dim), device=device)
-            for i in range(B):
-                # Seat 0 faction feature
-                fac_idx = batch_fac[i].item()
-                batch_obs[i, 200 + fac_idx] = 1.0
+            # Construct grounded observation vector from authentic templates
+            batch_obs = _build_batch_obs(batch)
 
             # Forward pass
             logits = agent.action_net(batch_obs)
@@ -148,14 +203,18 @@ def train_supervised(
         val_correct_top5 = 0
         val_samples = 0
         with torch.no_grad():
-            for batch_act, batch_val, batch_fac in val_loader:
+            for batch in val_loader:
+                if len(batch) == 4:
+                    batch_obs, batch_act, batch_val, batch_fac = batch
+                else:
+                    batch_act, batch_val, batch_fac = batch
+                    
                 batch_act = batch_act.to(device)
+                batch_val = batch_val.to(device).unsqueeze(-1)
                 batch_fac = batch_fac.to(device)
                 B = batch_act.size(0)
 
-                batch_obs = torch.zeros((B, obs_dim), device=device)
-                for i in range(B):
-                    batch_obs[i, 200 + batch_fac[i].item()] = 1.0
+                batch_obs = _build_batch_obs(batch)
 
                 logits = agent.action_net(batch_obs)
                 top1 = logits.argmax(dim=-1)

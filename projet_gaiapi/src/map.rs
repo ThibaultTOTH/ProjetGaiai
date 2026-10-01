@@ -1,4 +1,4 @@
-﻿//! Map representation, sector layout loader, and fast BFS pathfinding.
+//! Map representation, sector layout loader, and fast BFS pathfinding.
 //!
 //! Zero-allocation simulation suitable for high-throughput RL.
 
@@ -76,6 +76,20 @@ impl Map {
             }
         }
 
+        self.sort_canonical();
+    }
+
+    /// Sorts hexes canonically by coordinate (ascending q, then r, then s).
+    /// Guarantees that spatial index `i` maps to the exact same physical coordinates across all games.
+    pub fn sort_canonical(&mut self) {
+        let mut pairs: Vec<(HexCoord, Hex)> = (0..self.count)
+            .map(|i| (self.coords[i], self.hexes[i]))
+            .collect();
+        pairs.sort_by_key(|&(c, _)| c);
+        for (i, (c, h)) in pairs.into_iter().enumerate() {
+            self.coords[i] = c;
+            self.hexes[i] = h;
+        }
         self.recompute_adjacency();
     }
 
@@ -176,11 +190,16 @@ impl Map {
         true
     }
 
-    /// Finds index of coordinate on the map.
+    /// Finds index of coordinate on the map (O(log N) if sorted, O(N) fallback).
     pub fn index_of(&self, coord: HexCoord) -> Option<usize> {
         self.coords[..self.count]
-            .iter()
-            .position(|&candidate| candidate == coord)
+            .binary_search(&coord)
+            .ok()
+            .or_else(|| {
+                self.coords[..self.count]
+                    .iter()
+                    .position(|&candidate| candidate == coord)
+            })
     }
 
     pub fn get_hex(&self, coord: HexCoord) -> Option<&Hex> {

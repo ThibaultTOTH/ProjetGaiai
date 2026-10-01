@@ -59,6 +59,26 @@ impl PowerBowls {
         self.area3 + bs_value
     }
 
+    /// Returns true if any power can currently be moved between bowls (Area 1 -> Area 2 or Area 2 -> Area 3).
+    #[inline]
+    pub fn can_charge(&self) -> bool {
+        self.area1 > 0
+            || self.area2 > 0
+            || self.brainstone == Some(PowerArea::Area1)
+            || self.brainstone == Some(PowerArea::Area2)
+    }
+
+    /// Returns the maximum power that can be charged before overflowing.
+    #[inline]
+    pub fn max_chargeable_power(&self) -> u8 {
+        let bs_bonus = match self.brainstone {
+            Some(PowerArea::Area1) => 2,
+            Some(PowerArea::Area2) => 1,
+            _ => 0,
+        };
+        (self.area1 as u16 * 2 + self.area2 as u16 + bs_bonus as u16).min(255) as u8
+    }
+
     /// Cascading power charge: Bowl 1 -> Bowl 2, then Bowl 2 -> Bowl 3.
     /// Returns `(charged_amount, wasted_amount)`.
     pub fn charge(&mut self, mut amount: u8) -> (u8, u8) {

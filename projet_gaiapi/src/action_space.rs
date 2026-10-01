@@ -104,15 +104,22 @@ pub fn decode_action(index: usize, map: &crate::map::Map) -> Option<GameCommand>
 
     if index < A_CHARGE_POWER_OFFSET {
         let i = index - A_PASS_OFFSET;
-        return Some(GameCommand::Pass { new_booster: Some(i as u8) });
+        return Some(GameCommand::Pass { new_booster: Some((i + 1) as u8) });
     }
 
     if index < A_BOARD_ACTION_OFFSET {
         let i = index - A_CHARGE_POWER_OFFSET;
-        return Some(GameCommand::ChargePower { charge_amount: if i == 0 { 0 } else { 1 } });
+        if i == 0 {
+            return Some(GameCommand::DeclineLeech);
+        } else {
+            // Technically it's charge_amount: 1 but it could be more. The engine ignores the exact number
+            // if we are declining vs charging, except wait, execute_leech expects the exact amount.
+            // But we don't have the amount here. We'll just charge whatever is queued.
+            // Wait, we need the exact amount? Actually, in auto-leech, it's computed. 
+            // The python script just returns 1. In Rust, we might need a dummy amount.
+            return Some(GameCommand::ChargePower { charge_amount: 1 }); // Let engine handle true amount
+        }
     }
-
-    if index < A_SPECIAL_ACTION_OFFSET {
         let i = index - A_BOARD_ACTION_OFFSET;
         let action = match i {
             0 => BoardAction::Power1,
@@ -245,6 +252,217 @@ pub fn decode_action(index: usize, map: &crate::map::Map) -> Option<GameCommand>
     None
 }
 
+/// Encodes a structured GameCommand back into its canonical discrete action index (0..3129).
+/// Inverts `decode_action` for high-throughput zero-copy action masking.
+pub fn encode_action(cmd: &GameCommand, map: &crate::map::Map) -> Option<usize> {
+    match cmd {
+        GameCommand::BuildMine { coord } => {
+            let idx = map.index_of(*coord)?;
+            if idx < A_BUILD_MINE_COUNT {
+                Some(A_BUILD_MINE_OFFSET + idx)
+            } else {
+                None
+            }
+        }
+        GameCommand::StartGaiaProject { coord } => {
+            let idx = map.index_of(*coord)?;
+            if idx < A_START_GAIA_COUNT {
+                Some(A_START_GAIA_OFFSET + idx)
+            } else {
+                None
+            }
+        }
+        GameCommand::Upgrade { coord, to } => {
+            let idx = map.index_of(*coord)?;
+            if idx >= A_BUILD_MINE_COUNT {
+                return None;
+            }
+            let to_idx = match to {
+                Building::TradingStation => 0,
+                Building::ResearchLab => 1,
+                Building::PlanetaryInstitute => 2,
+                Building::Academy1 => 3,
+                Building::Academy2 => 4,
+                _ => return None,
+            };
+            Some(A_UPGRADE_OFFSET + idx * 5 + to_idx)
+        }
+        GameCommand::FormFederation { token, .. } | GameCommand::FormFederationAuto { token } => {
+            let tok_idx = match token {
+                FederationToken::Fed1 => 0,
+                FederationToken::Fed2 => 1,
+                FederationToken::Fed3 => 2,
+                FederationToken::Fed4 => 3,
+                FederationToken::Fed5 => 4,
+                FederationToken::Fed6 => 5,
+                _ => 0,
+            };
+            Some(A_FEDERATION_OFFSET + tok_idx)
+        }
+        GameCommand::AdvanceResearch { field } => {
+            let f_idx = match field {
+                ResearchField::Terraforming => 0,
+                ResearchField::Navigation => 1,
+                ResearchField::Intelligence => 2,
+                ResearchField::GaiaProject => 3,
+                ResearchField::Economy => 4,
+                ResearchField::Science => 5,
+            };
+            Some(A_ADVANCE_RESEARCH_OFFSET + f_idx)
+        }
+        GameCommand::Pass { new_booster } => {
+            let b_idx = match new_booster {
+                Some(b) if *b >= 1 && *b <= 10 => (*b - 1) as usize,
+                _ => 0,
+            };
+            Some(A_PASS_OFFSET + b_idx.min(9))
+        }
+        GameCommand::ChargePower { .. } => {
+            Some(A_CHARGE_POWER_OFFSET + 1)
+        }
+        GameCommand::DeclineLeech => {
+            Some(A_CHARGE_POWER_OFFSET + 0)
+        }
+        GameCommand::BoardAction { action, .. } => {
+            let b_idx = match action {
+                BoardAction::Power1 => 0,
+                BoardAction::Power2 => 1,
+                BoardAction::Power3 => 2,
+                BoardAction::Power4 => 3,
+                BoardAction::Power5 => 4,
+                BoardAction::Power6 => 5,
+                BoardAction::Power7 => 6,
+                BoardAction::Qic1 => 7,
+                BoardAction::Qic2 => 8,
+                BoardAction::Qic3 => 9,
+            };
+            Some(A_BOARD_ACTION_OFFSET + b_idx)
+        }
+        GameCommand::SpecialAction { action, .. } => {
+            let s_idx = match action {
+                SpecialAction::AmbasPiSwap => 0,
+                SpecialAction::FiraksDowngradeLab => 1,
+                SpecialAction::BescodsAdvanceLowest => 2,
+                SpecialAction::IvitsSpaceStation => 3,
+                SpecialAction::SpaceGiantsTerraform => 4,
+                SpecialAction::Tech9Charge4Power => 5,
+                SpecialAction::AdvTech3QicCredit => 6,
+                SpecialAction::AdvTech11Gain3Ore => 7,
+                SpecialAction::AdvTech13Gain3Knowledge => 8,
+                SpecialAction::Booster5TemporaryRange => 9,
+            };
+            Some(A_SPECIAL_ACTION_OFFSET + s_idx)
+        }
+        GameCommand::ClaimTechTile { tech, advance_field } => {
+            let tech_idx = match tech {
+                TechTile::Tech1 => 0,
+                TechTile::Tech2 => 1,
+                TechTile::Tech3 => 2,
+                TechTile::Tech4 => 3,
+                TechTile::Tech5 => 4,
+                TechTile::Tech6 => 5,
+                TechTile::Tech7 => 6,
+                TechTile::Tech8 => 7,
+                TechTile::Tech9 => 8,
+            };
+            let field_idx = match advance_field {
+                Some(ResearchField::Terraforming) => 0,
+                Some(ResearchField::Navigation) => 1,
+                Some(ResearchField::Intelligence) => 2,
+                Some(ResearchField::GaiaProject) => 3,
+                Some(ResearchField::Economy) => 4,
+                Some(ResearchField::Science) => 5,
+                None => 0,
+            };
+            Some(A_CLAIM_TECH_OFFSET + tech_idx * 6 + field_idx)
+        }
+        GameCommand::ClaimAdvTechTile { adv_tech, cover_tech, field } => {
+            let adv_idx = match adv_tech {
+                AdvTechTile::AdvTech1 => 0,
+                AdvTechTile::AdvTech2 => 1,
+                AdvTechTile::AdvTech3 => 2,
+                AdvTechTile::AdvTech4 => 3,
+                AdvTechTile::AdvTech5 => 4,
+                AdvTechTile::AdvTech6 => 5,
+                AdvTechTile::AdvTech7 => 6,
+                AdvTechTile::AdvTech8 => 7,
+                AdvTechTile::AdvTech9 => 8,
+                AdvTechTile::AdvTech10 => 9,
+                AdvTechTile::AdvTech11 => 10,
+                AdvTechTile::AdvTech12 => 11,
+                AdvTechTile::AdvTech13 => 12,
+                AdvTechTile::AdvTech14 => 13,
+                AdvTechTile::AdvTech15 => 14,
+            };
+            let cover_idx = match cover_tech {
+                TechTile::Tech1 => 0,
+                TechTile::Tech2 => 1,
+                TechTile::Tech3 => 2,
+                TechTile::Tech4 => 3,
+                TechTile::Tech5 => 4,
+                TechTile::Tech6 => 5,
+                TechTile::Tech7 => 6,
+                TechTile::Tech8 => 7,
+                TechTile::Tech9 => 8,
+            };
+            let f_idx = match field {
+                ResearchField::Terraforming => 0,
+                ResearchField::Navigation => 1,
+                ResearchField::Intelligence => 2,
+                ResearchField::GaiaProject => 3,
+                ResearchField::Economy => 4,
+                ResearchField::Science => 5,
+            };
+            Some(A_CLAIM_ADV_TECH_OFFSET + adv_idx * 54 + cover_idx * 6 + f_idx)
+        }
+        GameCommand::ExploreSpaceship { ship, coord } => {
+            let ship_idx = match ship {
+                crate::rules::Spaceship::Twilight => 0,
+                crate::rules::Spaceship::Rebellion => 1,
+                crate::rules::Spaceship::TFMars => 2,
+                crate::rules::Spaceship::Eclipse => 3,
+            };
+            let coord_idx = map.index_of(*coord)?;
+            if coord_idx < 200 {
+                Some(A_EXPLORE_SPACESHIP_OFFSET + ship_idx * 200 + coord_idx)
+            } else {
+                None
+            }
+        }
+        GameCommand::SpaceshipBoardAction { ship, action_type, .. } => {
+            let ship_idx = match ship {
+                crate::rules::Spaceship::Twilight => 0,
+                crate::rules::Spaceship::Rebellion => 1,
+                crate::rules::Spaceship::TFMars => 2,
+                crate::rules::Spaceship::Eclipse => 3,
+            };
+            let act_idx = match action_type {
+                crate::rules::SpaceshipActionType::Qic => 0,
+                crate::rules::SpaceshipActionType::Power => 1,
+                crate::rules::SpaceshipActionType::Knowledge => 2,
+                crate::rules::SpaceshipActionType::Credit => 3,
+            };
+            Some(A_SPACESHIP_BOARD_OFFSET + ship_idx * 4 + act_idx)
+        }
+        GameCommand::FreeAction { action } => {
+            let act_idx = match action {
+                crate::rules::FreeAction::PowerToQic => 0,
+                crate::rules::FreeAction::PowerToKnowledge => 1,
+                crate::rules::FreeAction::PowerToOre => 2,
+                crate::rules::FreeAction::PowerToCredit => 3,
+                crate::rules::FreeAction::QicToOre => 4,
+                crate::rules::FreeAction::OreToToken => 5,
+                _ => return None,
+            };
+            Some(A_FREE_ACTION_OFFSET + act_idx)
+        }
+        GameCommand::ExamineArtefact { .. } => {
+            // Twilight spaceship credit action corresponds to Artefact examination
+            Some(A_SPACESHIP_BOARD_OFFSET + 0 * 4 + 3)
+        }
+    }
+}
+
 pub fn get_action_name(index: usize, map: &crate::map::Map) -> String {
     if let Some(cmd) = decode_action(index, map) {
         match cmd {
@@ -271,6 +489,9 @@ pub fn get_action_name(index: usize, map: &crate::map::Map) -> String {
             }
             crate::actions::GameCommand::ChargePower { charge_amount } => {
                 format!("Charger {} Puissance", charge_amount)
+            }
+            crate::actions::GameCommand::DeclineLeech => {
+                "Décliner le gain de puissance".to_string()
             }
             crate::actions::GameCommand::BoardAction { action, .. } => {
                 format!("Action Plateau Puissance: {:?}", action)

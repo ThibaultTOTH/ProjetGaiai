@@ -2,9 +2,8 @@
 
 Provides:
 1. NativeGaiaEnv: Direct in-process C-ABI ctypes bridge to the compiled Rust gaiapi.dll.
-2. FastGaiaSimEnv: Pure-Python high-throughput vector simulator mirroring gaiapi's observation layout and rich scoring rules.
-3. RestGaiaEnv: Connects to the compiled Rust gaiapi Axum server (http://127.0.0.1:3000).
-4. make_gaia_env: Automatic cascade factory: Native DLL -> REST -> Fast Python Sim.
+2. RestGaiaEnv: Connects to the compiled Rust gaiapi Axum server (http://127.0.0.1:3000).
+3. make_gaia_env: Automatic cascade factory: Native DLL -> REST.
 """
 
 import copy
@@ -245,6 +244,14 @@ class NativeGaiaEnv:
             ]
             dll.gaiapi_get_observation.restype = ctypes.c_uint32
 
+            if hasattr(dll, "gaiapi_get_observation_egocentric"):
+                dll.gaiapi_get_observation_egocentric.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_float),
+                    ctypes.c_uint32,
+                ]
+                dll.gaiapi_get_observation_egocentric.restype = ctypes.c_uint32
+
             dll.gaiapi_get_action_mask.argtypes = [
                 ctypes.c_void_p,
                 ctypes.POINTER(ctypes.c_uint8),
@@ -290,7 +297,7 @@ class NativeGaiaEnv:
             cls._dll_instance = dll
         return cls._dll_instance
 
-    def __init__(self, players: Any = 4, max_rounds: int = 6, seed: int = 42):
+    def __init__(self, players: Any = 4, max_rounds: int = 6, seed: int = 42, egocentric: bool = True):
         if hasattr(players, "model") and hasattr(players.model, "num_players"):
             players = players.model.num_players
         elif isinstance(players, dict) and "model" in players:
@@ -303,6 +310,7 @@ class NativeGaiaEnv:
 
         self.num_players = int(players)
         self.max_rounds = int(max_rounds)
+        self.egocentric = bool(egocentric)
         self.dll = self._get_dll()
         self.env_ptr = self.dll.gaiapi_create(ctypes.c_uint64(int(seed)), ctypes.c_uint32(int(self.num_players)))
         if not self.env_ptr:
@@ -336,17 +344,25 @@ class NativeGaiaEnv:
         self._faction_ids[seat] = float(faction_id)
         self.dll.gaiapi_set_player_faction(self.env_ptr, seat, faction_id)
 
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def reset(self, seed: Optional[int] = None, egocentric: Optional[bool] = None) -> Tuple[np.ndarray, np.ndarray]:
         actual_seed = seed if seed is not None else int(np.random.randint(0, 1000000))
         self.dll.gaiapi_reset(self.env_ptr, actual_seed)
         self.round = 1
         self.current_player = 0
         self.terminated = False
-        return self._get_obs(), self.get_action_mask()
+        return self._get_obs(egocentric), self.get_action_mask()
 
-    def _get_obs(self) -> np.ndarray:
-        self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    def _get_obs(self, egocentric: Optional[bool] = None) -> np.ndarray:
+        use_ego = self.egocentric if egocentric is None else egocentric
+        if use_ego and hasattr(self.dll, "gaiapi_get_observation_egocentric"):
+            self.dll.gaiapi_get_observation_egocentric(self.env_ptr, self._obs_buf, self.obs_dim)
+        else:
+            self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
         return np.array(self._obs_buf, dtype=np.float32)
+
+    def get_observation(self, egocentric: Optional[bool] = None) -> np.ndarray:
+        """Public helper to retrieve the current observation tensor (standard or egocentric)."""
+        return self._get_obs(egocentric)
 
     def get_action_mask(self) -> np.ndarray:
         self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
@@ -363,30 +379,10 @@ class NativeGaiaEnv:
             })
         return states
 
-    def clone(self) -> 'NativeGaiaEnv':
-        new_env = NativeGaiaEnv.__new__(NativeGaiaEnv)
-        new_env.num_players = self.num_players
-        new_env.max_rounds = self.max_rounds
-        new_env.dll = self.dll
-        new_env.env_ptr = self.dll.gaiapi_clone(self.env_ptr)
-        new_env.obs_dim = self.obs_dim
-        new_env.action_dim = self.action_dim
-        new_env._obs_buf = (ctypes.c_float * self.obs_dim)()
-        new_env._mask_buf = (ctypes.c_uint8 * self.action_dim)()
-        new_env._r_buf = ctypes.c_float(0.0)
-        new_env._d_buf = ctypes.c_bool(False)
-        new_env._round_buf = ctypes.c_uint32(self.round)
-        new_env._cp_buf = ctypes.c_uint32(self.current_player)
-        new_env.round = self.round
-        new_env.current_player = self.current_player
-        new_env.terminated = self.terminated
-        new_env._faction_ids = list(self._faction_ids)
-        return new_env
-
-    def step(self, action: int, target: Optional[int] = None) -> GaiaEnvStepResult:
+    def step(self, action: int, target: Optional[int] = None, egocentric: Optional[bool] = None) -> GaiaEnvStepResult:
         if self.terminated:
             return GaiaEnvStepResult(
-                obs=self._get_obs(),
+                obs=self._get_obs(egocentric),
                 reward=0.0,
                 done=True,
                 action_mask=self.get_action_mask(),
@@ -438,7 +434,7 @@ class NativeGaiaEnv:
             )
         if not success:
             return GaiaEnvStepResult(
-                obs=self._get_obs(),
+                obs=self._get_obs(egocentric),
                 reward=-5.0,
                 done=self.terminated,
                 action_mask=self.get_action_mask(),
@@ -456,7 +452,7 @@ class NativeGaiaEnv:
         step_r = delta_vp if (abs(raw_r - new_vp) < 1e-4 and new_vp > delta_vp) else raw_r
 
         return GaiaEnvStepResult(
-            obs=self._get_obs(),
+            obs=self._get_obs(egocentric),
             reward=step_r,
             done=self.terminated,
             action_mask=self.get_action_mask(),
@@ -538,6 +534,7 @@ class NativeGaiaEnv:
         new_env.round = self.round
         new_env.current_player = self.current_player
         new_env.terminated = self.terminated
+        new_env.egocentric = getattr(self, "egocentric", False)
         new_env._faction_ids = list(self._faction_ids)
         new_env._obs_buf = (ctypes.c_float * self.obs_dim)()
         new_env._mask_buf = (ctypes.c_uint8 * self.action_dim)()

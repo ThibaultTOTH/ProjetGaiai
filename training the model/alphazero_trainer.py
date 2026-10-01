@@ -24,7 +24,7 @@ class AlphaZeroReplayBuffer:
         self.buffer = []
         self.position = 0
 
-    def add(self, obs: np.ndarray, action_mask: np.ndarray, mcts_policy: np.ndarray, value_target: float):
+    def add(self, obs: np.ndarray, action_mask: np.ndarray, mcts_policy: np.ndarray, value_target: np.ndarray):
         data = (obs, action_mask, mcts_policy, value_target)
         if len(self.buffer) < self.capacity:
             self.buffer.append(data)
@@ -37,7 +37,8 @@ class AlphaZeroReplayBuffer:
             indices = np.random.choice(len(self.buffer), size=batch_size, replace=True)
             batch = [self.buffer[i] for i in indices]
         else:
-            vps = np.array([x[3] for x in self.buffer], dtype=np.float32)
+            # Approximate max VP across all players in each sample for optimism weighting
+            vps = np.array([np.max(x[3]) for x in self.buffer], dtype=np.float32)
             v_min = float(np.min(vps))
             v_max = float(np.max(vps))
             if v_max > v_min and optimism_power > 0.0:
@@ -54,7 +55,7 @@ class AlphaZeroReplayBuffer:
             np.stack(obs),
             np.stack(action_mask),
             np.stack(mcts_policy),
-            np.array(value_target, dtype=np.float32)
+            np.stack(value_target)
         )
 
     def __len__(self):
@@ -158,15 +159,22 @@ class AlphaZeroTrainer:
         else:
             env.reset()
 
+        if hasattr(env, "set_player_faction"):
+            factions = np.random.choice(14, getattr(env, "num_players", 4), replace=False)
+            for seat, faction_id in enumerate(factions):
+                env.set_player_faction(seat, int(faction_id))
+
         # 2. Opponent Matchmaking from League Pool (Population / Historical)
         num_players = getattr(env, "num_players", 4)
         if getattr(self.config.league, "enabled", True) and self.league_manager is not None:
             opponents = self.league_manager.sample_opponents(
                 self.agent, num_opponents=max(1, num_players - 1)
             )
-            participants = ["CurrentPolicy"] + [name for name, _ in opponents]
+            players = [("CurrentPolicy", None)] + opponents
+            random.shuffle(players)
+            participants = [name for name, _ in players]
         else:
-            opponents = []
+            players = [("CurrentPolicy", None)] * num_players
             participants = ["CurrentPolicy"] * num_players
 
         history = []
@@ -193,7 +201,8 @@ class AlphaZeroTrainer:
                 env.terminated = True
                 break
 
-            if current_player == 0:
+            p_name, act_fn = players[current_player]
+            if p_name == "CurrentPolicy":
                 temp = self.az_config.temperature_high if move_count < self.az_config.temperature_threshold_move else self.az_config.temperature_low
                 
                 # Clone state for regret tracking if in round >= 2
@@ -214,41 +223,23 @@ class AlphaZeroTrainer:
                     add_noise=True
                 )
                 
-                history.append((obs, mask, probs, 0.0))
+                history.append((current_player, obs, mask, probs))
                 move_count += 1
             else:
-                # Opponents played by League Member action function or Current Policy
-                opp_idx = current_player - 1
-                if opp_idx < len(opponents):
-                    _, act_fn = opponents[opp_idx]
-                    action = act_fn(obs, mask)
-                else:
-                    obs_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
-                    mask_t = torch.from_numpy(mask).bool().to(self.device).unsqueeze(0)
-                    with torch.no_grad():
-                        logits = self.agent.action_net(obs_t, mask_t)
-                        probs_t = F.softmax(logits, dim=-1)
-                        probs = probs_t.squeeze(0).cpu().numpy()
-                    
-                    p_legal = probs[legal_indices]
-                    p_sum = p_legal.sum()
-                    if p_sum > 0:
-                        p_legal = p_legal / p_sum
-                        action = np.random.choice(legal_indices, p=p_legal)
-                    else:
-                        action = int(np.random.choice(legal_indices))
+                # Opponents played by League Member action function
+                action = act_fn(obs, mask)
                     
             step_res = env.step(action)
 
             # Regret tracking for RGSC (Jeu sur problème / Crisis Puzzle Caching)
-            if current_player == 0 and env_before_step is not None and not env.terminated:
+            if p_name == "CurrentPolicy" and env_before_step is not None and not env.terminated:
                 try:
                     obs_before_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
                     next_obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
                     next_obs_t = torch.from_numpy(next_obs).float().to(self.device).unsqueeze(0)
                     with torch.no_grad():
-                        v_before = float(self.agent.score_net(obs_before_t).item())
-                        v_after = float(self.agent.score_net(next_obs_t).item())
+                        v_before = float(self.agent.score_net(obs_before_t).squeeze(0).cpu().numpy()[current_player])
+                        v_after = float(self.agent.score_net(next_obs_t).squeeze(0).cpu().numpy()[current_player])
                     
                     regret = max(0.0, v_before - v_after)
                     thresh = getattr(self.config.training, "rgsc_regret_threshold", 0.30)
@@ -277,8 +268,12 @@ class AlphaZeroTrainer:
                 consecutive_step_errors = 0
             
         raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * num_players)]
-        p0_vp = raw_vps[0] if len(raw_vps) > 0 else 50.0
-        p0_won = bool(len(raw_vps) >= 2 and p0_vp > max(raw_vps[1:]))
+        
+        # We need a primary perspective to report p0_vp/p0_won for metrics. We'll pick the first CurrentPolicy found.
+        cp_indices = [i for i, (name, _) in enumerate(players) if name == "CurrentPolicy"]
+        primary_idx = cp_indices[0] if cp_indices else 0
+        p0_vp = raw_vps[primary_idx] if len(raw_vps) > primary_idx else 50.0
+        p0_won = bool(len(raw_vps) >= 2 and p0_vp > max([v for i, v in enumerate(raw_vps) if i != primary_idx] + [0.0]))
         
         # Update multi-player Elo in the League
         if (
@@ -289,7 +284,11 @@ class AlphaZeroTrainer:
             self.league_manager.update_match_results(participants, raw_vps)
 
         # Store true Victory Points (0 - 250+ VP) for natural calibration with MCTS and GUI
-        final_history = [(obs, mask, probs, p0_vp) for obs, mask, probs, _ in history]
+        raw_vps_padded = np.zeros(4, dtype=np.float32)
+        for i, vp in enumerate(raw_vps):
+            if i < 4:
+                raw_vps_padded[i] = vp
+        final_history = [(obs, mask, probs, raw_vps_padded) for p, obs, mask, probs in history]
         return final_history, p0_vp, p0_won, move_count
 
     def train_on_batch(self, batch: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> Tuple[float, float, float, float]:
@@ -304,11 +303,11 @@ class AlphaZeroTrainer:
         
         device_type = "cuda" if (self.use_amp and self.device.type == "cuda") else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=(self.use_amp and self.device.type == "cuda")):
-            pred_values = self.agent.score_net(obs_t).view(-1)
+            pred_values = self.agent.score_net(obs_t)
             logits = self.agent.action_net(obs_t, mask_t)
             
             # Huber Smooth L1 loss on VP prevents gradient explosion
-            value_loss = F.smooth_l1_loss(pred_values, value_t.view(-1))
+            value_loss = F.smooth_l1_loss(pred_values, value_t)
             
             # Safe Cross-Entropy / Policy Loss:
             # 1. Normalize target policy over legal actions only

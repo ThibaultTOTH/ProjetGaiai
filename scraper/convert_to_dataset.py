@@ -40,10 +40,26 @@ RESEARCH_FIELDS = {
     "sci": 5,
 }
 
+TECH_TILE_MAP = {
+    "terra": 0, "o3": 0,
+    "nav": 1, "k1": 1,
+    "int": 2, "q1": 2,
+    "gaia": 3, "c4": 3,
+    "eco": 4, "o1": 4,
+    "sci": 5, "k1o1": 5,
+    "free1": 6, "vp": 6,
+    "free2": 7, "pw": 7,
+    "free3": 8, "charge": 8,
+}
+
 # Offsets matching action_space.rs
 A_BUILD_MINE_OFFSET = 0
 A_START_GAIA_OFFSET = 200
-A_UPGRADE_OFFSET = 400
+A_UPGRADE_TS_OFFSET = 400
+A_UPGRADE_LAB_OFFSET = 600
+A_UPGRADE_PI_OFFSET = 800
+A_UPGRADE_AC1_OFFSET = 1000
+A_UPGRADE_AC2_OFFSET = 1200
 A_FEDERATION_OFFSET = 1400
 A_ADVANCE_RESEARCH_OFFSET = 1406
 A_PASS_OFFSET = 1412
@@ -56,6 +72,54 @@ A_EXPLORE_SPACESHIP_OFFSET = 2308
 A_SPACESHIP_BOARD_OFFSET = 3108
 A_FREE_ACTION_OFFSET = 3124
 ACTION_DIM = 3130
+
+
+def parse_tech_action(move_str: str) -> Optional[int]:
+    """Extracts a ClaimTechTile discrete action index (1444..1497) from a move string."""
+    m = re.sub(r'\(.*?\)', '', move_str).strip()
+    match = re.search(r'tech\s+([a-zA-Z0-9]+)', m)
+    if not match:
+        return None
+    tile_str = match.group(1).lower()
+    tech_idx = TECH_TILE_MAP.get(tile_str, 0)
+
+    field_match = re.search(r'up\s+([a-zA-Z]+)', m)
+    field_str = field_match.group(1).lower() if field_match else "terra"
+    field_idx = RESEARCH_FIELDS.get(field_str, 0)
+
+    return A_CLAIM_TECH_OFFSET + tech_idx * 6 + field_idx
+
+
+def parse_hex_coord(coord_str: str) -> Optional[int]:
+    """
+    Parses a BGS hex coordinate like '4A6', '10B2', '1A0' into 0..189 spatial hex index.
+    Sectors: 1..10 (19 hexes each)
+    Ring 'A': 0..11 (outer ring, 12 hexes)
+    Ring 'B': 0..5 (inner ring, 6 hexes)
+    Ring 'C': 0 (center hex)
+    """
+    match = re.search(r'(\d{1,2})([ABCabc])(\d{1,2})', coord_str)
+    if not match:
+        return None
+    sector = int(match.group(1))
+    ring = match.group(2).upper()
+    sub_idx = int(match.group(3))
+
+    if not (1 <= sector <= 10):
+        return None
+
+    sector_base = (sector - 1) * 19
+    if ring == 'A':
+        if not (0 <= sub_idx <= 11):
+            return None
+        return sector_base + sub_idx
+    elif ring == 'B':
+        if not (0 <= sub_idx <= 5):
+            return None
+        return sector_base + 12 + sub_idx
+    elif ring == 'C':
+        return sector_base + 18
+    return None
 
 
 def parse_action_index(move_str: str) -> Optional[int]:
@@ -74,8 +138,8 @@ def parse_action_index(move_str: str) -> Optional[int]:
     if len(parts) >= 2 and parts[1] == "faction":
         return None
 
-    # 1. Pass: "pass booster<N>"
-    if "pass" in m:
+    # 1. Pass / Booster selection: "pass booster<N>" or "booster booster<N>"
+    if "pass" in m or "booster" in m:
         booster_match = re.search(r'booster(\d+)', m)
         booster_num = int(booster_match.group(1)) if booster_match else 0
         booster_idx = max(0, min(9, booster_num - 1))
@@ -112,33 +176,89 @@ def parse_action_index(move_str: str) -> Optional[int]:
 
     # 6. Special action: "special ..."
     if "special" in m:
+        if "swap-pi" in m or "ambas" in m:
+            return A_SPECIAL_ACTION_OFFSET + 0
+        elif "down-lab" in m or "downgrade" in m:
+            return A_SPECIAL_ACTION_OFFSET + 1
+        elif "lowest" in m or "bescods" in m:
+            return A_SPECIAL_ACTION_OFFSET + 2
+        elif "space-station" in m or "sp " in m or "station" in m:
+            return A_SPECIAL_ACTION_OFFSET + 3
+        elif "terraform" in m or "step" in m:
+            return A_SPECIAL_ACTION_OFFSET + 4
+        elif "tech9" in m or "charge" in m:
+            return A_SPECIAL_ACTION_OFFSET + 5
+        elif "adv3" in m or "qic" in m:
+            return A_SPECIAL_ACTION_OFFSET + 6
+        elif "3o" in m or "adv11" in m:
+            return A_SPECIAL_ACTION_OFFSET + 7
+        elif "3k" in m or "adv13" in m:
+            return A_SPECIAL_ACTION_OFFSET + 8
+        elif "range" in m:
+            return A_SPECIAL_ACTION_OFFSET + 9
         return A_SPECIAL_ACTION_OFFSET + 0
 
     # 7. Start Gaia project: "build gf <coord>"
     if "build gf" in m:
-        return A_START_GAIA_OFFSET + 0
+        coord_m = re.search(r'build gf\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_START_GAIA_OFFSET + (hex_idx if hex_idx is not None else 0)
 
-    # 8. Upgrade building: "build ts/lab/PI/ac1/ac2"
+    # 8. Upgrade building: "build ts/lab/PI/ac1/ac2 <coord>"
     if "build ts" in m:
-        return A_UPGRADE_OFFSET + 0
+        coord_m = re.search(r'build ts\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_UPGRADE_TS_OFFSET + (hex_idx if hex_idx is not None else 0)
     if "build lab" in m:
-        return A_UPGRADE_OFFSET + 1
-    if "build PI" in m:
-        return A_UPGRADE_OFFSET + 2
+        coord_m = re.search(r'build lab\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_UPGRADE_LAB_OFFSET + (hex_idx if hex_idx is not None else 0)
+    if "build PI" in m or "build pi" in m:
+        coord_m = re.search(r'build [Pp][Ii]\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_UPGRADE_PI_OFFSET + (hex_idx if hex_idx is not None else 0)
     if "build ac1" in m:
-        return A_UPGRADE_OFFSET + 3
+        coord_m = re.search(r'build ac1\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_UPGRADE_AC1_OFFSET + (hex_idx if hex_idx is not None else 0)
     if "build ac2" in m:
-        return A_UPGRADE_OFFSET + 4
+        coord_m = re.search(r'build ac2\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_UPGRADE_AC2_OFFSET + (hex_idx if hex_idx is not None else 0)
 
     # 9. Build Mine: "build m <coord>"
     if "build m" in m:
-        return A_BUILD_MINE_OFFSET + 0
+        coord_m = re.search(r'build m\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
+        hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
+        return A_BUILD_MINE_OFFSET + (hex_idx if hex_idx is not None else 0)
 
     # 10. Free action: "burn" or "spend"
     if "burn" in m or "spend" in m:
         return A_FREE_ACTION_OFFSET + 0
 
+    # 11. Standalone tech claim: "tech ..."
+    if "tech " in m and not any(k in m for k in ["build lab", "build ac"]):
+        tech_act = parse_tech_action(m)
+        if tech_act is not None:
+            return tech_act
+
     return None
+
+
+def parse_move_actions(move_str: str) -> List[int]:
+    """Parses all actions from a move string, including compound moves (e.g. build lab + tech claim)."""
+    actions = []
+    primary = parse_action_index(move_str)
+    if primary is not None:
+        actions.append(primary)
+
+    # If the move included building a Lab/Academy AND claiming a tech tile:
+    if ("build lab" in move_str or "build ac" in move_str) and "tech " in move_str:
+        tech_act = parse_tech_action(move_str)
+        if tech_act is not None:
+            actions.append(tech_act)
+
+    return actions
 
 
 class GaiaExpertDataset(Dataset):
@@ -203,9 +323,11 @@ def build_expert_dataset(
 
             actor_str = parts[0].lower()
             faction_id = FACTION_TO_ID.get(actor_str)
+            if faction_id is None:
+                continue
 
-            action_idx = parse_action_index(m)
-            if action_idx is not None and faction_id is not None:
+            action_indices = parse_move_actions(m)
+            for action_idx in action_indices:
                 final_score = scores_by_faction.get(actor_str, 100)
                 # Normalize VP to roughly [-1, 1] range: (score - 100) / 50
                 norm_value = (float(final_score) - 100.0) / 50.0

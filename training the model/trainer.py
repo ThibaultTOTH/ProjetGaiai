@@ -250,9 +250,16 @@ class RLTrainer:
             setup_m = getattr(getattr(self.config, "micro_dispatch", None), "setup_mode", "deterministic")
             disp = self.dispatcher if setup_m == "value_guided" else None
             try:
-                return e.reset(setup_mode=setup_m, dispatcher=disp)
+                obs, mask = e.reset(setup_mode=setup_m, dispatcher=disp)
             except TypeError:
-                return e.reset()
+                obs, mask = e.reset()
+            
+            if hasattr(e, "set_player_faction"):
+                factions = np.random.choice(14, getattr(e, "num_players", 4), replace=False)
+                for seat, faction_id in enumerate(factions):
+                    e.set_player_faction(seat, int(faction_id))
+                obs = e._get_obs() if hasattr(e, "_get_obs") else obs
+            return obs, mask
 
         if (
             getattr(self.config.training, "rgsc_enabled", False)
