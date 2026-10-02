@@ -772,6 +772,65 @@ class AdvancedNASOptimizer:
         trial.objective_score = round(objective, 3)
         trial.status = "Completed"
 
+    def run_optimization_sync(
+        self,
+        num_trials: int = 15,
+        sprint_epochs: int = 3,
+        on_trial_update: Optional[Callable[[HyperoptTrial], None]] = None,
+    ) -> Optional[HyperoptTrial]:
+        """Executes Advanced NAS and Schedule Optimization synchronously in the calling thread."""
+        self._stop_event.clear()
+        self._is_running = True
+        self.trials.clear()
+        self.best_trial = None
+
+        try:
+            for i in range(num_trials):
+                if self._stop_event.is_set():
+                    break
+
+                # Collect currently completed trials as elite candidates for evolutionary mutation
+                completed = [t for t in self.trials if t.status == "Completed"]
+
+                # Trial #1 begins with the currently registered / saved hyperparameters (baseline)
+                if i == 0:
+                    candidate_params = self.extract_params_from_config(self.base_config, mode=self.mode)
+                    arch_name = "★ BASELINE: " + self.format_arch_name(candidate_params, mode=self.mode)
+                else:
+                    candidate_params = self.generate_candidate(elite_pool=completed)
+                    arch_name = self.format_arch_name(candidate_params, mode=self.mode)
+
+                trial = HyperoptTrial(
+                    trial_id=i + 1,
+                    params=candidate_params,
+                    architecture_name=arch_name,
+                    status="Running",
+                )
+                self.trials.append(trial)
+                if on_trial_update:
+                    on_trial_update(trial)
+
+                self.evaluate_trial(
+                    trial,
+                    sprint_epochs=sprint_epochs,
+                    completed_pool=completed,
+                )
+
+                if on_trial_update:
+                    on_trial_update(trial)
+
+                if trial.status == "Completed":
+                    if (
+                        self.best_trial is None
+                        or trial.objective_score > self.best_trial.objective_score
+                    ):
+                        self.best_trial = trial
+
+        finally:
+            self._is_running = False
+
+        return self.best_trial
+
     def run_optimization(
         self,
         num_trials: int = 6,
@@ -783,58 +842,14 @@ class AdvancedNASOptimizer:
         if self._is_running:
             return
 
-        self._stop_event.clear()
-        self._is_running = True
-        self.trials.clear()
-        self.best_trial = None
-
         def _worker():
-            try:
-                for i in range(num_trials):
-                    if self._stop_event.is_set():
-                        break
-
-                    # Collect currently completed trials as elite candidates for evolutionary mutation
-                    completed = [t for t in self.trials if t.status == "Completed"]
-
-                    # Trial #1 begins with the currently registered / saved hyperparameters (baseline)
-                    if i == 0:
-                        candidate_params = self.extract_params_from_config(self.base_config, mode=self.mode)
-                        arch_name = "★ BASELINE: " + self.format_arch_name(candidate_params, mode=self.mode)
-                    else:
-                        candidate_params = self.generate_candidate(elite_pool=completed)
-                        arch_name = self.format_arch_name(candidate_params, mode=self.mode)
-
-                    trial = HyperoptTrial(
-                        trial_id=i + 1,
-                        params=candidate_params,
-                        architecture_name=arch_name,
-                        status="Running",
-                    )
-                    self.trials.append(trial)
-                    if on_trial_update:
-                        on_trial_update(trial)
-
-                    self.evaluate_trial(
-                        trial,
-                        sprint_epochs=sprint_epochs,
-                        completed_pool=completed,
-                    )
-
-                    if on_trial_update:
-                        on_trial_update(trial)
-
-                    if trial.status == "Completed":
-                        if (
-                            self.best_trial is None
-                            or trial.objective_score > self.best_trial.objective_score
-                        ):
-                            self.best_trial = trial
-
-            finally:
-                self._is_running = False
-                if on_finished:
-                    on_finished(self.best_trial)
+            best = self.run_optimization_sync(
+                num_trials=num_trials,
+                sprint_epochs=sprint_epochs,
+                on_trial_update=on_trial_update,
+            )
+            if on_finished:
+                on_finished(best)
 
         self._thread = threading.Thread(target=_worker, daemon=True)
         self._thread.start()
@@ -842,3 +857,68 @@ class AdvancedNASOptimizer:
 
 # Backwards compatibility alias
 HyperparameterOptimizer = AdvancedNASOptimizer
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Advanced NAS & Hyperparameter Optimizer for Gaia Project")
+    parser.add_argument("--mode", type=str, default="alphazero", choices=["alphazero", "ppo", "pretrain"])
+    parser.add_argument("--algo", type=str, default=None, help="Alias for --mode")
+    parser.add_argument("--trials", type=int, default=15, help="Number of trials")
+    parser.add_argument("--sprint-epochs", type=int, default=3, help="Sprint epochs per trial")
+    parser.add_argument("--device", type=str, default="auto", choices=["auto", "cuda", "cpu"])
+    args = parser.parse_args()
+
+    mode = args.algo if args.algo else args.mode
+    cfg = AppConfig()
+    if args.device != "auto":
+        cfg.hardware.device_override = args.device
+
+    print("=" * 105)
+    print("  🧬 ADVANCED NAS & HYPERPARAMETER SEARCH (CLI)")
+    print(f"  Mode: [{mode.upper()}] | Trials: {args.trials} | Sprint Epochs: {args.sprint_epochs}")
+    print(f"  Device: {cfg.hardware.device_override}")
+    print("=" * 105)
+
+    opt = AdvancedNASOptimizer(base_config=cfg, mode=mode)
+
+    print(f"{'Trial':<8} {'Status':<14} {'Score Obj.':<12} {'Perte':<10} {'Victoires':<12} {'VP Moyen':<12} {'Architecture & Params'}")
+    print("-" * 105)
+
+    def _on_update(t: HyperoptTrial):
+        if t.status == "Running":
+            return
+        wr_str = f"{t.win_rate * 100:.0f}%" if t.win_rate > 0 else "-"
+        score_str = f"{t.avg_score:.1f}" if t.avg_score > 0 else "-"
+        print(
+            f"[{t.trial_id:02d}/{args.trials:02d}] "
+            f"{t.status:<14} "
+            f"{t.objective_score:>10.2f} "
+            f"{t.val_loss:>8.3f} "
+            f"{wr_str:>10} "
+            f"{score_str:>10}   "
+            f"{t.architecture_name}"
+        )
+
+    best = opt.run_optimization_sync(
+        num_trials=args.trials,
+        sprint_epochs=args.sprint_epochs,
+        on_trial_update=_on_update,
+    )
+
+    print("=" * 105)
+    if best:
+        print(f"  🏆 BEST CONFIGURATION FOUND (Trial #{best.trial_id}):")
+        print(f"     Objective Score : {best.objective_score:.2f}")
+        print(f"     Description     : {best.architecture_name}")
+        print(f"     Validation Loss : {best.val_loss:.4f}")
+        print(f"     Win Rate / Top1 : {best.win_rate * 100:.1f}%")
+        print(f"     Parameters:")
+        for k, v in best.params.items():
+            print(f"       - {k}: {v}")
+    print("=" * 105)
+
+
+if __name__ == "__main__":
+    main()
+

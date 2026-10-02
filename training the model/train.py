@@ -96,6 +96,23 @@ def parse_args():
         default=None,
         help="Epoch interval between saved checkpoints",
     )
+    parser.add_argument(
+        "--hyperopt",
+        action="store_true",
+        help="Run Advanced Neural Architecture Search & Hyperparameter Optimization",
+    )
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=15,
+        help="Number of trials for hyperparameter search (default: 15)",
+    )
+    parser.add_argument(
+        "--sprint-epochs",
+        type=int,
+        default=3,
+        help="Number of sprint epochs per trial evaluation (default: 3)",
+    )
     return parser.parse_args()
 
 
@@ -153,6 +170,65 @@ def main():
             algo = "muzero"
         else:
             algo = "ppo"
+
+    # Handle Hyperparameter Search Mode (--hyperopt)
+    if args.hyperopt:
+        from hyperopt import AdvancedNASOptimizer, HyperoptTrial
+        import json
+
+        print("=" * 105)
+        print("  🧬 ADVANCED NAS & HYPERPARAMETER SEARCH (GENETIC / MULTI-FIDELITY)")
+        print(f"  Mode: [{algo.upper()}] | Target Trials: {args.trials} | Sprint Epochs: {args.sprint_epochs}")
+        print(f"  Device: {cfg.hardware.device_override}")
+        print("=" * 105)
+
+        optimizer = AdvancedNASOptimizer(base_config=cfg, mode=algo)
+
+        print(f"{'Trial':<8} {'Status':<14} {'Score Obj.':<12} {'Perte':<10} {'Victoires':<12} {'VP Moyen':<12} {'Architecture & Params'}")
+        print("-" * 105)
+
+        def _on_trial_update(t: HyperoptTrial):
+            if t.status == "Running":
+                return
+            wr_str = f"{t.win_rate * 100:.0f}%" if t.win_rate > 0 else "-"
+            score_str = f"{t.avg_score:.1f}" if t.avg_score > 0 else "-"
+            print(
+                f"[{t.trial_id:02d}/{args.trials:02d}] "
+                f"{t.status:<14} "
+                f"{t.objective_score:>10.2f} "
+                f"{t.val_loss:>8.3f} "
+                f"{wr_str:>10} "
+                f"{score_str:>10}   "
+                f"{t.architecture_name}"
+            )
+
+        best = optimizer.run_optimization_sync(
+            num_trials=args.trials,
+            sprint_epochs=args.sprint_epochs,
+            on_trial_update=_on_trial_update,
+        )
+
+        print("=" * 105)
+        if best:
+            print(f"  🏆 BEST ARCHITECTURE & CONFIGURATION FOUND (Trial #{best.trial_id}):")
+            print(f"     Objective Score : {best.objective_score:.2f}")
+            print(f"     Description     : {best.architecture_name}")
+            print(f"     Validation Loss : {best.val_loss:.4f}")
+            print(f"     Win Rate / Top1 : {best.win_rate * 100:.1f}%")
+            print(f"     Parameters:")
+            for k, v in best.params.items():
+                print(f"       - {k}: {v}")
+
+            out_dir = getattr(cfg.training, "runs_dir", "runs")
+            os.makedirs(out_dir, exist_ok=True)
+            out_file = os.path.join(out_dir, f"best_hyperparams_{algo}.json")
+            with open(out_file, "w") as f:
+                json.dump(best.params, f, indent=2)
+            print(f"  💾 Best hyperparameters saved to: {out_file}")
+        else:
+            print("  [!] No trial completed successfully.")
+        print("=" * 105)
+        return
 
     if algo == "alphazero":
         trainer = AlphaZeroTrainer(cfg)
