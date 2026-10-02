@@ -82,7 +82,13 @@ def parse_args():
         "--actors",
         type=int,
         default=4,
-        help="Number of CPU worker actors for asynchronous APPO mode",
+        help="Number of CPU worker actors for asynchronous APPO or parallel AlphaZero mode",
+    )
+    parser.add_argument(
+        "--sims",
+        type=int,
+        default=None,
+        help="Override number of MCTS simulations per move (e.g. 16 for 2x faster, 8 for 4x faster)",
     )
     parser.add_argument(
         "--report",
@@ -263,6 +269,11 @@ def main():
             custom_params = json.load(f)
         cfg = apply_params_to_config(cfg, custom_params, mode=algo)
         print(f"  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: {best_params_path}")
+
+    if args.sims is not None:
+        cfg.mcts.num_simulations = args.sims
+        cfg.alphazero.num_simulations = args.sims
+        print(f"  🌲 [MCTS Override] Simulations per move explicitly set to: {args.sims}")
 
     if algo == "alphazero":
         if args.actors > 1:
