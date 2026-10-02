@@ -4,7 +4,7 @@
   "activation": "silu",
   "dropout": 0.03,
   "use_input_norm": true,
-  "use_gnn_map": true,
+  "use_gnn_map": false,
   "policy_lr": 3e-05,
   "score_lr": 4.5e-05,
   "batch_size": 256,

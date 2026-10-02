@@ -51,6 +51,8 @@ def train_supervised(
     weight_decay: float = 1e-3,
     label_smoothing: float = 0.08,
     patience: int = 4,
+    hyperparams_path: Optional[Path] = None,
+    use_best_hyperparams: bool = False,
     device_name: Optional[str] = None,
     callback: Optional[Any] = None,
 ):
@@ -99,6 +101,40 @@ def train_supervised(
     config = AppConfig()
     config.model.obs_dim = obs_dim
     config.model.action_dim = action_dim
+
+    params_file = None
+    if hyperparams_path and Path(hyperparams_path).exists():
+        params_file = Path(hyperparams_path)
+    elif use_best_hyperparams:
+        default_file = Path(__file__).resolve().parent.parent / "runs" / "best_hyperparams_alphazero.json"
+        if default_file.exists():
+            params_file = default_file
+
+    if params_file:
+        import json
+        with open(params_file, "r") as f:
+            hparams = json.load(f)
+        if "block_type" in hparams:
+            config.model.block_type = hparams["block_type"]
+        if "hidden_layers" in hparams:
+            config.model.policy_hidden_layers = list(hparams["hidden_layers"])
+            config.model.score_hidden_layers = list(hparams["hidden_layers"])
+        if "activation" in hparams:
+            config.model.policy_activation = hparams["activation"]
+            config.model.score_activation = hparams["activation"]
+        if "dropout" in hparams:
+            config.model.policy_dropout = float(hparams["dropout"])
+            config.model.score_dropout = float(hparams["dropout"])
+        if "use_input_norm" in hparams:
+            config.model.use_input_norm = bool(hparams["use_input_norm"])
+        if "use_gnn_map" in hparams:
+            config.model.use_gnn_map = bool(hparams["use_gnn_map"])
+        if "gnn_layers" in hparams:
+            config.model.gnn_layers = int(hparams["gnn_layers"])
+
+        logger.info(f"✨ [Hyperopt] Applied optimal architecture from {params_file.name}:")
+        logger.info(f"   Architecture: {config.model.block_type.upper()} {config.model.policy_hidden_layers} ({config.model.policy_activation}) | GNN Map: {config.model.use_gnn_map}")
+
     agent = DualGaiaAgent(config.model).to(device)
 
     # Initialize GNN map adjacency & authentic observation templates
@@ -320,6 +356,17 @@ def main():
     parser.add_argument("--weight-decay", type=float, default=1e-3, help="L2 weight decay")
     parser.add_argument("--label-smoothing", type=float, default=0.08, help="Label smoothing")
     parser.add_argument("--patience", type=int, default=4, help="Early stopping patience")
+    parser.add_argument(
+        "--use-best-hyperparams",
+        action="store_true",
+        help="Train the supervised model using the optimal architecture from runs/best_hyperparams_alphazero.json",
+    )
+    parser.add_argument(
+        "--hyperparams",
+        type=str,
+        default=None,
+        help="Path to custom JSON file with architecture hyperparameters",
+    )
     args = parser.parse_args()
 
     train_supervised(
@@ -331,6 +378,8 @@ def main():
         weight_decay=args.weight_decay,
         label_smoothing=args.label_smoothing,
         patience=args.patience,
+        hyperparams_path=Path(args.hyperparams) if args.hyperparams else None,
+        use_best_hyperparams=args.use_best_hyperparams,
     )
 
 
