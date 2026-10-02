@@ -113,6 +113,17 @@ def parse_args():
         default=3,
         help="Number of sprint epochs per trial evaluation (default: 3)",
     )
+    parser.add_argument(
+        "--use-best-hyperparams",
+        action="store_true",
+        help="Load and apply optimal architecture and hyperparameters from runs/best_hyperparams_<algo>.json",
+    )
+    parser.add_argument(
+        "--hyperparams",
+        type=str,
+        default=None,
+        help="Path to custom JSON file with hyperparameters to apply",
+    )
     return parser.parse_args()
 
 
@@ -229,6 +240,25 @@ def main():
             print("  [!] No trial completed successfully.")
         print("=" * 105)
         return
+
+    # Apply Hyperparameters from Hyperopt if requested
+    best_params_path = None
+    if args.hyperparams:
+        best_params_path = args.hyperparams
+    elif args.use_best_hyperparams:
+        default_path = os.path.join(getattr(cfg.training, "runs_dir", "runs"), f"best_hyperparams_{algo}.json")
+        if os.path.exists(default_path):
+            best_params_path = default_path
+        else:
+            print(f"[!] Notice: --use-best-hyperparams was passed but {default_path} not found.")
+
+    if best_params_path and os.path.exists(best_params_path):
+        import json
+        from hyperopt import apply_params_to_config
+        with open(best_params_path, "r") as f:
+            custom_params = json.load(f)
+        cfg = apply_params_to_config(cfg, custom_params, mode=algo)
+        print(f"  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: {best_params_path}")
 
     if algo == "alphazero":
         trainer = AlphaZeroTrainer(cfg)

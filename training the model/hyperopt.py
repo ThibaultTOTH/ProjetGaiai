@@ -410,7 +410,11 @@ class AdvancedNASOptimizer:
                     ep_p_loss += p_loss
                     ep_v_loss += v_loss
                     ep_ent += ent
-                ep_loss = (ep_p_loss + ep_v_loss) / max(1, steps)
+                # Normalize VP loss (/ 25.0) and apply value_loss_coef to reflect true joint optimization objective
+                v_coef = float(p.get("az_value_loss_coef", 0.5))
+                norm_v_loss = (ep_v_loss / max(1, steps)) / 25.0
+                mean_p_loss = ep_p_loss / max(1, steps)
+                ep_loss = mean_p_loss + v_coef * norm_v_loss
                 ep_ent = ep_ent / max(1, steps)
             else:
                 ep_loss = 5.0
@@ -421,8 +425,8 @@ class AdvancedNASOptimizer:
             entropies.append(ep_ent)
             speeds.append(moves / dur)
 
-            # Divergence or NaN guard
-            if np.isnan(ep_loss) or np.isinf(ep_loss) or ep_loss > 50.0:
+            # Divergence or NaN guard (normalized loss > 25.0 indicates true gradient divergence)
+            if np.isnan(ep_loss) or np.isinf(ep_loss) or ep_loss > 25.0:
                 trial.status = "Pruned (Divergé)"
                 trial.val_loss = round(float(ep_loss), 4)
                 return
@@ -857,6 +861,52 @@ class AdvancedNASOptimizer:
 
 # Backwards compatibility alias
 HyperparameterOptimizer = AdvancedNASOptimizer
+
+
+def apply_params_to_config(cfg: AppConfig, params: Dict[str, Any], mode: str = "alphazero") -> AppConfig:
+    """Applies hyperparameter dictionary (e.g. from hyperopt JSON output) to an AppConfig instance."""
+    # Model architecture
+    if "block_type" in params:
+        cfg.model.block_type = params["block_type"]
+    if "hidden_layers" in params:
+        cfg.model.policy_hidden_layers = list(params["hidden_layers"])
+        cfg.model.score_hidden_layers = list(params["hidden_layers"])
+    if "activation" in params:
+        cfg.model.policy_activation = params["activation"]
+        cfg.model.score_activation = params["activation"]
+    if "dropout" in params:
+        cfg.model.policy_dropout = float(params["dropout"])
+        cfg.model.score_dropout = float(params["dropout"])
+    if "use_input_norm" in params:
+        cfg.model.use_input_norm = bool(params["use_input_norm"])
+    if "use_gnn_map" in params:
+        cfg.model.use_gnn_map = bool(params["use_gnn_map"])
+    if "gnn_layers" in params:
+        cfg.model.gnn_layers = int(params["gnn_layers"])
+    if "gnn_hidden_dim" in params:
+        cfg.model.gnn_hidden_dim = int(params["gnn_hidden_dim"])
+
+    # AlphaZero specific
+    if mode == "alphazero":
+        if "az_policy_lr" in params:
+            cfg.model.policy_lr = float(params["az_policy_lr"])
+        if "az_value_loss_coef" in params:
+            cfg.alphazero.value_loss_coef = float(params["az_value_loss_coef"])
+        if "az_num_simulations" in params:
+            cfg.alphazero.num_simulations = int(params["az_num_simulations"])
+            cfg.mcts.num_simulations = int(params["az_num_simulations"])
+        if "az_gumbel_candidates" in params:
+            cfg.alphazero.gumbel_candidates = int(params["az_gumbel_candidates"])
+        if "az_c_puct" in params:
+            cfg.mcts.c_puct = float(params["az_c_puct"])
+        if "az_optimism_power" in params:
+            cfg.alphazero.optimism_power = float(params["az_optimism_power"])
+        if "az_batch_size" in params:
+            cfg.alphazero.batch_size = int(params["az_batch_size"])
+        if "az_temp_threshold" in params:
+            cfg.alphazero.temperature_threshold_move = int(params["az_temp_threshold"])
+
+    return cfg
 
 
 def main():
