@@ -118,6 +118,7 @@ class MultiPlayerMCTS:
         device: Optional[torch.device] = None,
     ):
         self.agent = agent
+        self.config = config if config is not None else MCTSConfig()
         if device is not None:
             self.device = device
         elif hasattr(agent, "parameters"):
@@ -499,18 +500,23 @@ class MultiPlayerMCTS:
         root = MCTSNode(player=root_actor, action_mask=root_mask)
 
         # Evaluate root priors
-        obs_tensor = torch.from_numpy(
-            env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
-        ).float().to(self.device).unsqueeze(0)
-        mask_tensor = torch.from_numpy(root_mask).bool().to(self.device).unsqueeze(0)
+        if hasattr(self.agent, "evaluate_root"):
+            root_obs_raw = env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
+            priors, _ = self.agent.evaluate_root(root_obs_raw, root_mask, root_actor)
+        else:
+            dev = self.device if self.device is not None else torch.device("cpu")
+            obs_tensor = torch.from_numpy(
+                env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
+            ).float().to(dev).unsqueeze(0)
+            mask_tensor = torch.from_numpy(root_mask).bool().to(dev).unsqueeze(0)
 
-        with torch.no_grad():
-            use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
-            if not use_opp_model or root_actor == 0:
-                logits = self.agent.action_net(obs_tensor, mask_tensor)
-                priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
-            else:
-                priors = self.agent.predict_opponent_action(obs_tensor, mask_tensor).cpu().numpy()
+            with torch.no_grad():
+                use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+                if not use_opp_model or root_actor == 0:
+                    logits = self.agent.action_net(obs_tensor, mask_tensor)
+                    priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
+                else:
+                    priors = self.agent.predict_opponent_action(obs_tensor, mask_tensor).cpu().numpy()
 
         p_legal = priors[legal_indices]
         p_norm = p_legal / (np.sum(p_legal) + 1e-12)

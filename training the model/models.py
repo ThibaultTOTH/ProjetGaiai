@@ -4,6 +4,8 @@
 3. DualGaiaAgent: Combined agent orchestrating both networks for Self-Play and PPO.
 """
 
+import os
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 import math
 from typing import Any, List, Optional, Tuple, Union
 import numpy as np
@@ -743,6 +745,11 @@ class DualGaiaAgent(nn.Module):
         self.to(device)
         return self
 
+    @property
+    def device(self) -> torch.device:
+        p = next(self.parameters(), None)
+        return p.device if p is not None else torch.device("cpu")
+
     def set_map_adjacency(self, adj_table_or_norm: Union[np.ndarray, torch.Tensor]):
         """Sets map adjacency on map_encoder in backbone, score_net, and action_net."""
         if hasattr(self.shared_backbone, "set_map_adjacency"):
@@ -833,16 +840,33 @@ class DualGaiaAgent(nn.Module):
         return int(action.item())
 
     def predict_opponent_action(
-        self, obs: torch.Tensor, action_mask: Optional[torch.Tensor] = None
+        self, obs: Union[np.ndarray, torch.Tensor], action_mask: Optional[Union[np.ndarray, torch.Tensor]] = None
     ) -> torch.Tensor:
-        """Predicts probability distribution over the 16 actions for the next opponent, optionally masked."""
+        """Predicts probability distribution over the actions for the opponent, optionally masked."""
+        dev = self.device
+        if isinstance(obs, np.ndarray):
+            obs = torch.from_numpy(obs).float().to(dev)
+        elif not isinstance(obs, torch.Tensor):
+            obs = torch.tensor(obs, dtype=torch.float32, device=dev)
+        elif obs.device != dev:
+            obs = obs.to(dev)
+
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
+
+        if action_mask is not None:
+            if isinstance(action_mask, np.ndarray):
+                action_mask = torch.from_numpy(action_mask).bool().to(dev)
+            elif not isinstance(action_mask, torch.Tensor):
+                action_mask = torch.tensor(action_mask, dtype=torch.bool, device=dev)
+            elif action_mask.device != dev:
+                action_mask = action_mask.to(dev)
+            if action_mask.dim() == 1:
+                action_mask = action_mask.unsqueeze(0)
+
         with torch.no_grad():
             opp_probs = self.action_net.predict_opponent(obs)
             if action_mask is not None:
-                if action_mask.dim() == 1:
-                    action_mask = action_mask.unsqueeze(0)
                 opp_probs = torch.where(action_mask, opp_probs, torch.zeros_like(opp_probs))
                 sums = opp_probs.sum(dim=-1, keepdim=True)
                 opp_probs = torch.where(
@@ -862,19 +886,24 @@ class DualGaiaAgent(nn.Module):
         """Evaluates root node: returns (priors, raw_logits) as numpy arrays.
         Supports both np.ndarray and torch.Tensor inputs.
         """
+        dev = self.device
         if isinstance(obs, np.ndarray):
-            obs = torch.from_numpy(obs).float().to(self.device)
+            obs = torch.from_numpy(obs).float().to(dev)
         elif not isinstance(obs, torch.Tensor):
-            obs = torch.tensor(obs, dtype=torch.float32, device=self.device)
+            obs = torch.tensor(obs, dtype=torch.float32, device=dev)
+        elif obs.device != dev:
+            obs = obs.to(dev)
 
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
 
         if action_mask is not None:
             if isinstance(action_mask, np.ndarray):
-                action_mask = torch.from_numpy(action_mask).bool().to(self.device)
+                action_mask = torch.from_numpy(action_mask).bool().to(dev)
             elif not isinstance(action_mask, torch.Tensor):
-                action_mask = torch.tensor(action_mask, dtype=torch.bool, device=self.device)
+                action_mask = torch.tensor(action_mask, dtype=torch.bool, device=dev)
+            elif action_mask.device != dev:
+                action_mask = action_mask.to(dev)
             if action_mask.dim() == 1:
                 action_mask = action_mask.unsqueeze(0)
 
@@ -893,26 +922,42 @@ class DualGaiaAgent(nn.Module):
     @torch.no_grad()
     def evaluate_leaf_batch(
         self,
-        obs: torch.Tensor,
-        action_masks: Optional[torch.Tensor] = None,
+        obs: Union[np.ndarray, torch.Tensor],
+        action_masks: Optional[Union[np.ndarray, torch.Tensor]] = None,
         leaf_actors: Optional[List[int]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Ultra-fast batched joint evaluation of values and policy priors in a single GPU pass with AMP.
 
         Args:
-            obs: (B, obs_dim) tensor
-            action_masks: Optional (B, action_dim) boolean mask tensor
+            obs: (B, obs_dim) tensor or numpy array
+            action_masks: Optional (B, action_dim) boolean mask tensor or numpy array
             leaf_actors: Optional list of player indices (length B)
 
         Returns:
             vals: np.ndarray of shape (B,) with predicted scores
             priors: np.ndarray of shape (B, action_dim) with probability distributions
         """
+        dev = self.device
+        if isinstance(obs, np.ndarray):
+            obs = torch.from_numpy(obs).float().to(dev)
+        elif not isinstance(obs, torch.Tensor):
+            obs = torch.tensor(obs, dtype=torch.float32, device=dev)
+        elif obs.device != dev:
+            obs = obs.to(dev)
+
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
         B = obs.size(0)
-        if action_masks is not None and action_masks.dim() == 1:
-            action_masks = action_masks.unsqueeze(0)
+
+        if action_masks is not None:
+            if isinstance(action_masks, np.ndarray):
+                action_masks = torch.from_numpy(action_masks).bool().to(dev)
+            elif not isinstance(action_masks, torch.Tensor):
+                action_masks = torch.tensor(action_masks, dtype=torch.bool, device=dev)
+            elif action_masks.device != dev:
+                action_masks = action_masks.to(dev)
+            if action_masks.dim() == 1:
+                action_masks = action_masks.unsqueeze(0)
 
         device_type = "cuda" if obs.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=obs.is_cuda):

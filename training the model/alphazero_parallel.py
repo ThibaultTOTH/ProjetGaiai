@@ -41,6 +41,7 @@ class MCTSRemoteAgentProxy:
     def __init__(self, worker_id: int, req_queue: Any, resp_pipe: Any, model_config: Any):
         self.worker_id = worker_id
         self.req_queue = req_queue
+        self.resp_pipe = resp_pipe
         self.config = model_config
         self.device = torch.device("cpu")
 
@@ -74,12 +75,27 @@ class MCTSRemoteAgentProxy:
 
         if isinstance(batch_mask, torch.Tensor):
             mask_np = batch_mask.detach().cpu().numpy()
-        else:
+        elif batch_mask is not None:
             mask_np = np.asarray(batch_mask, dtype=bool)
+        else:
+            mask_np = None
+
+        if obs_np.ndim == 1:
+            obs_np = obs_np[np.newaxis, :]
+        if mask_np is not None and mask_np.ndim == 1:
+            mask_np = mask_np[np.newaxis, :]
 
         self.req_queue.put((self.worker_id, "leaf_batch", obs_np, mask_np, leaf_actors))
         vals, priors = self.resp_pipe.recv()
         return vals, priors
+
+    def predict_score_with_uncertainty(self, obs: Any, num_passes: int = 1) -> Tuple[float, float]:
+        vals, _ = self.evaluate_leaf_batch(obs, None, None)
+        return float(vals[0]), 0.0
+
+    def evaluate_leaf(self, obs: Any, mask: Optional[Any] = None, leaf_actor: int = 0) -> Tuple[float, np.ndarray]:
+        vals, priors = self.evaluate_leaf_batch(obs, mask, [leaf_actor])
+        return float(vals[0]), priors[0]
 
     def predict_opponent_action(
         self,
@@ -198,8 +214,10 @@ def alpha_zero_worker_process(
                     ))
 
                 except Exception as e:
-                    # In case of environment error, report failure gracefully
-                    req_queue.put((worker_id, "game_error", str(e)))
+                    import traceback
+                    tb = traceback.format_exc()
+                    print(f"\n[Worker {worker_id} Exception]: {e}\n{tb}", file=sys.stderr, flush=True)
+                    req_queue.put((worker_id, "game_error", str(e), tb))
 
 
 class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
@@ -299,7 +317,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
         self.start_workers()
 
         start_epoch = getattr(self, "current_epoch", 0) + 1
-        target_games_per_epoch = getattr(self.az_config, "games_per_epoch", 4)
+        target_games_per_epoch = max(self.num_workers, getattr(self.az_config, "games_per_epoch", 8))
 
         for epoch in range(start_epoch, max_epochs + 1):
             if self._stop_event.is_set():
@@ -313,6 +331,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
             epoch_wins = 0
             epoch_games = 0
             epoch_moves = 0
+            worker_error_count = 0
 
             # 1. Dispatch games to all idle workers
             games_dispatched = 0
@@ -390,7 +409,23 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
                             games_dispatched += 1
 
                     elif req_type == "game_error":
-                        games_completed += 1
+                        err_msg = req[2] if len(req) > 2 else "Unknown error"
+                        tb_msg = req[3] if len(req) > 3 else ""
+                        print(f"  [!] [Worker {wid} Exception]: {err_msg}\n{tb_msg}", flush=True)
+                        worker_error_count += 1
+                        if worker_error_count > 5:
+                            raise RuntimeError(f"Parallel Worker repeatedly failed: {err_msg}\n{tb_msg}")
+                        # Re-dispatch game so epoch completes real games instead of skipping!
+                        if games_dispatched < target_games_per_epoch:
+                            self.cmd_pipes_parent[wid].send({
+                                "cmd": "PLAY_GAME",
+                                "num_simulations": self.az_config.num_simulations,
+                                "temp_high": self.az_config.temperature_high,
+                                "temp_low": self.az_config.temperature_low,
+                                "temp_thresh": self.az_config.temperature_threshold_move,
+                                "seed": int(time.time() * 1000) % 1000000 + epoch * 100 + games_dispatched,
+                            })
+                            games_dispatched += 1
 
                 # A. Handle Batched Leaf Evaluations on GPU in ONE Forward Pass
                 if leaf_batch_reqs:
@@ -498,15 +533,6 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
             else:
                 vram_mb = 0
 
-            # Print standard production progress line
-            pol_sign = "+" if p_loss_avg >= 0 else ""
-            print(
-                f"[{epoch:04d}/{max_epochs}] {int(round(speed)):>2} st/s       "
-                f"P={pol_sign}{p_loss_avg:.3f} V={v_loss_avg:.3f}          "
-                f"{avg_real_vp:>5.1f} VP    {int(round(win_r * 100)):>2}%          "
-                f"ALPHAZERO  {vram_mb} MB"
-            )
-
             metrics = EpochMetrics(
                 epoch=epoch,
                 policy_loss=p_loss_avg,
@@ -524,11 +550,22 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
 
             if callback:
                 callback(metrics)
+            else:
+                pol_sign = "+" if p_loss_avg >= 0 else ""
+                print(
+                    f"[{epoch:04d}/{max_epochs}] {int(round(speed)):>2} st/s       "
+                    f"P={pol_sign}{p_loss_avg:.3f} V={v_loss_avg:.3f}          "
+                    f"{avg_real_vp:>5.1f} VP    {int(round(win_r * 100)):>2}%          "
+                    f"ALPHAZERO  {vram_mb} MB"
+                )
 
             # Auto-save checkpoints
-            self.save_checkpoint("checkpoints/gaia_latest.pt")
-            if epoch % getattr(self.az_config, "checkpoint_interval", 50) == 0:
-                self.save_checkpoint(f"checkpoints/az_checkpoint_epoch_{epoch:04d}.pt")
+            ckpt_dir = getattr(self.config.training, "checkpoint_dir", "checkpoints")
+            os.makedirs(ckpt_dir, exist_ok=True)
+            self.save_checkpoint(os.path.join(ckpt_dir, "gaia_latest.pt"))
+            ckpt_interval = getattr(self.az_config, "checkpoint_interval", getattr(self.config.training, "save_checkpoint_interval", 50))
+            if epoch % ckpt_interval == 0:
+                self.save_checkpoint(os.path.join(ckpt_dir, f"az_checkpoint_{epoch}.pt"))
 
         self.stop_workers()
         self._is_running = False
