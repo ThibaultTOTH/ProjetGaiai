@@ -292,7 +292,7 @@ class MultiPlayerMCTS:
 
                     if not sim_env.terminated:
                         curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
-                        curr_mask = sim_env.get_action_mask()
+                        curr_mask = step_res.action_mask if hasattr(step_res, "action_mask") else sim_env.get_action_mask()
                         leaf_actor = sim_env.current_player
                         item["curr_obs"] = curr_obs
                         item["curr_mask"] = curr_mask
@@ -304,11 +304,13 @@ class MultiPlayerMCTS:
 
                 # Batched Neural Evaluation for non-terminal leaves in one GPU forward pass
                 if non_terminal_indices:
-                    dev = self.device if self.device is not None else torch.device("cpu")
-                    batch_obs_t = torch.from_numpy(np.stack(obs_list)).float().to(dev)
-                    batch_mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(dev)
+                    stacked_obs = np.stack(obs_list)
+                    stacked_masks = np.stack(mask_list)
 
                     if use_unc:
+                        dev = self.device if self.device is not None else torch.device("cpu")
+                        batch_obs_t = torch.from_numpy(stacked_obs).float().to(dev)
+                        batch_mask_t = torch.from_numpy(stacked_masks).bool().to(dev)
                         pred_scores = []
                         leaf_uncs = []
                         leaf_priors_list = []
@@ -328,9 +330,12 @@ class MultiPlayerMCTS:
                     else:
                         if hasattr(self.agent, "evaluate_leaf_batch"):
                             pred_scores, leaf_priors_list = self.agent.evaluate_leaf_batch(
-                                batch_obs_t, batch_mask_t, leaf_actors=actors_list
+                                stacked_obs, stacked_masks, leaf_actors=actors_list
                             )
                         else:
+                            dev = self.device if self.device is not None else torch.device("cpu")
+                            batch_obs_t = torch.from_numpy(stacked_obs).float().to(dev)
+                            batch_mask_t = torch.from_numpy(stacked_masks).bool().to(dev)
                             pred_scores = []
                             leaf_priors_list = []
                             for i_nt in range(len(non_terminal_indices)):
