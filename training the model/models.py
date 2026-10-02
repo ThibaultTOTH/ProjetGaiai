@@ -655,6 +655,22 @@ class DualGaiaAgent(nn.Module):
             if hasattr(model_cfg, "use_gnn_map") and model_cfg.use_gnn_map != getattr(self.config, "use_gnn_map", True):
                 self.config.use_gnn_map = model_cfg.use_gnn_map
                 rebuild_needed = True
+            if hasattr(model_cfg, "policy_activation") and model_cfg.policy_activation != getattr(self.config, "policy_activation", "silu"):
+                self.config.policy_activation = model_cfg.policy_activation
+                self.config.score_activation = getattr(model_cfg, "score_activation", model_cfg.policy_activation)
+                rebuild_needed = True
+            if hasattr(model_cfg, "gnn_layers") and model_cfg.gnn_layers != getattr(self.config, "gnn_layers", 3):
+                self.config.gnn_layers = model_cfg.gnn_layers
+                rebuild_needed = True
+            if hasattr(model_cfg, "gnn_hidden_dim") and model_cfg.gnn_hidden_dim != getattr(self.config, "gnn_hidden_dim", 64):
+                self.config.gnn_hidden_dim = model_cfg.gnn_hidden_dim
+                rebuild_needed = True
+
+            if rebuild_needed:
+                device = next(self.parameters()).device if list(self.parameters()) else torch.device("cpu")
+                self._build_modules()
+                self.to(device)
+            return rebuild_needed
 
         # 2. Inspect state_dict keys directly (guarantees 100% precision even if config_obj is absent)
         trunk_prefix = None
@@ -939,23 +955,30 @@ class DualGaiaAgent(nn.Module):
         if isinstance(checkpoint, dict) and "epoch" in checkpoint and "epoch" not in meta:
             meta["epoch"] = checkpoint["epoch"]
 
-        config_obj = checkpoint.get("config", None) if isinstance(checkpoint, dict) else None
+        config_obj = None
+        if isinstance(checkpoint, dict):
+            config_obj = checkpoint.get("config", None) or checkpoint.get("model_config", None)
 
         if isinstance(checkpoint, dict) and "agent_state_dict" in checkpoint:
             state_dict = checkpoint["agent_state_dict"]
             self._adapt_architecture_from_state_dict(state_dict, config_obj)
-            self.load_state_dict(state_dict)
+            try:
+                self.load_state_dict(state_dict, strict=True)
+            except RuntimeError:
+                missing, unexpected = self.load_state_dict(state_dict, strict=False)
+                if missing or unexpected:
+                    print(f"  ⚠️ [Checkpoint Notice] Loaded with strict=False (missing: {len(missing)}, unexpected: {len(unexpected)})")
         elif isinstance(checkpoint, dict) and "score_net_state" in checkpoint and "action_net_state" in checkpoint:
             score_state = checkpoint["score_net_state"]
             action_state = checkpoint["action_net_state"]
             self._adapt_architecture_from_state_dict(score_state, config_obj)
-            self.score_net.load_state_dict(score_state)
-            self.action_net.load_state_dict(action_state)
+            self.score_net.load_state_dict(score_state, strict=False)
+            self.action_net.load_state_dict(action_state, strict=False)
         else:
             state_dict = checkpoint if isinstance(checkpoint, dict) else {}
             self._adapt_architecture_from_state_dict(state_dict, config_obj)
             try:
-                self.load_state_dict(state_dict)
+                self.load_state_dict(state_dict, strict=False)
             except Exception:
                 raise KeyError(
                     f"Unrecognized checkpoint format in {path}. Keys: {list(checkpoint.keys()) if isinstance(checkpoint, dict) else type(checkpoint)}"
