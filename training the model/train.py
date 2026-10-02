@@ -280,7 +280,9 @@ def main():
     resumed_epoch = 0
     if args.resume and args.resume.lower() not in ("none", "false", "no", "off", "scratch", "new"):
         resume_target = args.resume
-        if resume_target.lower() == "auto":
+        if resume_target.lower() in ("pretrain", "supervised", "bc"):
+            resume_target = os.path.join(cfg.training.checkpoint_dir, "gaia_supervised_pretrained.pt")
+        elif resume_target.lower() == "auto":
             auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_latest.pt")
             if not os.path.exists(auto_path):
                 auto_path = os.path.join(cfg.training.checkpoint_dir, "az_checkpoint_500.pt")
@@ -303,8 +305,13 @@ def main():
 
                 target_layers = getattr(cfg.model, "policy_hidden_layers", None)
                 if ckpt_layers and target_layers and list(ckpt_layers) != list(target_layers):
-                    if args.use_best_hyperparams or args.resume.lower() == "auto":
-                        print(f"  ⚠️ [Resume Safeguard] Checkpoint '{os.path.basename(resume_target)}' has layers {ckpt_layers}, differing from configured {target_layers}.")
+                    print(f"  ⚠️ [Resume Safeguard] Checkpoint '{os.path.basename(resume_target)}' has layers {ckpt_layers}, differing from configured {target_layers}.")
+                    # Check if pre-trained supervised model is available as a better match
+                    supervised_path = os.path.join(cfg.training.checkpoint_dir, "gaia_supervised_pretrained.pt")
+                    if os.path.exists(supervised_path) and resume_target != supervised_path:
+                        print(f"     -> Basculement automatique sur le modèle pré-entraîné supervisé: {os.path.basename(supervised_path)}")
+                        resume_target = supervised_path
+                    else:
                         print(f"     Preserving requested architecture -> Starting fresh training! (Pass --resume <path> to force load).")
                         resume_target = None
             except Exception:
@@ -312,6 +319,11 @@ def main():
 
         if resume_target and os.path.exists(resume_target):
             resumed_epoch = trainer.resume_from_checkpoint(resume_target)
+            if "supervised_pretrained" in os.path.basename(resume_target):
+                print(f"  🌟 [Pre-training Bootstrapped] Initialisé avec succès à partir du modèle supervisé ({os.path.basename(resume_target)}) !")
+                # For AlphaZero RL, start fresh at Epoch 1 with the pretrained weights
+                trainer.current_epoch = 0
+                resumed_epoch = 0
 
     print_banner(cfg, device, trainer.hw_info, args.preset, resumed_epoch=resumed_epoch)
 
