@@ -244,9 +244,15 @@ class MultiPlayerMCTS:
                 break
             sims_per_cand = max(1, total_budget // (num_phases * len(active_set)))
 
-            for cand_act in active_set:
-                cand_milestone = compute_milestone_bonus(cand_act)
-                for _ in range(sims_per_cand):
+            for sim_round in range(sims_per_cand):
+                rollout_items = []
+                non_terminal_indices = []
+                obs_list = []
+                mask_list = []
+                actors_list = []
+
+                for cand_idx, cand_act in enumerate(active_set):
+                    cand_milestone = compute_milestone_bonus(cand_act)
                     sim_env = env.clone()
                     node = root.children[cand_act]
                     search_path = [root, node]
@@ -262,7 +268,78 @@ class MultiPlayerMCTS:
                         if hasattr(step_res, "info") and "error" in step_res.info:
                             break
 
-                    # Leaf evaluation
+                    item = {
+                        "sim_env": sim_env,
+                        "node": node,
+                        "search_path": search_path,
+                        "cand_milestone": cand_milestone,
+                        "step_res": step_res,
+                    }
+                    rollout_items.append(item)
+
+                    if not sim_env.terminated:
+                        curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
+                        curr_mask = sim_env.get_action_mask()
+                        leaf_actor = sim_env.current_player
+                        item["curr_obs"] = curr_obs
+                        item["curr_mask"] = curr_mask
+                        item["leaf_actor"] = leaf_actor
+                        non_terminal_indices.append(cand_idx)
+                        obs_list.append(curr_obs)
+                        mask_list.append(curr_mask)
+                        actors_list.append(leaf_actor)
+
+                # Batched Neural Evaluation for non-terminal leaves in one GPU forward pass
+                if non_terminal_indices:
+                    batch_obs_t = torch.from_numpy(np.stack(obs_list)).float().to(self.device)
+                    batch_mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(self.device)
+
+                    if use_unc:
+                        pred_scores = []
+                        leaf_uncs = []
+                        leaf_priors_list = []
+                        with torch.no_grad():
+                            for i_nt in range(len(non_terminal_indices)):
+                                s_obs = batch_obs_t[i_nt : i_nt + 1]
+                                s_mask = batch_mask_t[i_nt : i_nt + 1]
+                                s_actor = actors_list[i_nt]
+                                p_s, l_u = self.agent.predict_score_with_uncertainty(s_obs, num_passes=dropout_passes)
+                                if s_actor == root_actor or not getattr(self.agent.config, "use_opponent_modeling", False):
+                                    l_p = F.softmax(self.agent.action_net(s_obs, s_mask), dim=-1).squeeze(0).cpu().numpy()
+                                else:
+                                    l_p = self.agent.predict_opponent_action(s_obs, s_mask).cpu().numpy()
+                                pred_scores.append(p_s)
+                                leaf_uncs.append(l_u)
+                                leaf_priors_list.append(l_p)
+                    else:
+                        if hasattr(self.agent, "evaluate_leaf_batch"):
+                            pred_scores, leaf_priors_list = self.agent.evaluate_leaf_batch(
+                                batch_obs_t, batch_mask_t, leaf_actors=actors_list
+                            )
+                        else:
+                            pred_scores = []
+                            leaf_priors_list = []
+                            for i_nt in range(len(non_terminal_indices)):
+                                p_s, l_p = self.agent.evaluate_leaf(
+                                    batch_obs_t[i_nt : i_nt + 1],
+                                    batch_mask_t[i_nt : i_nt + 1],
+                                    leaf_actor=actors_list[i_nt],
+                                )
+                                pred_scores.append(p_s)
+                                leaf_priors_list.append(l_p)
+                        leaf_uncs = [0.0] * len(non_terminal_indices)
+
+                    for i_nt, nt_idx in enumerate(non_terminal_indices):
+                        rollout_items[nt_idx]["pred_score"] = float(pred_scores[i_nt])
+                        rollout_items[nt_idx]["leaf_priors"] = leaf_priors_list[i_nt]
+                        rollout_items[nt_idx]["leaf_unc"] = float(leaf_uncs[i_nt])
+
+                # Process results and backpropagate
+                for item in rollout_items:
+                    sim_env = item["sim_env"]
+                    node = item["node"]
+                    search_path = item["search_path"]
+
                     if sim_env.terminated:
                         raw_vps = np.array(
                             [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
@@ -274,40 +351,12 @@ class MultiPlayerMCTS:
                         value_vector = 0.6 * margin + 0.4 * ambition
                         leaf_unc = 0.0
                     else:
-                        curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
-                        curr_mask = sim_env.get_action_mask()
-                        leaf_actor = sim_env.current_player
-
-                        obs_t = torch.from_numpy(curr_obs).float().to(self.device).unsqueeze(0)
-                        mask_t = torch.from_numpy(curr_mask).bool().to(self.device).unsqueeze(0)
-
-                        with torch.no_grad():
-                            if use_unc:
-                                pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
-                                    obs_t, num_passes=dropout_passes
-                                )
-                                use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
-                                if not use_opp_model or leaf_actor == root_actor:
-                                    leaf_logits = self.agent.action_net(obs_t, mask_t)
-                                    leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
-                                else:
-                                    opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                                    leaf_priors = opp_probs.cpu().numpy()
-                            else:
-                                if hasattr(self.agent, "evaluate_leaf"):
-                                    pred_score, leaf_priors = self.agent.evaluate_leaf(
-                                        obs_t, mask_t, leaf_actor=leaf_actor
-                                    )
-                                else:
-                                    pred_score = float(self.agent.score_net(obs_t).item())
-                                    use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
-                                    if not use_opp_model or leaf_actor == root_actor:
-                                        leaf_logits = self.agent.action_net(obs_t, mask_t)
-                                        leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
-                                    else:
-                                        opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                                        leaf_priors = opp_probs.cpu().numpy()
-                                leaf_unc = 0.0
+                        curr_mask = item["curr_mask"]
+                        leaf_actor = item["leaf_actor"]
+                        pred_score = item["pred_score"]
+                        leaf_priors = item["leaf_priors"]
+                        leaf_unc = item["leaf_unc"]
+                        cand_milestone = item["cand_milestone"]
 
                         if np.any(curr_mask):
                             node.player = leaf_actor
@@ -331,9 +380,6 @@ class MultiPlayerMCTS:
                         milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
                         cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
 
-                        # Optimism & Concrete Intermediate VP projection:
-                        # Ensures high-scoring actions (federations +7..12 VP, research, scoring tiles)
-                        # receive immediate discriminative advantage instead of being squashed by flat pred_score
                         optimism_weight = getattr(self.config, "optimism_weight", 0.35)
                         ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
                         leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
@@ -486,108 +532,169 @@ class MultiPlayerMCTS:
             dtype=np.float32,
         )
 
-        # 2. Run MCTS Simulations
-        for _ in range(sims):
-            sim_env = env.clone()
-            node = root
-            search_path = [node]
+        # 2. Run MCTS Simulations with Batched Virtual Loss
+        chunk_size = getattr(self.config, "mcts_batch_size", 16)
+        virtual_loss = 3.0
+        sims_done = 0
 
-            # --- SELECT ---
-            while node.is_expanded and not sim_env.terminated and node.children:
-                action, node = node.best_child(c_puct=c_puct, uncertainty_scale=unc_scale)
-                search_path.append(node)
-                step_res = sim_env.step(action)
+        while sims_done < sims:
+            current_chunk = min(chunk_size, sims - sims_done)
+            sims_done += current_chunk
 
-            # --- EXPAND & EVALUATE ---
-            if sim_env.terminated:
-                # Terminal leaf: true score margin relative to table average
-                raw_vps = np.array(
-                    [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                    dtype=np.float32,
-                )
-                mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                value_vector = (raw_vps - mean_vp) / 20.0  # Scale around [-2, +2]
-                leaf_unc = 0.0
-            else:
-                # Non-terminal leaf: predict expected score via ScorePredictorNet
-                curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
-                curr_mask = sim_env.get_action_mask()
-                leaf_actor = sim_env.current_player
+            rollout_items = []
+            non_terminal_indices = []
+            obs_list = []
+            mask_list = []
+            actors_list = []
 
-                obs_t = torch.from_numpy(curr_obs).float().to(self.device).unsqueeze(0)
-                mask_t = torch.from_numpy(curr_mask).bool().to(self.device).unsqueeze(0)
+            for c_idx in range(current_chunk):
+                sim_env = env.clone()
+                node = root
+                search_path = [node]
 
-                with torch.no_grad():
-                    if use_unc:
-                        pred_score, leaf_unc = self.agent.predict_score_with_uncertainty(
-                            obs_t, num_passes=dropout_passes
-                        )
-                        use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
-                        if not use_opp_model or leaf_actor == root_actor:
-                            leaf_logits = self.agent.action_net(obs_t, mask_t)
-                            leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
-                        else:
-                            opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                            leaf_priors = opp_probs.cpu().numpy()
-                    else:
-                        if hasattr(self.agent, "evaluate_leaf"):
-                            pred_score, leaf_priors = self.agent.evaluate_leaf(
-                                obs_t, mask_t, leaf_actor=leaf_actor
-                            )
-                        else:
-                            pred_score = float(self.agent.score_net(obs_t).item())
-                            use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
-                            if not use_opp_model or leaf_actor == root_actor:
-                                leaf_logits = self.agent.action_net(obs_t, mask_t)
-                                leaf_priors = F.softmax(leaf_logits, dim=-1).squeeze(0).cpu().numpy()
+                # --- SELECT with Virtual Loss ---
+                while node.is_expanded and not sim_env.terminated and node.children:
+                    action, node = node.best_child(c_puct=c_puct, uncertainty_scale=unc_scale)
+                    search_path.append(node)
+                    # Temporary virtual loss to diversify parallel exploration paths
+                    node.visit_count += int(virtual_loss)
+                    node.total_value[node.player] -= virtual_loss
+                    step_res = sim_env.step(action)
+
+                item = {
+                    "sim_env": sim_env,
+                    "node": node,
+                    "search_path": search_path,
+                    "step_res": step_res,
+                }
+                rollout_items.append(item)
+
+                if not sim_env.terminated:
+                    curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
+                    curr_mask = sim_env.get_action_mask()
+                    leaf_actor = sim_env.current_player
+                    item["curr_obs"] = curr_obs
+                    item["curr_mask"] = curr_mask
+                    item["leaf_actor"] = leaf_actor
+                    non_terminal_indices.append(c_idx)
+                    obs_list.append(curr_obs)
+                    mask_list.append(curr_mask)
+                    actors_list.append(leaf_actor)
+
+            # Revert virtual loss on search paths
+            for item in rollout_items:
+                for n in item["search_path"]:
+                    if n != root:
+                        n.visit_count -= int(virtual_loss)
+                        n.total_value[n.player] += virtual_loss
+
+            # Batched GPU inference for non-terminal leaves
+            if non_terminal_indices:
+                batch_obs_t = torch.from_numpy(np.stack(obs_list)).float().to(self.device)
+                batch_mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(self.device)
+
+                if use_unc:
+                    pred_scores = []
+                    leaf_uncs = []
+                    leaf_priors_list = []
+                    with torch.no_grad():
+                        for i_nt in range(len(non_terminal_indices)):
+                            s_obs = batch_obs_t[i_nt : i_nt + 1]
+                            s_mask = batch_mask_t[i_nt : i_nt + 1]
+                            s_actor = actors_list[i_nt]
+                            p_s, l_u = self.agent.predict_score_with_uncertainty(s_obs, num_passes=dropout_passes)
+                            if s_actor == root_actor or not getattr(self.agent.config, "use_opponent_modeling", False):
+                                l_p = F.softmax(self.agent.action_net(s_obs, s_mask), dim=-1).squeeze(0).cpu().numpy()
                             else:
-                                opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                                leaf_priors = opp_probs.cpu().numpy()
-                        leaf_unc = 0.0
-
-                # Expand leaf if legal actions exist
-                if np.any(curr_mask):
-                    node.player = leaf_actor
-                    node.action_mask = curr_mask
-                    for a_idx in np.where(curr_mask)[0]:
-                        node.children[int(a_idx)] = MCTSNode(
-                            player=leaf_actor,
-                            action_mask=curr_mask,
-                            prior=float(leaf_priors[a_idx]),
-                            parent=node,
-                            action_from_parent=int(a_idx),
+                                l_p = self.agent.predict_opponent_action(s_obs, s_mask).cpu().numpy()
+                            pred_scores.append(p_s)
+                            leaf_uncs.append(l_u)
+                            leaf_priors_list.append(l_p)
+                else:
+                    if hasattr(self.agent, "evaluate_leaf_batch"):
+                        pred_scores, leaf_priors_list = self.agent.evaluate_leaf_batch(
+                            batch_obs_t, batch_mask_t, leaf_actors=actors_list
                         )
-                    node.is_expanded = True
+                    else:
+                        pred_scores = []
+                        leaf_priors_list = []
+                        for i_nt in range(len(non_terminal_indices)):
+                            p_s, l_p = self.agent.evaluate_leaf(
+                                batch_obs_t[i_nt : i_nt + 1],
+                                batch_mask_t[i_nt : i_nt + 1],
+                                leaf_actor=actors_list[i_nt],
+                            )
+                            pred_scores.append(p_s)
+                            leaf_priors_list.append(l_p)
+                    leaf_uncs = [0.0] * len(non_terminal_indices)
 
-                leaf_vps = np.array(
-                    [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                    dtype=np.float32,
-                )
-                delta_vps = leaf_vps - root_vps
+                for i_nt, nt_idx in enumerate(non_terminal_indices):
+                    rollout_items[nt_idx]["pred_score"] = float(pred_scores[i_nt])
+                    rollout_items[nt_idx]["leaf_priors"] = leaf_priors_list[i_nt]
+                    rollout_items[nt_idx]["leaf_unc"] = float(leaf_uncs[i_nt])
 
-                first_action = search_path[1].action_from_parent if len(search_path) > 1 and search_path[1].action_from_parent is not None else -1
-                cand_milestone = compute_milestone_bonus(first_action) if first_action >= 0 else 0.0
-                milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
-                cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
+            # Expand & Backpropagate
+            for item in rollout_items:
+                sim_env = item["sim_env"]
+                node = item["node"]
+                search_path = item["search_path"]
 
-                optimism_weight = getattr(self.config, "optimism_weight", 0.25)
-                ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
+                if sim_env.terminated:
+                    raw_vps = np.array(
+                        [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                        dtype=np.float32,
+                    )
+                    mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
+                    value_vector = (raw_vps - mean_vp) / 20.0
+                    leaf_unc = 0.0
+                else:
+                    curr_mask = item["curr_mask"]
+                    leaf_actor = item["leaf_actor"]
+                    pred_score = item["pred_score"]
+                    leaf_priors = item["leaf_priors"]
+                    leaf_unc = item["leaf_unc"]
 
-                raw_vps = np.zeros(4, dtype=np.float32)
-                raw_vps[leaf_actor] = leaf_projected
-                for i in range(4):
-                    if i != leaf_actor:
-                        raw_vps[i] = pred_score + (root_vps[i] - root_vps[leaf_actor]) + (delta_vps[i] - delta_vps[leaf_actor])
+                    if np.any(curr_mask):
+                        node.player = leaf_actor
+                        node.action_mask = curr_mask
+                        for a_idx in np.where(curr_mask)[0]:
+                            node.children[int(a_idx)] = MCTSNode(
+                                player=leaf_actor,
+                                action_mask=curr_mask,
+                                prior=float(leaf_priors[a_idx]),
+                                parent=node,
+                                action_from_parent=int(a_idx),
+                            )
+                        node.is_expanded = True
 
-                mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                value_vector = (raw_vps - mean_vp) / 25.0
+                    leaf_vps = np.array(
+                        [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                        dtype=np.float32,
+                    )
+                    delta_vps = leaf_vps - root_vps
 
-            # --- BACKPROPAGATE ---
-            for n in reversed(search_path):
-                n.visit_count += 1
-                n.total_value += value_vector
-                n.total_uncertainty += leaf_unc
+                    first_action = search_path[1].action_from_parent if len(search_path) > 1 and search_path[1].action_from_parent is not None else -1
+                    cand_milestone = compute_milestone_bonus(first_action) if first_action >= 0 else 0.0
+                    milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
+                    cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
+
+                    optimism_weight = getattr(self.config, "optimism_weight", 0.25)
+                    ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
+                    leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
+
+                    raw_vps = np.zeros(4, dtype=np.float32)
+                    raw_vps[leaf_actor] = leaf_projected
+                    for i in range(4):
+                        if i != leaf_actor:
+                            raw_vps[i] = pred_score + (root_vps[i] - root_vps[leaf_actor]) + (delta_vps[i] - delta_vps[leaf_actor])
+
+                    mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
+                    value_vector = (raw_vps - mean_vp) / 25.0
+
+                for n in reversed(search_path):
+                    n.visit_count += 1
+                    n.total_value += value_vector
+                    n.total_uncertainty += leaf_unc
 
         # 3. Formulate Action Decision from Visit Counts
         visit_counts = np.zeros(action_dim, dtype=np.float32)

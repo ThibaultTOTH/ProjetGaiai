@@ -837,33 +837,66 @@ class DualGaiaAgent(nn.Module):
         return opp_probs.squeeze(0)
 
     @torch.no_grad()
+    def evaluate_leaf_batch(
+        self,
+        obs: torch.Tensor,
+        action_masks: Optional[torch.Tensor] = None,
+        leaf_actors: Optional[List[int]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Ultra-fast batched joint evaluation of values and policy priors in a single GPU pass with AMP.
+
+        Args:
+            obs: (B, obs_dim) tensor
+            action_masks: Optional (B, action_dim) boolean mask tensor
+            leaf_actors: Optional list of player indices (length B)
+
+        Returns:
+            vals: np.ndarray of shape (B,) with predicted scores
+            priors: np.ndarray of shape (B, action_dim) with probability distributions
+        """
+        if obs.dim() == 1:
+            obs = obs.unsqueeze(0)
+        B = obs.size(0)
+        if action_masks is not None and action_masks.dim() == 1:
+            action_masks = action_masks.unsqueeze(0)
+
+        device_type = "cuda" if obs.is_cuda else "cpu"
+        with torch.amp.autocast(device_type=device_type, enabled=obs.is_cuda):
+            feat = self.shared_backbone(obs)
+            vals = self.score_net.head(feat).squeeze(-1)
+            if vals.dim() == 0:
+                vals = vals.unsqueeze(0)
+
+            logits = self.action_net.policy_head(feat)
+
+            if getattr(self.config, "use_opponent_modeling", False) and leaf_actors is not None:
+                has_opp = any(a != 0 for a in leaf_actors)
+                if has_opp:
+                    opp_logits = self.action_net.opponent_head(feat)
+                    opp_mask = torch.tensor([a != 0 for a in leaf_actors], device=obs.device, dtype=torch.bool).unsqueeze(-1)
+                    logits = torch.where(opp_mask, opp_logits, logits)
+
+            if action_masks is not None:
+                logits = torch.where(action_masks, logits, -1e4)
+
+            priors = F.softmax(logits, dim=-1)
+
+        return vals.float().cpu().numpy(), priors.float().cpu().numpy()
+
+    @torch.no_grad()
     def evaluate_leaf(
         self,
         obs: torch.Tensor,
         action_mask: Optional[torch.Tensor] = None,
         leaf_actor: int = 0,
     ) -> Tuple[float, np.ndarray]:
-        """Ultra-fast joint evaluation of both value and policy prior with a SINGLE shared backbone forward pass."""
-        if obs.dim() == 1:
-            obs = obs.unsqueeze(0)
-        feat = self.shared_backbone(obs)
-        val = self.score_net.head(feat).squeeze(-1)
-        neg_val = torch.tensor(-1e4, dtype=feat.dtype, device=feat.device)
-        if leaf_actor == 0 or not getattr(self.config, "use_opponent_modeling", False):
-            logits = self.action_net.policy_head(feat)
-            if action_mask is not None:
-                if action_mask.dim() == 1 and logits.dim() == 2:
-                    action_mask = action_mask.unsqueeze(0)
-                logits = torch.where(action_mask, logits, neg_val)
-            priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
-        else:
-            opp_logits = self.action_net.opponent_head(feat)
-            if action_mask is not None:
-                if action_mask.dim() == 1 and opp_logits.dim() == 2:
-                    action_mask = action_mask.unsqueeze(0)
-                opp_logits = torch.where(action_mask, opp_logits, neg_val)
-            priors = F.softmax(opp_logits, dim=-1).squeeze(0).cpu().numpy()
-        return float(val.item()), priors
+        """Ultra-fast single-leaf evaluation (calls evaluate_leaf_batch for 100% parity)."""
+        vals, priors = self.evaluate_leaf_batch(
+            obs,
+            action_masks=action_mask,
+            leaf_actors=[leaf_actor],
+        )
+        return float(vals[0]), priors[0]
 
     def predict_score_with_uncertainty(
         self, obs: torch.Tensor, num_passes: int = 4

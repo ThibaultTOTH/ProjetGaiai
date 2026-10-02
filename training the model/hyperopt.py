@@ -17,11 +17,13 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 import numpy as np
+import torch
 
 from config import AppConfig
 from environment import make_gaia_env
 from models import DualGaiaAgent
 from trainer import RLTrainer
+from alphazero_trainer import AlphaZeroTrainer
 
 
 @dataclass
@@ -42,10 +44,17 @@ class HyperoptTrial:
 
 
 class AdvancedNASOptimizer:
-    """Manages joint Neural Architecture Search and Hyperparameter/Schedule Optimization."""
+    """Manages joint Neural Architecture Search and Hyperparameter/Schedule Optimization across PPO, AlphaZero and Pretrainer."""
 
-    def __init__(self, base_config: Optional[AppConfig] = None):
+    def __init__(self, base_config: Optional[AppConfig] = None, mode: Optional[str] = None):
         self.base_config = base_config or AppConfig()
+        if mode:
+            self.mode = mode.lower()
+        elif getattr(self.base_config.alphazero, "enabled", False):
+            self.mode = "alphazero"
+        else:
+            self.mode = "ppo"
+
         self.trials: List[HyperoptTrial] = []
         self.best_trial: Optional[HyperoptTrial] = None
         self._stop_event = threading.Event()
@@ -62,19 +71,31 @@ class AdvancedNASOptimizer:
         self._is_running = False
 
     @staticmethod
-    def format_arch_name(params: Dict[str, Any]) -> str:
+    def format_arch_name(params: Dict[str, Any], mode: str = "ppo") -> str:
         """Returns a clean concise string describing the architecture and components."""
         block = params.get("block_type", "pre_ln").replace("_", "").upper()
         layers = params.get("hidden_layers", [512, 256])
         layers_str = "x".join(str(x) for x in layers)
         act = params.get("activation", "silu").upper()
         gnn = f"+GNN{params.get('gnn_layers', 3)}" if params.get("use_gnn_map", True) else ""
-        micro = f"+Micro{params.get('micro_dispatch_candidates', 4)}" if params.get("micro_dispatch_enabled", True) else ""
-        setup_tag = "+Setup" if params.get("micro_dispatch_setup_mode") == "value_guided" else ""
-        return f"{block} {layers_str} ({act}){gnn}{micro}{setup_tag}"
+
+        if mode == "alphazero":
+            sims = params.get("az_num_simulations", 16)
+            lr = params.get("az_policy_lr", 2.5e-4)
+            v_loss = params.get("az_value_loss_coef", 1.0)
+            return f"{block} {layers_str} ({act}){gnn} [AZ: sims={sims}, lr={lr:.1e}, v_coef={v_loss}]"
+        elif mode == "pretrain":
+            lr = params.get("pretrain_lr", 3e-4)
+            vw = params.get("pretrain_value_weight", 0.5)
+            ls = params.get("pretrain_label_smoothing", 0.03)
+            return f"{block} {layers_str} ({act}){gnn} [Pre: lr={lr:.1e}, vw={vw}, ls={ls}]"
+        else:
+            micro = f"+Micro{params.get('micro_dispatch_candidates', 4)}" if params.get("micro_dispatch_enabled", True) else ""
+            setup_tag = "+Setup" if params.get("micro_dispatch_setup_mode") == "value_guided" else ""
+            return f"{block} {layers_str} ({act}){gnn}{micro}{setup_tag}"
 
     @staticmethod
-    def extract_params_from_config(cfg: AppConfig) -> Dict[str, Any]:
+    def extract_params_from_config(cfg: AppConfig, mode: str = "ppo") -> Dict[str, Any]:
         """Extracts hyperparameter search dictionary from an AppConfig instance to serve as baseline."""
         micro_cfg = getattr(cfg, "micro_dispatch", None)
         return {
@@ -124,6 +145,23 @@ class AdvancedNASOptimizer:
             "micro_dispatch_setup_mode": getattr(micro_cfg, "setup_mode", "value_guided"),
             "initial_booster_draft_enabled": bool(getattr(micro_cfg, "initial_booster_draft_enabled", True)),
             "tech_tile_dispatch_enabled": bool(getattr(micro_cfg, "tech_tile_dispatch_enabled", True)),
+            # AlphaZero Parameters
+            "az_policy_lr": float(getattr(cfg.model, "policy_lr", 2.5e-4)),
+            "az_value_loss_coef": float(getattr(cfg.alphazero, "value_loss_coef", 1.0)),
+            "az_batch_size": int(getattr(cfg.alphazero, "batch_size", 256)),
+            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 16)),
+            "az_gumbel_candidates": int(getattr(cfg.alphazero, "gumbel_candidates", 8)),
+            "az_c_puct": float(getattr(cfg.mcts, "c_puct", 1.414)),
+            "az_optimism_power": float(getattr(cfg.alphazero, "optimism_power", 1.0)),
+            "az_temp_threshold": int(getattr(cfg.alphazero, "temperature_threshold_move", 30)),
+            "az_milestone_weight": float(getattr(cfg.mcts, "milestone_shaping_weight", 0.50)),
+            "az_optimism_weight": float(getattr(cfg.mcts, "optimism_weight", 0.25)),
+            # Pretraining Parameters
+            "pretrain_lr": 3e-4,
+            "pretrain_weight_decay": 1e-4,
+            "pretrain_value_weight": 0.5,
+            "pretrain_label_smoothing": 0.03,
+            "pretrain_batch_size": 256,
         }
 
     def generate_candidate(self, elite_pool: Optional[List[HyperoptTrial]] = None) -> Dict[str, Any]:
@@ -193,6 +231,23 @@ class AdvancedNASOptimizer:
             "micro_dispatch_setup_mode": random.choice(["value_guided", "random"]),
             "initial_booster_draft_enabled": random.choice([True, False]),
             "tech_tile_dispatch_enabled": random.choice([True, False]),
+            # AlphaZero Parameters
+            "az_policy_lr": float(random.choice([1.5e-4, 2.5e-4, 3.5e-4, 5e-4])),
+            "az_value_loss_coef": float(random.choice([0.25, 0.50, 1.0, 1.5])),
+            "az_batch_size": int(random.choice([128, 256, 512])),
+            "az_num_simulations": int(random.choice([8, 16, 24, 32])),
+            "az_gumbel_candidates": int(random.choice([4, 6, 8, 10])),
+            "az_c_puct": float(random.choice([1.2, 1.414, 1.8, 2.0])),
+            "az_optimism_power": float(random.choice([0.5, 1.0, 1.5])),
+            "az_temp_threshold": int(random.choice([15, 25, 35])),
+            "az_milestone_weight": float(random.choice([0.25, 0.50, 0.75])),
+            "az_optimism_weight": float(random.choice([0.15, 0.25, 0.35])),
+            # Pretraining Parameters
+            "pretrain_lr": float(random.choice([1.5e-4, 3e-4, 5e-4, 8e-4])),
+            "pretrain_weight_decay": float(random.choice([1e-5, 1e-4, 5e-4])),
+            "pretrain_value_weight": float(random.choice([0.2, 0.5, 1.0])),
+            "pretrain_label_smoothing": float(random.choice([0.0, 0.03, 0.05])),
+            "pretrain_batch_size": int(random.choice([128, 256, 512])),
         }
 
     def mutate_candidate(self, parent: Dict[str, Any]) -> Dict[str, Any]:
@@ -201,7 +256,9 @@ class AdvancedNASOptimizer:
         all_genes = [
             "block_type", "hidden_layers", "activation", "dropout",
             "policy_lr", "batch_size", "lr_schedule", "entropy_schedule",
-            "gnn", "rnad", "rnd", "rgsc", "micro_dispatch"
+            "gnn", "rnad", "rnd", "rgsc", "micro_dispatch",
+            "az_policy_lr", "az_value_loss_coef", "az_sims", "az_c_puct",
+            "pretrain_lr", "pretrain_value_weight"
         ]
         mutations = random.sample(all_genes, k=random.choice([1, 2]))
 
@@ -249,6 +306,19 @@ class AdvancedNASOptimizer:
             child["micro_dispatch_setup_mode"] = random.choice(["value_guided", "random"])
             child["initial_booster_draft_enabled"] = random.choice([True, False])
             child["tech_tile_dispatch_enabled"] = random.choice([True, False])
+        if "az_policy_lr" in mutations:
+            child["az_policy_lr"] = float(random.choice([1.5e-4, 2.5e-4, 3.5e-4, 5e-4]))
+        if "az_value_loss_coef" in mutations:
+            child["az_value_loss_coef"] = float(random.choice([0.25, 0.50, 1.0, 1.5]))
+        if "az_sims" in mutations:
+            child["az_num_simulations"] = int(random.choice([8, 16, 24, 32]))
+            child["az_gumbel_candidates"] = int(random.choice([4, 6, 8, 10]))
+        if "az_c_puct" in mutations:
+            child["az_c_puct"] = float(random.choice([1.2, 1.414, 1.8, 2.0]))
+        if "pretrain_lr" in mutations:
+            child["pretrain_lr"] = float(random.choice([1.5e-4, 3e-4, 5e-4, 8e-4]))
+        if "pretrain_value_weight" in mutations:
+            child["pretrain_value_weight"] = float(random.choice([0.2, 0.5, 1.0]))
 
         return child
 
@@ -259,6 +329,288 @@ class AdvancedNASOptimizer:
         completed_pool: Optional[List[HyperoptTrial]] = None,
     ) -> None:
         """Evaluates candidate using Multi-Fidelity Early Pruning, Learning Curve & Anti-Overfitting checks."""
+        if self.mode == "alphazero":
+            self._evaluate_alphazero_trial(trial, sprint_epochs=max(2, min(4, sprint_epochs)), completed_pool=completed_pool)
+        elif self.mode == "pretrain":
+            self._evaluate_pretrain_trial(trial, sprint_epochs=max(2, min(3, sprint_epochs)), completed_pool=completed_pool)
+        else:
+            self._evaluate_ppo_trial(trial, sprint_epochs=sprint_epochs, completed_pool=completed_pool)
+
+    def _evaluate_alphazero_trial(
+        self,
+        trial: HyperoptTrial,
+        sprint_epochs: int = 3,
+        completed_pool: Optional[List[HyperoptTrial]] = None,
+    ) -> None:
+        """Evaluates an AlphaZero candidate trial via rapid self-play sprints and MCTS dynamics."""
+        cfg = deepcopy(self.base_config)
+        p = trial.params
+
+        # Architecture injection
+        cfg.model.block_type = p.get("block_type", "swiglu")
+        cfg.model.policy_hidden_layers = p.get("hidden_layers", [512, 512, 256])
+        cfg.model.score_hidden_layers = p.get("hidden_layers", [512, 512, 256])
+        cfg.model.policy_activation = p.get("activation", "silu")
+        cfg.model.score_activation = p.get("activation", "silu")
+        cfg.model.policy_dropout = p.get("dropout", 0.03)
+        cfg.model.score_dropout = p.get("dropout", 0.03)
+        cfg.model.use_input_norm = p.get("use_input_norm", True)
+        cfg.model.use_gnn_map = p.get("use_gnn_map", True)
+        cfg.model.gnn_layers = p.get("gnn_layers", 3)
+        cfg.model.gnn_hidden_dim = p.get("gnn_hidden_dim", 64)
+        cfg.model.policy_lr = float(p.get("az_policy_lr", 2.5e-4))
+
+        # AlphaZero hyperparameters
+        cfg.alphazero.enabled = True
+        cfg.alphazero.batch_size = int(p.get("az_batch_size", 256))
+        cfg.alphazero.value_loss_coef = float(p.get("az_value_loss_coef", 1.0))
+        cfg.alphazero.num_simulations = int(p.get("az_num_simulations", 16))
+        cfg.alphazero.gumbel_candidates = int(p.get("az_gumbel_candidates", 8))
+        cfg.alphazero.optimism_power = float(p.get("az_optimism_power", 1.0))
+        cfg.alphazero.temperature_threshold_move = int(p.get("az_temp_threshold", 30))
+        cfg.alphazero.games_per_epoch = 1
+        cfg.alphazero.training_steps_per_epoch = 15
+
+        cfg.mcts.c_puct = float(p.get("az_c_puct", 1.414))
+        cfg.mcts.milestone_shaping_weight = float(p.get("az_milestone_weight", 0.50))
+        cfg.mcts.optimism_weight = float(p.get("az_optimism_weight", 0.25))
+
+        agent = DualGaiaAgent(cfg.model)
+        trainer = AlphaZeroTrainer(cfg, agent=agent)
+        env = make_gaia_env(players=cfg.model.num_players)
+
+        losses: List[float] = []
+        scores: List[float] = []
+        entropies: List[float] = []
+        speeds: List[float] = []
+        wins = 0
+
+        for ep in range(sprint_epochs):
+            if self._stop_event.is_set():
+                trial.status = "Cancelled"
+                return
+
+            t0 = time.time()
+            game_history, p0_vp, p0_won, moves = trainer.self_play_game(env)
+            if p0_won:
+                wins += 1
+            scores.append(p0_vp)
+
+            for step_data in game_history:
+                trainer.replay_buffer.add(*step_data)
+
+            ep_p_loss = 0.0
+            ep_v_loss = 0.0
+            ep_ent = 0.0
+            steps = min(trainer.az_config.training_steps_per_epoch, len(trainer.replay_buffer))
+            if steps > 0 and len(trainer.replay_buffer) >= 8:
+                for _ in range(steps):
+                    batch = trainer.replay_buffer.sample(min(len(trainer.replay_buffer), trainer.az_config.batch_size))
+                    p_loss, v_loss, ent, _ = trainer.train_on_batch(batch)
+                    ep_p_loss += p_loss
+                    ep_v_loss += v_loss
+                    ep_ent += ent
+                ep_loss = (ep_p_loss + ep_v_loss) / max(1, steps)
+                ep_ent = ep_ent / max(1, steps)
+            else:
+                ep_loss = 5.0
+                ep_ent = 1.0
+
+            dur = max(1e-4, time.time() - t0)
+            losses.append(ep_loss)
+            entropies.append(ep_ent)
+            speeds.append(moves / dur)
+
+            # Divergence or NaN guard
+            if np.isnan(ep_loss) or np.isinf(ep_loss) or ep_loss > 50.0:
+                trial.status = "Pruned (Divergé)"
+                trial.val_loss = round(float(ep_loss), 4)
+                return
+
+        trial.history_losses = list(losses)
+        trial.history_scores = list(scores)
+        trial.history_entropies = list(entropies)
+
+        val_loss = float(np.mean(losses)) if losses else 1.0
+        avg_score = float(np.mean(scores)) if scores else 50.0
+        win_rate = float(wins) / max(1, sprint_epochs)
+        avg_speed = float(np.mean(speeds)) if speeds else 10.0
+
+        throughput_bonus = min(10.0, avg_speed / 5.0)
+        objective = (win_rate * 40.0) + (avg_score * 0.5) - (val_loss * 2.0) + throughput_bonus
+
+        trial.val_loss = round(val_loss, 4)
+        trial.win_rate = round(win_rate, 3)
+        trial.avg_score = round(avg_score, 2)
+        trial.steps_per_sec = round(avg_speed, 1)
+        trial.objective_score = round(objective, 3)
+        trial.status = "Completed"
+
+    def _evaluate_pretrain_trial(
+        self,
+        trial: HyperoptTrial,
+        sprint_epochs: int = 2,
+        completed_pool: Optional[List[HyperoptTrial]] = None,
+    ) -> None:
+        """Evaluates behavioral cloning pretraining hyperparameters against expert transitions."""
+        cfg = deepcopy(self.base_config)
+        p = trial.params
+
+        cfg.model.block_type = p.get("block_type", "swiglu")
+        cfg.model.policy_hidden_layers = p.get("hidden_layers", [512, 512, 256])
+        cfg.model.score_hidden_layers = p.get("hidden_layers", [512, 512, 256])
+        cfg.model.policy_activation = p.get("activation", "silu")
+        cfg.model.score_activation = p.get("activation", "silu")
+        cfg.model.policy_dropout = p.get("dropout", 0.03)
+        cfg.model.score_dropout = p.get("dropout", 0.03)
+        cfg.model.use_input_norm = p.get("use_input_norm", True)
+        cfg.model.use_gnn_map = p.get("use_gnn_map", True)
+        cfg.model.gnn_layers = p.get("gnn_layers", 3)
+        cfg.model.gnn_hidden_dim = p.get("gnn_hidden_dim", 64)
+
+        lr = float(p.get("pretrain_lr", 3e-4))
+        wd = float(p.get("pretrain_weight_decay", 1e-4))
+        val_w = float(p.get("pretrain_value_weight", 0.5))
+        ls = float(p.get("pretrain_label_smoothing", 0.03))
+        b_size = int(p.get("pretrain_batch_size", 256))
+
+        device = cfg.hardware.get_torch_device()
+        agent = DualGaiaAgent(cfg.model).to(device)
+
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent
+        ds_path = project_root / "scraper" / "data" / "dataset" / "gaia_expert_dataset.pt"
+
+        from torch.utils.data import DataLoader, TensorDataset
+        if ds_path.exists():
+            try:
+                raw = torch.load(ds_path, weights_only=True)
+                actions = raw["actions"][:10000]
+                values = raw["values"][:10000]
+                factions = raw["factions"][:10000]
+                observations = raw.get("observations", None)
+                if observations is not None:
+                    observations = observations[:10000]
+                if observations is not None:
+                    dataset = TensorDataset(observations, actions, values, factions)
+                else:
+                    dataset = TensorDataset(actions, values, factions)
+            except Exception:
+                dataset = None
+        else:
+            dataset = None
+
+        if dataset is None:
+            # Fallback synthetic slice for fast automated test environments
+            n_mock = 200
+            dataset = TensorDataset(
+                torch.randn(n_mock, cfg.model.obs_dim),
+                torch.randint(0, cfg.model.action_dim, (n_mock,)),
+                torch.randn(n_mock) * 20.0 + 120.0,
+                torch.randint(0, 18, (n_mock,)),
+            )
+
+        train_len = int(len(dataset) * 0.8)
+        val_len = len(dataset) - train_len
+        train_ds, val_ds = torch.utils.data.random_split(dataset, [train_len, val_len])
+        train_loader = DataLoader(train_ds, batch_size=b_size, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=b_size, shuffle=False)
+
+        optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=wd)
+        use_cuda = device.type == "cuda"
+        scaler = torch.amp.GradScaler("cuda", enabled=use_cuda)
+        criterion_p = torch.nn.CrossEntropyLoss(label_smoothing=ls)
+        criterion_v = torch.nn.SmoothL1Loss()
+
+        val_top1 = 0.0
+        val_loss = 0.0
+        val_top5 = 0.0
+
+        for ep in range(sprint_epochs):
+            if self._stop_event.is_set():
+                trial.status = "Cancelled"
+                return
+
+            agent.train()
+            for batch in train_loader:
+                if len(batch) == 4:
+                    b_obs, b_act, b_val, _ = batch
+                    b_obs = b_obs.to(device).float()
+                else:
+                    b_act, b_val, _ = batch
+                    b_obs = torch.zeros(len(b_act), cfg.model.obs_dim, device=device)
+
+                b_act = b_act.to(device)
+                b_val = b_val.to(device).float()
+
+                optimizer.zero_grad(set_to_none=True)
+                with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
+                    logits = agent.action_net(b_obs)
+                    p_val = agent.score_net(b_obs).view(-1)
+                    loss_p = criterion_p(logits, b_act)
+                    loss_v = criterion_v(p_val, b_val.view(-1)) / 25.0
+                    total_loss = loss_p + val_w * loss_v
+
+                scaler.scale(total_loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+
+            # Validation
+            agent.eval()
+            c_top1 = 0
+            c_top5 = 0
+            tot = 0
+            tot_loss = 0.0
+            with torch.no_grad():
+                for batch in val_loader:
+                    if len(batch) == 4:
+                        b_obs, b_act, b_val, _ = batch
+                        b_obs = b_obs.to(device).float()
+                    else:
+                        b_act, b_val, _ = batch
+                        b_obs = torch.zeros(len(b_act), cfg.model.obs_dim, device=device)
+                    b_act = b_act.to(device)
+                    b_val = b_val.to(device).float()
+
+                    with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
+                        logits = agent.action_net(b_obs)
+                        p_val = agent.score_net(b_obs).view(-1)
+                        loss_p = criterion_p(logits, b_act)
+                        loss_v = criterion_v(p_val, b_val.view(-1)) / 25.0
+                        tot_loss += (loss_p + val_w * loss_v).item() * len(b_act)
+
+                    top1 = logits.argmax(dim=-1)
+                    c_top1 += (top1 == b_act).sum().item()
+                    _, top5 = logits.topk(5, dim=-1)
+                    c_top5 += (top5 == b_act.unsqueeze(-1)).any(dim=-1).sum().item()
+                    tot += len(b_act)
+
+            val_top1 = (c_top1 / max(1, tot)) * 100.0
+            val_top5 = (c_top5 / max(1, tot)) * 100.0
+            val_loss = tot_loss / max(1, tot)
+
+            if np.isnan(val_loss) or np.isinf(val_loss):
+                trial.status = "Pruned (Divergé)"
+                trial.val_loss = 99.0
+                return
+
+        objective = (val_top1 * 3.0) + (val_top5 * 0.5) - (val_loss * 2.0)
+        trial.val_loss = round(val_loss, 4)
+        trial.win_rate = round(val_top1 / 100.0, 3)
+        trial.avg_score = round(val_top5, 2)
+        trial.steps_per_sec = 200.0
+        trial.objective_score = round(objective, 3)
+        trial.status = "Completed"
+
+    def _evaluate_ppo_trial(
+        self,
+        trial: HyperoptTrial,
+        sprint_epochs: int = 6,
+        completed_pool: Optional[List[HyperoptTrial]] = None,
+    ) -> None:
+        """Evaluates PPO candidate using Multi-Fidelity Early Pruning & Learning Curve checks."""
         cfg = deepcopy(self.base_config)
         p = trial.params
 
@@ -447,11 +799,11 @@ class AdvancedNASOptimizer:
 
                     # Trial #1 begins with the currently registered / saved hyperparameters (baseline)
                     if i == 0:
-                        candidate_params = self.extract_params_from_config(self.base_config)
-                        arch_name = "★ BASELINE: " + self.format_arch_name(candidate_params)
+                        candidate_params = self.extract_params_from_config(self.base_config, mode=self.mode)
+                        arch_name = "★ BASELINE: " + self.format_arch_name(candidate_params, mode=self.mode)
                     else:
                         candidate_params = self.generate_candidate(elite_pool=completed)
-                        arch_name = self.format_arch_name(candidate_params)
+                        arch_name = self.format_arch_name(candidate_params, mode=self.mode)
 
                     trial = HyperoptTrial(
                         trial_id=i + 1,

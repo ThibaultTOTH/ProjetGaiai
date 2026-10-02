@@ -216,7 +216,7 @@ class AlphaZeroTrainer:
                 except Exception:
                     env_before_step = None
 
-                action, probs, _ = self.mcts.search(
+                action, probs, search_meta = self.mcts.search(
                     env, 
                     num_simulations=self.az_config.num_simulations, 
                     temperature=temp,
@@ -228,17 +228,18 @@ class AlphaZeroTrainer:
             else:
                 # Opponents played by League Member action function
                 action = act_fn(obs, mask)
+                search_meta = {}
                     
             step_res = env.step(action)
 
             # Regret tracking for RGSC (Jeu sur problème / Crisis Puzzle Caching)
             if p_name == "CurrentPolicy" and env_before_step is not None and not env.terminated:
                 try:
-                    obs_before_t = torch.from_numpy(obs).float().to(self.device).unsqueeze(0)
+                    q_vals = search_meta.get("root_q_values", [])
+                    v_before = float(q_vals[current_player]) if len(q_vals) > current_player else 0.0
                     next_obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
                     next_obs_t = torch.from_numpy(next_obs).float().to(self.device).unsqueeze(0)
                     with torch.no_grad():
-                        v_before = float(self.agent.score_net(obs_before_t).view(-1)[0].item())
                         v_after = float(self.agent.score_net(next_obs_t).view(-1)[0].item())
                     
                     regret = max(0.0, v_before - v_after)

@@ -146,13 +146,16 @@ def train_supervised(
     optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
-    criterion_policy = nn.CrossEntropyLoss()
+    use_cuda = device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_cuda)
+
+    criterion_policy = nn.CrossEntropyLoss(label_smoothing=0.03)
     criterion_value = nn.SmoothL1Loss()
 
     CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
     best_val_acc = 0.0
 
-    logger.info(f"Starting Supervised Training for {epochs} epochs...")
+    logger.info(f"Starting Supervised Training for {epochs} epochs (AMP {'ON' if use_cuda else 'OFF'})...")
     for epoch in range(1, epochs + 1):
         agent.train()
         total_policy_loss = 0.0
@@ -176,22 +179,27 @@ def train_supervised(
             # Construct grounded observation vector from authentic templates
             batch_obs = _build_batch_obs(batch)
 
-            # Forward pass
-            logits = agent.action_net(batch_obs)
-            pred_val = agent.score_net(batch_obs).view(-1)
-            target_val = batch_val.view(-1)
+            optimizer.zero_grad(set_to_none=True)
+            with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
+                logits = agent.action_net(batch_obs)
+                pred_val = agent.score_net(batch_obs).view(-1)
+                target_val = batch_val.view(-1)
 
-            loss_p = criterion_policy(logits, batch_act)
-            loss_v = criterion_value(pred_val, target_val)
-            loss = loss_p + 0.5 * loss_v
+                loss_p = criterion_policy(logits, batch_act)
+                raw_loss_v = criterion_value(pred_val, target_val)
+                # Scale Huber loss relative to standard VP deviation (~25 VP)
+                # Prevents ~150 VP error from overwhelming CrossEntropy loss (~4 to 8)
+                norm_loss_v = raw_loss_v / 25.0
+                loss = loss_p + 0.5 * norm_loss_v
 
-            optimizer.zero_grad()
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(agent.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             total_policy_loss += loss_p.item() * B
-            total_value_loss += loss_v.item() * B
+            total_value_loss += raw_loss_v.item() * B
             total_train_samples += B
 
             # Top-1 & Top-5 accuracy
