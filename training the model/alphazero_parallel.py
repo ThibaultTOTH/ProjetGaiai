@@ -468,38 +468,44 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
 
                 # B. Handle Root Evaluations
                 if root_reqs:
-                    if len(root_reqs) == 1:
-                        wid, _, obs_np, mask_np, actor = root_reqs[0]
-                        obs_t = torch.from_numpy(obs_np).float().to(self.device)
-                        mask_t = torch.from_numpy(mask_np).bool().to(self.device)
-                        priors, raw_logits = self.agent.evaluate_root(obs_t, mask_t, actor=actor)
-                        self.resp_pipes_parent[wid].send((priors, raw_logits))
-                    else:
-                        stacked_obs = np.stack([r[2] for r in root_reqs])
-                        stacked_masks = np.stack([r[3] for r in root_reqs])
-                        actors_list = [r[4] for r in root_reqs]
-                        obs_t = torch.from_numpy(stacked_obs).float().to(self.device)
-                        mask_t = torch.from_numpy(stacked_masks).bool().to(self.device)
-                        device_type = "cuda" if obs_t.is_cuda else "cpu"
-                        with torch.amp.autocast(device_type=device_type, enabled=obs_t.is_cuda):
-                            feats = self.agent.shared_backbone(obs_t)
-                            logits = self.agent.action_net.policy_head(feats)
-                            if mask_t is not None:
-                                logits = torch.where(mask_t, logits, -1e4)
-                            priors = F.softmax(logits, dim=-1)
-                        priors_np = priors.float().cpu().numpy()
-                        logits_np = logits.float().cpu().numpy()
-                        for i_r, req in enumerate(root_reqs):
-                            self.resp_pipes_parent[req[0]].send((priors_np[i_r], logits_np[i_r]))
+                    with torch.no_grad():
+                        if len(root_reqs) == 1:
+                            wid, _, obs_np, mask_np, actor = root_reqs[0]
+                            obs_t = torch.from_numpy(obs_np).float().to(self.device)
+                            mask_t = torch.from_numpy(mask_np).bool().to(self.device)
+                            priors, raw_logits = self.agent.evaluate_root(obs_t, mask_t, actor=actor)
+                            self.resp_pipes_parent[wid].send((priors, raw_logits))
+                        else:
+                            stacked_obs = np.stack([r[2] for r in root_reqs])
+                            stacked_masks = np.stack([r[3] for r in root_reqs])
+                            actors_list = [r[4] for r in root_reqs]
+                            obs_t = torch.from_numpy(stacked_obs).float().to(self.device)
+                            mask_t = torch.from_numpy(stacked_masks).bool().to(self.device)
+                            device_type = "cuda" if obs_t.is_cuda else "cpu"
+                            with torch.amp.autocast(device_type=device_type, enabled=obs_t.is_cuda):
+                                feats = self.agent.shared_backbone(obs_t)
+                                logits = self.agent.action_net.policy_head(feats)
+                                if getattr(self.agent.config, "use_opponent_modeling", False):
+                                    for i_a, a in enumerate(actors_list):
+                                        if a != 0:
+                                            logits[i_a : i_a + 1] = self.agent.action_net.opponent_head(feats[i_a : i_a + 1])
+                                if mask_t is not None:
+                                    logits = torch.where(mask_t, logits, -1e4)
+                                priors = F.softmax(logits, dim=-1)
+                            priors_np = priors.float().detach().cpu().numpy()
+                            logits_np = logits.float().detach().cpu().numpy()
+                            for i_r, req in enumerate(root_reqs):
+                                self.resp_pipes_parent[req[0]].send((priors_np[i_r], logits_np[i_r]))
 
                 # C. Handle Opponent Actions
                 if opp_reqs:
-                    for req in opp_reqs:
-                        wid, _, obs_np, mask_np, _ = req
-                        obs_t = torch.from_numpy(obs_np).float().to(self.device)
-                        mask_t = torch.from_numpy(mask_np).bool().to(self.device) if mask_np is not None else None
-                        opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
-                        self.resp_pipes_parent[wid].send(opp_probs.cpu().numpy())
+                    with torch.no_grad():
+                        for req in opp_reqs:
+                            wid, _, obs_np, mask_np, _ = req
+                            obs_t = torch.from_numpy(obs_np).float().to(self.device)
+                            mask_t = torch.from_numpy(mask_np).bool().to(self.device) if mask_np is not None else None
+                            opp_probs = self.agent.predict_opponent_action(obs_t, mask_t)
+                            self.resp_pipes_parent[wid].send(opp_probs.detach().cpu().numpy())
 
             if self._stop_event.is_set():
                 break
