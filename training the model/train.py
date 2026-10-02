@@ -265,7 +265,11 @@ def main():
         print(f"  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: {best_params_path}")
 
     if algo == "alphazero":
-        trainer = AlphaZeroTrainer(cfg)
+        if args.actors > 1:
+            from alphazero_parallel import ParallelAlphaZeroTrainer
+            trainer = ParallelAlphaZeroTrainer(cfg, num_workers=args.actors)
+        else:
+            trainer = AlphaZeroTrainer(cfg)
     elif algo == "muzero":
         trainer = MuZeroTrainer(cfg)
     elif args.async_appo:

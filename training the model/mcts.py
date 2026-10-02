@@ -118,8 +118,15 @@ class MultiPlayerMCTS:
         device: Optional[torch.device] = None,
     ):
         self.agent = agent
-        self.config = config or MCTSConfig()
-        self.device = device or next(agent.parameters()).device
+        if device is not None:
+            self.device = device
+        elif hasattr(agent, "parameters"):
+            try:
+                self.device = next(agent.parameters()).device
+            except (StopIteration, Exception):
+                self.device = torch.device("cpu")
+        else:
+            self.device = torch.device("cpu")
 
     def search(
         self,
@@ -169,20 +176,25 @@ class MultiPlayerMCTS:
             }
 
         # 1. Root policy evaluation
-        obs_tensor = torch.from_numpy(
-            env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
-        ).float().to(self.device).unsqueeze(0)
-        mask_tensor = torch.from_numpy(root_mask).bool().to(self.device).unsqueeze(0)
+        if hasattr(self.agent, "evaluate_root"):
+            root_obs_raw = env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
+            priors, raw_logits = self.agent.evaluate_root(root_obs_raw, root_mask, root_actor)
+        else:
+            dev = self.device if self.device is not None else torch.device("cpu")
+            obs_tensor = torch.from_numpy(
+                env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
+            ).float().to(dev).unsqueeze(0)
+            mask_tensor = torch.from_numpy(root_mask).bool().to(dev).unsqueeze(0)
 
-        with torch.no_grad():
-            use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
-            if not use_opp_model or root_actor == 0:
-                logits_tensor = self.agent.action_net(obs_tensor, mask_tensor)
-            else:
-                opp_probs = self.agent.predict_opponent_action(obs_tensor, mask_tensor)
-                logits_tensor = torch.log(opp_probs.clamp(min=1e-8)).unsqueeze(0)
-            priors = F.softmax(logits_tensor, dim=-1).squeeze(0).cpu().numpy()
-            raw_logits = logits_tensor.squeeze(0).cpu().numpy()
+            with torch.no_grad():
+                use_opp_model = getattr(self.agent.config, "use_opponent_modeling", False)
+                if not use_opp_model or root_actor == 0:
+                    logits_tensor = self.agent.action_net(obs_tensor, mask_tensor)
+                else:
+                    opp_probs = self.agent.predict_opponent_action(obs_tensor, mask_tensor)
+                    logits_tensor = torch.log(opp_probs.clamp(min=1e-8)).unsqueeze(0)
+                priors = F.softmax(logits_tensor, dim=-1).squeeze(0).cpu().numpy()
+                raw_logits = logits_tensor.squeeze(0).cpu().numpy()
 
         # Root prior entropy & resource-efficient search budget
         p_legal = priors[legal_indices]
@@ -291,8 +303,9 @@ class MultiPlayerMCTS:
 
                 # Batched Neural Evaluation for non-terminal leaves in one GPU forward pass
                 if non_terminal_indices:
-                    batch_obs_t = torch.from_numpy(np.stack(obs_list)).float().to(self.device)
-                    batch_mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(self.device)
+                    dev = self.device if self.device is not None else torch.device("cpu")
+                    batch_obs_t = torch.from_numpy(np.stack(obs_list)).float().to(dev)
+                    batch_mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(dev)
 
                     if use_unc:
                         pred_scores = []

@@ -853,6 +853,44 @@ class DualGaiaAgent(nn.Module):
         return opp_probs.squeeze(0)
 
     @torch.no_grad()
+    def evaluate_root(
+        self,
+        obs: Any,
+        action_mask: Optional[Any] = None,
+        actor: int = 0,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Evaluates root node: returns (priors, raw_logits) as numpy arrays.
+        Supports both np.ndarray and torch.Tensor inputs.
+        """
+        if isinstance(obs, np.ndarray):
+            obs = torch.from_numpy(obs).float().to(self.device)
+        elif not isinstance(obs, torch.Tensor):
+            obs = torch.tensor(obs, dtype=torch.float32, device=self.device)
+
+        if obs.dim() == 1:
+            obs = obs.unsqueeze(0)
+
+        if action_mask is not None:
+            if isinstance(action_mask, np.ndarray):
+                action_mask = torch.from_numpy(action_mask).bool().to(self.device)
+            elif not isinstance(action_mask, torch.Tensor):
+                action_mask = torch.tensor(action_mask, dtype=torch.bool, device=self.device)
+            if action_mask.dim() == 1:
+                action_mask = action_mask.unsqueeze(0)
+
+        device_type = "cuda" if obs.is_cuda else "cpu"
+        with torch.amp.autocast(device_type=device_type, enabled=obs.is_cuda):
+            feat = self.shared_backbone(obs)
+            logits = self.action_net.policy_head(feat)
+            if getattr(self.config, "use_opponent_modeling", False) and actor != 0:
+                logits = self.action_net.opponent_head(feat)
+            if action_mask is not None:
+                logits = torch.where(action_mask, logits, -1e4)
+            priors = F.softmax(logits, dim=-1)
+
+        return priors.squeeze(0).float().cpu().numpy(), logits.squeeze(0).float().cpu().numpy()
+
+    @torch.no_grad()
     def evaluate_leaf_batch(
         self,
         obs: torch.Tensor,
