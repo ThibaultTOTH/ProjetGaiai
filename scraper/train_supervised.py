@@ -46,8 +46,11 @@ def train_supervised(
     dataset_path: Path,
     output_checkpoint: Path,
     epochs: int = 20,
-    batch_size: int = 128,
+    batch_size: int = 256,
     lr: float = 3e-4,
+    weight_decay: float = 1e-3,
+    label_smoothing: float = 0.08,
+    patience: int = 4,
     device_name: Optional[str] = None,
     callback: Optional[Any] = None,
 ):
@@ -142,20 +145,22 @@ def train_supervised(
             b_fac = batch[2].to(device).clamp(0, 17)
             return template_tensor[b_fac]
 
-    # Joint optimizer with cosine annealing
-    optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    # Joint optimizer with cosine annealing and L2 weight decay regularization
+    optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
 
     use_cuda = device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_cuda)
 
-    criterion_policy = nn.CrossEntropyLoss(label_smoothing=0.03)
+    criterion_policy = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     criterion_value = nn.SmoothL1Loss()
 
     CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
     best_val_acc = 0.0
+    best_epoch = 0
+    patience_counter = 0
 
-    logger.info(f"Starting Supervised Training for {epochs} epochs (AMP {'ON' if use_cuda else 'OFF'})...")
+    logger.info(f"Starting Supervised Training for {epochs} epochs (AMP {'ON' if use_cuda else 'OFF'}, EarlyStopping patience={patience})...")
     for epoch in range(1, epochs + 1):
         agent.train()
         total_policy_loss = 0.0
@@ -188,7 +193,6 @@ def train_supervised(
                 loss_p = criterion_policy(logits, batch_act)
                 raw_loss_v = criterion_value(pred_val, target_val)
                 # Scale Huber loss relative to standard VP deviation (~25 VP)
-                # Prevents ~150 VP error from overwhelming CrossEntropy loss (~4 to 8)
                 norm_loss_v = raw_loss_v / 25.0
                 loss = loss_p + 0.5 * norm_loss_v
 
@@ -234,7 +238,8 @@ def train_supervised(
 
                 batch_obs = _build_batch_obs(batch)
 
-                logits = agent.action_net(batch_obs)
+                with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
+                    logits = agent.action_net(batch_obs)
                 top1 = logits.argmax(dim=-1)
                 val_correct_top1 += (top1 == batch_act).sum().item()
                 _, top5 = logits.topk(5, dim=-1)
@@ -252,9 +257,11 @@ def train_supervised(
             f"Val Acc: Top-1={val_top1:4.1f}%, Top-5={val_top5:4.1f}%"
         )
 
-        # Save best checkpoint
-        if val_top1 >= best_val_acc or epoch == epochs:
+        # Strictly save ONLY when validation accuracy improves (never overwrite with worse overfitted epoch!)
+        if val_top1 > best_val_acc:
             best_val_acc = val_top1
+            best_epoch = epoch
+            patience_counter = 0
             checkpoint_data = {
                 "epoch": epoch,
                 "agent_state_dict": agent.state_dict(),
@@ -266,7 +273,13 @@ def train_supervised(
                 "val_top5_acc": val_top5,
             }
             torch.save(checkpoint_data, output_checkpoint)
-            logger.info(f"Saved checkpoint to {output_checkpoint} (Val Top-1: {val_top1:.1f}%)")
+            logger.info(f"★ NEW BEST MODEL saved to {output_checkpoint} (Val Top-1: {val_top1:.1f}%, Top-5: {val_top5:.1f}%)")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                logger.info(f"⏹ Early stopping triggered at epoch {epoch} (no validation improvement for {patience} epochs).")
+                logger.info(f"★ Best model preserved from Epoch {best_epoch} (Val Top-1: {best_val_acc:.1f}%)")
+                break
 
         if callback is not None:
             class SupervisedMetrics:
@@ -284,7 +297,7 @@ def train_supervised(
             except Exception as e:
                 logger.warning(f"Callback error: {e}")
 
-    logger.info("Supervised Pre-training finished successfully!")
+    logger.info(f"Supervised Pre-training finished successfully! Best model: Epoch {best_epoch} with Val Top-1 = {best_val_acc:.1f}%")
 
 
 def main():
@@ -301,9 +314,12 @@ def main():
         default=str(CHECKPOINTS_DIR / "gaia_supervised_pretrained.pt"),
         help="Target checkpoint path",
     )
-    parser.add_argument("--epochs", type=int, default=15, help="Number of training epochs")
-    parser.add_argument("--batch-size", type=int, default=128, help="Batch size")
+    parser.add_argument("--epochs", type=int, default=20, help="Number of training epochs")
+    parser.add_argument("--batch-size", type=int, default=256, help="Batch size")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
+    parser.add_argument("--weight-decay", type=float, default=1e-3, help="L2 weight decay")
+    parser.add_argument("--label-smoothing", type=float, default=0.08, help="Label smoothing")
+    parser.add_argument("--patience", type=int, default=4, help="Early stopping patience")
     args = parser.parse_args()
 
     train_supervised(
@@ -312,6 +328,9 @@ def main():
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
+        weight_decay=args.weight_decay,
+        label_smoothing=args.label_smoothing,
+        patience=args.patience,
     )
 
 
