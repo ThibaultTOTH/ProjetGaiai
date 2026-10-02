@@ -282,6 +282,14 @@ class NativeGaiaEnv:
             ]
             dll.gaiapi_get_map_adjacency.restype = ctypes.c_uint32
 
+            if hasattr(dll, "gaiapi_get_all_rewards"):
+                dll.gaiapi_get_all_rewards.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_float),
+                    ctypes.c_uint32,
+                ]
+                dll.gaiapi_get_all_rewards.restype = ctypes.c_uint32
+
             if hasattr(dll, "gaiapi_step_target"):
                 dll.gaiapi_step_target.argtypes = [
                     ctypes.c_void_p,
@@ -353,6 +361,8 @@ class NativeGaiaEnv:
         return self._get_obs(egocentric), self.get_action_mask()
 
     def _get_obs(self, egocentric: Optional[bool] = None) -> np.ndarray:
+        if self._obs_buf is None:
+            self._obs_buf = (ctypes.c_float * self.obs_dim)()
         use_ego = self.egocentric if egocentric is None else egocentric
         if use_ego and hasattr(self.dll, "gaiapi_get_observation_egocentric"):
             self.dll.gaiapi_get_observation_egocentric(self.env_ptr, self._obs_buf, self.obs_dim)
@@ -365,8 +375,40 @@ class NativeGaiaEnv:
         return self._get_obs(egocentric)
 
     def get_action_mask(self) -> np.ndarray:
+        if self._mask_buf is None:
+            self._mask_buf = (ctypes.c_uint8 * self.action_dim)()
         self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
         return np.array(self._mask_buf, dtype=bool)
+
+    def get_all_vps(self) -> np.ndarray:
+        """High-speed vector extraction of all players' VPs without allocating Python dicts."""
+        if hasattr(self.dll, "gaiapi_get_all_rewards"):
+            vp_buf = (ctypes.c_float * self.num_players)()
+            self.dll.gaiapi_get_all_rewards(self.env_ptr, vp_buf, self.num_players)
+            return np.frombuffer(vp_buf, dtype=np.float32).copy()
+        return np.array(
+            [float(self.dll.gaiapi_get_player_vp(self.env_ptr, s)) for s in range(self.num_players)],
+            dtype=np.float32,
+        )
+
+    def step_fast(self, action: int) -> bool:
+        """Ultra-fast zero-allocation C-ABI step for MCTS lookahead without creating obs, masks, or dicts."""
+        if self.terminated:
+            return False
+        success = self.dll.gaiapi_step(
+            self.env_ptr,
+            int(action),
+            ctypes.byref(self._r_buf),
+            ctypes.byref(self._d_buf),
+            ctypes.byref(self._round_buf),
+            ctypes.byref(self._cp_buf),
+        )
+        if not success:
+            return False
+        self.round = int(self._round_buf.value)
+        self.current_player = int(self._cp_buf.value)
+        self.terminated = bool(self._d_buf.value) or (self.round > self.max_rounds)
+        return True
 
     @property
     def players_state(self) -> List[Dict[str, Any]]:
@@ -386,7 +428,7 @@ class NativeGaiaEnv:
                 reward=0.0,
                 done=True,
                 action_mask=self.get_action_mask(),
-                info={"round": self.round, "player_vp": [p["vp"] for p in self.players_state]},
+                info={"round": self.round, "player_vp": self.get_all_vps().tolist()},
             )
 
         flat_action = action
@@ -459,7 +501,7 @@ class NativeGaiaEnv:
             info={
                 "round": self.round,
                 "current_player": self.current_player,
-                "player_vp": [p["vp"] for p in self.players_state],
+                "player_vp": self.get_all_vps().tolist(),
             },
         )
 
@@ -536,8 +578,8 @@ class NativeGaiaEnv:
         new_env.terminated = self.terminated
         new_env.egocentric = getattr(self, "egocentric", True)
         new_env._faction_ids = list(self._faction_ids)
-        new_env._obs_buf = (ctypes.c_float * self.obs_dim)()
-        new_env._mask_buf = (ctypes.c_uint8 * self.action_dim)()
+        new_env._obs_buf = None
+        new_env._mask_buf = None
         new_env._r_buf = ctypes.c_float(0.0)
         new_env._d_buf = ctypes.c_bool(False)
         new_env._round_buf = ctypes.c_uint32(0)

@@ -177,6 +177,8 @@ def alpha_zero_worker_process(
                             num_simulations=num_sims,
                             temperature=temp,
                             add_noise=True,
+                            root_obs=curr_obs,
+                            root_mask=curr_mask,
                         )
 
                         history.append((curr_player, curr_obs, curr_mask, probs))
@@ -192,7 +194,10 @@ def alpha_zero_worker_process(
                                 if not (hasattr(step_res, "info") and "error" in step_res.info):
                                     break
 
-                    raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * num_players)]
+                    if hasattr(env, "get_all_vps"):
+                        raw_vps = env.get_all_vps().tolist()
+                    else:
+                        raw_vps = [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * num_players)]
                     p0_vp = raw_vps[0] if len(raw_vps) > 0 else 50.0
                     p0_won = bool(len(raw_vps) >= 2 and p0_vp > max([v for i, v in enumerate(raw_vps) if i != 0] + [0.0]))
 
@@ -463,12 +468,29 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
 
                 # B. Handle Root Evaluations
                 if root_reqs:
-                    for req in root_reqs:
-                        wid, _, obs_np, mask_np, actor = req
+                    if len(root_reqs) == 1:
+                        wid, _, obs_np, mask_np, actor = root_reqs[0]
                         obs_t = torch.from_numpy(obs_np).float().to(self.device)
                         mask_t = torch.from_numpy(mask_np).bool().to(self.device)
                         priors, raw_logits = self.agent.evaluate_root(obs_t, mask_t, actor=actor)
                         self.resp_pipes_parent[wid].send((priors, raw_logits))
+                    else:
+                        stacked_obs = np.stack([r[2] for r in root_reqs])
+                        stacked_masks = np.stack([r[3] for r in root_reqs])
+                        actors_list = [r[4] for r in root_reqs]
+                        obs_t = torch.from_numpy(stacked_obs).float().to(self.device)
+                        mask_t = torch.from_numpy(stacked_masks).bool().to(self.device)
+                        device_type = "cuda" if obs_t.is_cuda else "cpu"
+                        with torch.amp.autocast(device_type=device_type, enabled=obs_t.is_cuda):
+                            feats = self.agent.shared_backbone(obs_t)
+                            logits = self.agent.action_net.policy_head(feats)
+                            if mask_t is not None:
+                                logits = torch.where(mask_t, logits, -1e4)
+                            priors = F.softmax(logits, dim=-1)
+                        priors_np = priors.float().cpu().numpy()
+                        logits_np = logits.float().cpu().numpy()
+                        for i_r, req in enumerate(root_reqs):
+                            self.resp_pipes_parent[req[0]].send((priors_np[i_r], logits_np[i_r]))
 
                 # C. Handle Opponent Actions
                 if opp_reqs:

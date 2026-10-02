@@ -46,12 +46,28 @@ def compute_milestone_bonus(action: int) -> float:
 
 
 class MCTSNode:
-    """A node in the Multi-Player MCTS search tree."""
+    """A high-performance node in the Multi-Player MCTS search tree with __slots__."""
+
+    __slots__ = (
+        "player",
+        "action_mask",
+        "prior",
+        "parent",
+        "action_from_parent",
+        "visit_count",
+        "v0",
+        "v1",
+        "v2",
+        "v3",
+        "total_uncertainty",
+        "children",
+        "is_expanded",
+    )
 
     def __init__(
         self,
         player: int,
-        action_mask: np.ndarray,
+        action_mask: Optional[np.ndarray],
         prior: float = 1.0,
         parent: Optional["MCTSNode"] = None,
         action_from_parent: Optional[int] = None,
@@ -63,40 +79,91 @@ class MCTSNode:
         self.action_from_parent = action_from_parent
 
         self.visit_count: int = 0
-        # Vectorized value: cumulative score / margin for each of the 4 player seats
-        self.total_value: np.ndarray = np.zeros(4, dtype=np.float32)
-        # Epistemic uncertainty accumulation from MC-Dropout
+        self.v0: float = 0.0
+        self.v1: float = 0.0
+        self.v2: float = 0.0
+        self.v3: float = 0.0
         self.total_uncertainty: float = 0.0
         self.children: Dict[int, "MCTSNode"] = {}
         self.is_expanded: bool = False
+
+    def add_value(self, values: Any):
+        self.v0 += float(values[0])
+        self.v1 += float(values[1])
+        self.v2 += float(values[2])
+        self.v3 += float(values[3])
+
+    def apply_virtual_loss(self, player: int, loss: float):
+        if player == 0:
+            self.v0 -= loss
+        elif player == 1:
+            self.v1 -= loss
+        elif player == 2:
+            self.v2 -= loss
+        else:
+            self.v3 -= loss
+
+    def revert_virtual_loss(self, player: int, loss: float):
+        if player == 0:
+            self.v0 += loss
+        elif player == 1:
+            self.v1 += loss
+        elif player == 2:
+            self.v2 += loss
+        else:
+            self.v3 += loss
+
+    def get_q(self, p: int) -> float:
+        if self.visit_count == 0:
+            return 0.0
+        inv = 1.0 / self.visit_count
+        if p == 0:
+            return self.v0 * inv
+        if p == 1:
+            return self.v1 * inv
+        if p == 2:
+            return self.v2 * inv
+        return self.v3 * inv
+
+    @property
+    def total_value(self) -> np.ndarray:
+        return np.array([self.v0, self.v1, self.v2, self.v3], dtype=np.float32)
+
+    @total_value.setter
+    def total_value(self, arr: Any):
+        self.v0 = float(arr[0])
+        self.v1 = float(arr[1])
+        self.v2 = float(arr[2])
+        self.v3 = float(arr[3])
 
     @property
     def q_values(self) -> np.ndarray:
         """Returns mean value vector Q for all 4 players."""
         if self.visit_count == 0:
             return np.zeros(4, dtype=np.float32)
-        return self.total_value / float(self.visit_count)
+        inv = 1.0 / float(self.visit_count)
+        return np.array([self.v0 * inv, self.v1 * inv, self.v2 * inv, self.v3 * inv], dtype=np.float32)
 
     def best_child(self, c_puct: float = 1.414, uncertainty_scale: float = 0.0) -> Tuple[int, "MCTSNode"]:
-        """Selects child maximizing PUCT score with optional epistemic uncertainty guidance."""
+        """Selects child maximizing PUCT score with zero-allocation fast arithmetic."""
         best_action = -1
         best_score = -float("inf")
-        total_visits = sum(c.visit_count for c in self.children.values())
-        sqrt_total = math.sqrt(max(1, total_visits))
-
+        sqrt_total = math.sqrt(max(1, self.visit_count))
         p = self.player
-        for action, child in self.children.items():
-            if child.visit_count > 0:
-                q = float(child.q_values[p])
-                unc = float(child.total_uncertainty / child.visit_count)
-            else:
-                q = 0.0
-                unc = 0.0
 
-            # Scale exploration constant dynamically based on epistemic uncertainty
-            c_eff = c_puct * (1.0 + uncertainty_scale * min(2.0, unc))
-            u = c_eff * child.prior * (sqrt_total / (1.0 + child.visit_count))
-            score = q + u
+        for action, child in self.children.items():
+            cnt = child.visit_count
+            if cnt > 0:
+                q = child.get_q(p)
+                if uncertainty_scale > 0.0:
+                    unc = child.total_uncertainty / cnt
+                    c_eff = c_puct * (1.0 + uncertainty_scale * min(2.0, unc))
+                else:
+                    c_eff = c_puct
+                u = c_eff * child.prior * (sqrt_total / (1.0 + cnt))
+                score = q + u
+            else:
+                score = c_puct * child.prior * sqrt_total
 
             if score > best_score:
                 best_score = score
@@ -135,6 +202,8 @@ class MultiPlayerMCTS:
         num_simulations: Optional[int] = None,
         temperature: Optional[float] = None,
         add_noise: bool = False,
+        root_obs: Optional[np.ndarray] = None,
+        root_mask: Optional[np.ndarray] = None,
     ) -> Tuple[int, np.ndarray, Dict[str, Any]]:
         """Performs MCTS search using configured algorithm (Gumbel GAZ or PUCT)."""
         algo = getattr(self.config, "algorithm", "gumbel").lower()
@@ -142,14 +211,16 @@ class MultiPlayerMCTS:
         temp = temperature if temperature is not None else self.config.temperature
 
         if algo == "gumbel":
-            return self._search_gumbel(env, num_simulations=sims, temperature=temp)
-        return self._search_puct(env, num_simulations=sims, temperature=temp, add_noise=add_noise)
+            return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+        return self._search_puct(env, num_simulations=sims, temperature=temp, add_noise=add_noise, root_obs=root_obs, root_mask=root_mask)
 
     def _search_gumbel(
         self,
         env: Any,
         num_simulations: int,
         temperature: float,
+        root_obs: Optional[np.ndarray] = None,
+        root_mask: Optional[np.ndarray] = None,
     ) -> Tuple[int, np.ndarray, Dict[str, Any]]:
         """Gumbel AlphaZero (Two-Stage Sequential Halving / TSS GAZ 2026).
 
@@ -159,7 +230,7 @@ class MultiPlayerMCTS:
         3. Progressively allocating search budget through Sequential Halving.
         """
         root_actor = getattr(env, "current_player", 0)
-        root_mask = env.get_action_mask()
+        root_mask = root_mask if root_mask is not None else env.get_action_mask()
         action_dim = len(root_mask)
         legal_indices = np.where(root_mask)[0]
 
@@ -178,13 +249,12 @@ class MultiPlayerMCTS:
 
         # 1. Root policy evaluation
         if hasattr(self.agent, "evaluate_root"):
-            root_obs_raw = env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
+            root_obs_raw = root_obs if root_obs is not None else (env._get_obs() if hasattr(env, "_get_obs") else env.observe().values)
             priors, raw_logits = self.agent.evaluate_root(root_obs_raw, root_mask, root_actor)
         else:
             dev = self.device if self.device is not None else torch.device("cpu")
-            obs_tensor = torch.from_numpy(
-                env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
-            ).float().to(dev).unsqueeze(0)
+            root_obs_raw = root_obs if root_obs is not None else (env._get_obs() if hasattr(env, "_get_obs") else env.observe().values)
+            obs_tensor = torch.from_numpy(root_obs_raw).float().to(dev).unsqueeze(0)
             mask_tensor = torch.from_numpy(root_mask).bool().to(dev).unsqueeze(0)
 
             with torch.no_grad():
@@ -246,10 +316,13 @@ class MultiPlayerMCTS:
         unc_scale = getattr(self.config, "uncertainty_scale", 0.50) if use_unc else 0.0
         dropout_passes = getattr(self.config, "mc_dropout_passes", 4)
 
-        root_vps = np.array(
-            [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
-            dtype=np.float32,
-        )
+        if hasattr(env, "get_all_vps"):
+            root_vps = env.get_all_vps()
+        else:
+            root_vps = np.array(
+                [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
+                dtype=np.float32,
+            )
 
         active_set = list(candidates)
         for phase in range(num_phases):
@@ -269,30 +342,33 @@ class MultiPlayerMCTS:
                     sim_env = env.clone()
                     node = root.children[cand_act]
                     search_path = [root, node]
-                    step_res = sim_env.step(cand_act)
+                    if hasattr(sim_env, "step_fast"):
+                        sim_env.step_fast(cand_act)
+                    else:
+                        sim_env.step(cand_act)
 
                     # Traverse downward if node is already expanded
                     depth = 0
                     while node.is_expanded and not sim_env.terminated and node.children and depth < 50:
                         act, node = node.best_child(c_puct=c_puct, uncertainty_scale=unc_scale)
                         search_path.append(node)
-                        step_res = sim_env.step(act)
+                        if hasattr(sim_env, "step_fast"):
+                            sim_env.step_fast(act)
+                        else:
+                            sim_env.step(act)
                         depth += 1
-                        if hasattr(step_res, "info") and "error" in step_res.info:
-                            break
 
                     item = {
                         "sim_env": sim_env,
                         "node": node,
                         "search_path": search_path,
                         "cand_milestone": cand_milestone,
-                        "step_res": step_res,
                     }
                     rollout_items.append(item)
 
                     if not sim_env.terminated:
-                        curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
-                        curr_mask = step_res.action_mask if hasattr(step_res, "action_mask") else sim_env.get_action_mask()
+                        curr_obs = sim_env._get_obs()
+                        curr_mask = sim_env.get_action_mask()
                         leaf_actor = sim_env.current_player
                         item["curr_obs"] = curr_obs
                         item["curr_mask"] = curr_mask
@@ -360,10 +436,13 @@ class MultiPlayerMCTS:
                     search_path = item["search_path"]
 
                     if sim_env.terminated:
-                        raw_vps = np.array(
-                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                            dtype=np.float32,
-                        )
+                        if hasattr(sim_env, "get_all_vps"):
+                            raw_vps = sim_env.get_all_vps()
+                        else:
+                            raw_vps = np.array(
+                                [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                                dtype=np.float32,
+                            )
                         mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                         margin = (raw_vps - mean_vp) / 20.0
                         ambition = (raw_vps - 90.0) / 40.0
@@ -390,10 +469,13 @@ class MultiPlayerMCTS:
                                 )
                             node.is_expanded = True
 
-                        leaf_vps = np.array(
-                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                            dtype=np.float32,
-                        )
+                        if hasattr(sim_env, "get_all_vps"):
+                            leaf_vps = sim_env.get_all_vps()
+                        else:
+                            leaf_vps = np.array(
+                                [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                                dtype=np.float32,
+                            )
                         delta_vps = leaf_vps - root_vps
 
                         milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
@@ -417,15 +499,15 @@ class MultiPlayerMCTS:
                     # Backpropagate
                     for n in reversed(search_path):
                         n.visit_count += 1
-                        n.total_value += value_vector
+                        n.add_value(value_vector)
                         n.total_uncertainty += leaf_unc
 
             # Eliminate worst half of candidates with epistemic exploration term
             active_set.sort(
                 key=lambda a: float(
                     perturbed_logits[a]
-                    + 2.0 * float(root.children[a].q_values[root_actor])
-                    + unc_scale * (root.children[a].total_uncertainty / max(1, root.children[a].visit_count))
+                    + 2.0 * root.children[a].get_q(root_actor)
+                    + (unc_scale * (root.children[a].total_uncertainty / max(1, root.children[a].visit_count)) if unc_scale > 0 else 0.0)
                 ),
                 reverse=True,
             )
@@ -436,13 +518,13 @@ class MultiPlayerMCTS:
         selected_action = int(active_set[0])
         q_scores = np.zeros(action_dim, dtype=np.float32)
         for a in legal_indices:
-            q_val = float(root.children[a].q_values[root_actor]) if a in root.children else 0.0
-            unc_val = (
-                (root.children[a].total_uncertainty / max(1, root.children[a].visit_count))
-                if a in root.children
-                else 0.0
-            )
-            q_scores[a] = raw_logits[a] + 2.0 * q_val + unc_scale * unc_val
+            child = root.children.get(a)
+            if child is not None and child.visit_count > 0:
+                q_val = child.get_q(root_actor)
+                unc_val = (child.total_uncertainty / child.visit_count) if unc_scale > 0 else 0.0
+                q_scores[a] = raw_logits[a] + 2.0 * q_val + unc_scale * unc_val
+            else:
+                q_scores[a] = raw_logits[a]
 
         exp_s = np.exp(q_scores[legal_indices] - np.max(q_scores[legal_indices]))
         probs = np.zeros(action_dim, dtype=np.float32)
@@ -475,6 +557,8 @@ class MultiPlayerMCTS:
         num_simulations: int,
         temperature: float,
         add_noise: bool = False,
+        root_obs: Optional[np.ndarray] = None,
+        root_mask: Optional[np.ndarray] = None,
     ) -> Tuple[int, np.ndarray, Dict[str, Any]]:
         """AlphaZero PUCT / Max^n search (Classic multi-player baseline)."""
         sims = num_simulations
@@ -486,7 +570,7 @@ class MultiPlayerMCTS:
 
         # 1. Initialize Root Node
         root_actor = getattr(env, "current_player", 0)
-        root_mask = env.get_action_mask()
+        root_mask = root_mask if root_mask is not None else env.get_action_mask()
         action_dim = len(root_mask)
         legal_indices = np.where(root_mask)[0]
 
@@ -506,13 +590,12 @@ class MultiPlayerMCTS:
 
         # Evaluate root priors
         if hasattr(self.agent, "evaluate_root"):
-            root_obs_raw = env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
+            root_obs_raw = root_obs if root_obs is not None else (env._get_obs() if hasattr(env, "_get_obs") else env.observe().values)
             priors, _ = self.agent.evaluate_root(root_obs_raw, root_mask, root_actor)
         else:
             dev = self.device if self.device is not None else torch.device("cpu")
-            obs_tensor = torch.from_numpy(
-                env._get_obs() if hasattr(env, "_get_obs") else env.observe().values
-            ).float().to(dev).unsqueeze(0)
+            root_obs_raw = root_obs if root_obs is not None else (env._get_obs() if hasattr(env, "_get_obs") else env.observe().values)
+            obs_tensor = torch.from_numpy(root_obs_raw).float().to(dev).unsqueeze(0)
             mask_tensor = torch.from_numpy(root_mask).bool().to(dev).unsqueeze(0)
 
             with torch.no_grad():
@@ -551,10 +634,13 @@ class MultiPlayerMCTS:
             )
         root.is_expanded = True
 
-        root_vps = np.array(
-            [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
-            dtype=np.float32,
-        )
+        if hasattr(env, "get_all_vps"):
+            root_vps = env.get_all_vps()
+        else:
+            root_vps = np.array(
+                [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
+                dtype=np.float32,
+            )
 
         # 2. Run MCTS Simulations with Batched Virtual Loss
         chunk_size = getattr(self.config, "mcts_batch_size", 16)
@@ -582,19 +668,21 @@ class MultiPlayerMCTS:
                     search_path.append(node)
                     # Temporary virtual loss to diversify parallel exploration paths
                     node.visit_count += int(virtual_loss)
-                    node.total_value[node.player] -= virtual_loss
-                    step_res = sim_env.step(action)
+                    node.apply_virtual_loss(node.player, virtual_loss)
+                    if hasattr(sim_env, "step_fast"):
+                        sim_env.step_fast(action)
+                    else:
+                        sim_env.step(action)
 
                 item = {
                     "sim_env": sim_env,
                     "node": node,
                     "search_path": search_path,
-                    "step_res": step_res,
                 }
                 rollout_items.append(item)
 
                 if not sim_env.terminated:
-                    curr_obs = step_res.obs if hasattr(step_res, "obs") else sim_env._get_obs()
+                    curr_obs = sim_env._get_obs()
                     curr_mask = sim_env.get_action_mask()
                     leaf_actor = sim_env.current_player
                     item["curr_obs"] = curr_obs
@@ -610,14 +698,17 @@ class MultiPlayerMCTS:
                 for n in item["search_path"]:
                     if n != root:
                         n.visit_count -= int(virtual_loss)
-                        n.total_value[n.player] += virtual_loss
+                        n.revert_virtual_loss(n.player, virtual_loss)
 
             # Batched GPU inference for non-terminal leaves
             if non_terminal_indices:
-                batch_obs_t = torch.from_numpy(np.stack(obs_list)).float().to(self.device)
-                batch_mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(self.device)
+                stacked_obs = np.stack(obs_list)
+                stacked_masks = np.stack(mask_list)
 
                 if use_unc:
+                    dev = self.device if self.device is not None else torch.device("cpu")
+                    batch_obs_t = torch.from_numpy(stacked_obs).float().to(dev)
+                    batch_mask_t = torch.from_numpy(stacked_masks).bool().to(dev)
                     pred_scores = []
                     leaf_uncs = []
                     leaf_priors_list = []
@@ -637,9 +728,12 @@ class MultiPlayerMCTS:
                 else:
                     if hasattr(self.agent, "evaluate_leaf_batch"):
                         pred_scores, leaf_priors_list = self.agent.evaluate_leaf_batch(
-                            batch_obs_t, batch_mask_t, leaf_actors=actors_list
+                            stacked_obs, stacked_masks, leaf_actors=actors_list
                         )
                     else:
+                        dev = self.device if self.device is not None else torch.device("cpu")
+                        batch_obs_t = torch.from_numpy(stacked_obs).float().to(dev)
+                        batch_mask_t = torch.from_numpy(stacked_masks).bool().to(dev)
                         pred_scores = []
                         leaf_priors_list = []
                         for i_nt in range(len(non_terminal_indices)):
@@ -664,10 +758,13 @@ class MultiPlayerMCTS:
                 search_path = item["search_path"]
 
                 if sim_env.terminated:
-                    raw_vps = np.array(
-                        [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                        dtype=np.float32,
-                    )
+                    if hasattr(sim_env, "get_all_vps"):
+                        raw_vps = sim_env.get_all_vps()
+                    else:
+                        raw_vps = np.array(
+                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                            dtype=np.float32,
+                        )
                     mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
                     value_vector = (raw_vps - mean_vp) / 20.0
                     leaf_unc = 0.0
@@ -691,10 +788,13 @@ class MultiPlayerMCTS:
                             )
                         node.is_expanded = True
 
-                    leaf_vps = np.array(
-                        [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                        dtype=np.float32,
-                    )
+                    if hasattr(sim_env, "get_all_vps"):
+                        leaf_vps = sim_env.get_all_vps()
+                    else:
+                        leaf_vps = np.array(
+                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                            dtype=np.float32,
+                        )
                     delta_vps = leaf_vps - root_vps
 
                     first_action = search_path[1].action_from_parent if len(search_path) > 1 and search_path[1].action_from_parent is not None else -1
@@ -717,7 +817,7 @@ class MultiPlayerMCTS:
 
                 for n in reversed(search_path):
                     n.visit_count += 1
-                    n.total_value += value_vector
+                    n.add_value(value_vector)
                     n.total_uncertainty += leaf_unc
 
         # 3. Formulate Action Decision from Visit Counts
