@@ -1,0 +1,21 @@
+{
+  "block_type": "swiglu",
+  "hidden_layers": [1024, 1024, 512, 256],
+  "activation": "silu",
+  "dropout": 0.03,
+  "use_input_norm": true,
+  "use_gnn_map": false,
+  "policy_lr": 3e-05,
+  "score_lr": 4.5e-05,
+  "batch_size": 256,
+  "az_policy_lr": 3e-05,
+  "az_value_loss_coef": 1.0,
+  "az_batch_size": 256,
+  "az_num_simulations": 32,
+  "az_gumbel_candidates": 8,
+  "az_c_puct": 1.414,
+  "az_optimism_power": 1.0,
+  "az_temp_threshold": 30,
+  "az_milestone_weight": 0.5,
+  "az_optimism_weight": 0.25
+}

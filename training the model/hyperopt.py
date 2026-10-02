@@ -829,7 +829,19 @@ class AdvancedNASOptimizer:
                         or trial.objective_score > self.best_trial.objective_score
                     ):
                         self.best_trial = trial
+                        # Automatically persist current champion to disk immediately
+                        try:
+                            import json
+                            out_dir = getattr(self.base_config.training, "runs_dir", "runs")
+                            os.makedirs(out_dir, exist_ok=True)
+                            out_file = os.path.join(out_dir, f"best_hyperparams_{self.mode}.json")
+                            with open(out_file, "w") as f:
+                                json.dump(trial.params, f, indent=2)
+                        except Exception:
+                            pass
 
+        except KeyboardInterrupt:
+            self._stop_event.set()
         finally:
             self._is_running = False
 

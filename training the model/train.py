@@ -213,11 +213,15 @@ def main():
                 f"{t.architecture_name}"
             )
 
-        best = optimizer.run_optimization_sync(
-            num_trials=args.trials,
-            sprint_epochs=args.sprint_epochs,
-            on_trial_update=_on_trial_update,
-        )
+        try:
+            best = optimizer.run_optimization_sync(
+                num_trials=args.trials,
+                sprint_epochs=args.sprint_epochs,
+                on_trial_update=_on_trial_update,
+            )
+        except KeyboardInterrupt:
+            print("\n[!] Hyperparameter search interrupted by user (Ctrl+C).")
+            best = optimizer.best_trial
 
         print("=" * 105)
         if best:
@@ -274,7 +278,7 @@ def main():
 
     # 2. Check for Resume
     resumed_epoch = 0
-    if args.resume:
+    if args.resume and args.resume.lower() not in ("none", "false", "no", "off", "scratch", "new"):
         resume_target = args.resume
         if resume_target.lower() == "auto":
             auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_latest.pt")
@@ -286,6 +290,26 @@ def main():
                 resume_target = auto_path
             else:
                 resume_target = None
+
+        if resume_target and os.path.exists(resume_target):
+            # Guard against architecture mismatches when resuming
+            try:
+                ckpt_data = torch.load(resume_target, map_location="cpu", weights_only=False)
+                ckpt_cfg = ckpt_data.get("config", None) or ckpt_data.get("model_config", None)
+                ckpt_layers = None
+                if ckpt_cfg:
+                    m_c = getattr(ckpt_cfg, "model", ckpt_cfg)
+                    ckpt_layers = getattr(m_c, "policy_hidden_layers", None)
+
+                target_layers = getattr(cfg.model, "policy_hidden_layers", None)
+                if ckpt_layers and target_layers and list(ckpt_layers) != list(target_layers):
+                    if args.use_best_hyperparams or args.resume.lower() == "auto":
+                        print(f"  ⚠️ [Resume Safeguard] Checkpoint '{os.path.basename(resume_target)}' has layers {ckpt_layers}, differing from configured {target_layers}.")
+                        print(f"     Preserving requested architecture -> Starting fresh training! (Pass --resume <path> to force load).")
+                        resume_target = None
+            except Exception:
+                pass
+
         if resume_target and os.path.exists(resume_target):
             resumed_epoch = trainer.resume_from_checkpoint(resume_target)
 
