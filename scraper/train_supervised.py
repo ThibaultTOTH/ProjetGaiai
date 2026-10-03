@@ -94,10 +94,7 @@ def train_supervised(
     val_size = num_samples - train_size
     train_ds, val_ds = torch.utils.data.random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
-
-    # Initialize model
+    # Initialize model config and load optimal hyperparameters if requested
     config = AppConfig()
     config.model.obs_dim = obs_dim
     config.model.action_dim = action_dim
@@ -132,8 +129,20 @@ def train_supervised(
         if "gnn_layers" in hparams:
             config.model.gnn_layers = int(hparams["gnn_layers"])
 
-        logger.info(f"✨ [Hyperopt] Applied optimal architecture from {params_file.name}:")
+        # Auto-apply optimal batch size & LR from hyperparams if present
+        if "pretrain_batch_size" in hparams:
+            batch_size = int(hparams["pretrain_batch_size"])
+        elif "batch_size" in hparams:
+            batch_size = int(hparams["batch_size"])
+        if "pretrain_lr" in hparams:
+            lr = float(hparams["pretrain_lr"])
+
+        logger.info(f"✨ [Hyperopt] Applied optimal architecture and settings from {params_file.name}:")
         logger.info(f"   Architecture: {config.model.block_type.upper()} {config.model.policy_hidden_layers} ({config.model.policy_activation}) | GNN Map: {config.model.use_gnn_map}")
+        logger.info(f"   Batch Size: {batch_size} | Learning Rate: {lr:.1e}")
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
     agent = DualGaiaAgent(config.model).to(device)
 
