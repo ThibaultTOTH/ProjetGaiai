@@ -211,7 +211,7 @@ class MultiPlayerMCTS:
         temp = temperature if temperature is not None else self.config.temperature
 
         if algo == "gumbel":
-            return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+            return self._search_gumbel(env, num_simulations=sims, temperature=temp, add_noise=add_noise, root_obs=root_obs, root_mask=root_mask)
         return self._search_puct(env, num_simulations=sims, temperature=temp, add_noise=add_noise, root_obs=root_obs, root_mask=root_mask)
 
     def _search_gumbel(
@@ -219,6 +219,7 @@ class MultiPlayerMCTS:
         env: Any,
         num_simulations: int,
         temperature: float,
+        add_noise: bool = False,
         root_obs: Optional[np.ndarray] = None,
         root_mask: Optional[np.ndarray] = None,
     ) -> Tuple[int, np.ndarray, Dict[str, Any]]:
@@ -267,13 +268,23 @@ class MultiPlayerMCTS:
                 priors = F.softmax(logits_tensor, dim=-1).squeeze(0).cpu().numpy()
                 raw_logits = logits_tensor.squeeze(0).cpu().numpy()
 
+        # Root exploration noise (Dirichlet) for training self-play
+        if add_noise and len(legal_indices) > 1:
+            dir_alpha = float(getattr(self.config, "dirichlet_alpha", 0.30))
+            dir_eps = float(getattr(self.config, "dirichlet_eps", 0.25))
+            d_noise = np.random.dirichlet([dir_alpha] * len(legal_indices))
+            priors[legal_indices] = (1.0 - dir_eps) * priors[legal_indices] + dir_eps * d_noise
+            # Align raw logits with noisy priors to ensure Gumbel perturbation stays coherent
+            raw_logits[legal_indices] = np.log(np.maximum(1e-8, priors[legal_indices]))
+
         # Root prior entropy & resource-efficient search budget
         p_legal = priors[legal_indices]
         p_norm = p_legal / (np.sum(p_legal) + 1e-12)
         root_entropy = -float(np.sum(p_norm * np.log(p_norm + 1e-12)))
 
         is_entropy_gated = bool(
-            getattr(self.config, "adaptive_budget_enabled", True)
+            not add_noise  # Never gate budget during self-play training!
+            and getattr(self.config, "adaptive_budget_enabled", False)
             and (root_entropy < getattr(self.config, "entropy_threshold", 0.15))
         )
         effective_sims = (
@@ -515,7 +526,6 @@ class MultiPlayerMCTS:
             active_set = active_set[:survivors_count]
 
         # 5. Formulate final policy decision
-        selected_action = int(active_set[0])
         q_scores = np.zeros(action_dim, dtype=np.float32)
         for a in legal_indices:
             child = root.children.get(a)
@@ -529,6 +539,15 @@ class MultiPlayerMCTS:
         exp_s = np.exp(q_scores[legal_indices] - np.max(q_scores[legal_indices]))
         probs = np.zeros(action_dim, dtype=np.float32)
         probs[legal_indices] = exp_s / np.sum(exp_s)
+
+        # Temperature-aware action selection in self-play
+        if temperature > 0.05 and len(legal_indices) > 1:
+            temp_logits = (q_scores[legal_indices] - np.max(q_scores[legal_indices])) / max(0.05, float(temperature))
+            exp_t = np.exp(np.clip(temp_logits, -50.0, 50.0))
+            sample_probs = exp_t / np.sum(exp_t)
+            selected_action = int(np.random.choice(legal_indices, p=sample_probs))
+        else:
+            selected_action = int(active_set[0])
 
         total_visits = sum(c.visit_count for c in root.children.values())
         meta = {

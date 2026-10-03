@@ -231,7 +231,7 @@ class MCTSConfig:
     use_epistemic_uncertainty: bool = False
     mc_dropout_passes: int = 1
     uncertainty_scale: float = 0.50
-    adaptive_budget_enabled: bool = True
+    adaptive_budget_enabled: bool = False
     entropy_threshold: float = 0.15
     min_simulations: int = 2
     optimism_weight: float = 0.25  # Pousse le modèle vers l'optimisme (recherche de branches à fort VP)
@@ -387,6 +387,9 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.mcts.num_simulations = 32
         cfg.mcts.gumbel_candidates = 8
         cfg.mcts.use_epistemic_uncertainty = False
+        cfg.mcts.adaptive_budget_enabled = False
+        cfg.mcts.dirichlet_alpha = 0.30
+        cfg.mcts.dirichlet_eps = 0.25
 
         cfg.model.block_type = "swiglu"
         cfg.model.policy_activation = "silu"

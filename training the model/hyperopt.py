@@ -171,11 +171,11 @@ class AdvancedNASOptimizer:
         dropouts_candidates = [0.0, 0.03, 0.05]
 
         layers_candidates = [
-            [512, 512, 256],            # Pro ResNet 3-layer (balanced)
-            [512, 512, 512, 256],       # Deep 4-layer (SOTA capacity)
-            [768, 768, 384],            # Wide ResNet 3-layer
-            [512, 256, 256, 128],       # Tapered lightweight
-            [384, 384, 384, 192],       # Mid-size fast
+            [1024, 1024, 512, 256],     # Grandmaster Standard (~12M params)
+            [1024, 1024, 1024, 512],    # Deep Heavy SOTA (~20M params)
+            [1536, 1024, 512, 256],     # Wide Front-End (~22M params)
+            [768, 768, 384, 256],       # Balanced 4-layer (~10M params)
+            [512, 512, 512, 256],       # Compact Deep (~6M params)
         ]
 
         # Bayesian TPE: if elite pool exists (including evaluated baseline), sample around elite configurations
@@ -268,7 +268,7 @@ class AdvancedNASOptimizer:
             layers = list(child.get("hidden_layers", [512, 512, 256]))
             action = random.choice(["widen", "narrow", "tweak"])
             if action == "widen":
-                layers = [min(1024, int(x * 1.25)) for x in layers]
+                layers = [min(2048, int(x * 1.25)) for x in layers]
             elif action == "narrow":
                 layers = [max(128, int(x * 0.8)) for x in layers]
             else:
