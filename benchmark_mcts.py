@@ -171,7 +171,7 @@ def run_benchmark_game(
     start_t = time.time()
     move_count = 0
     total_steps = 0
-    MAX_STEPS = 350
+    MAX_STEPS = 1200
     consecutive_errors = 0
 
     while not env.terminated and total_steps < MAX_STEPS:
