@@ -232,7 +232,6 @@ class MultiPlayerMCTS:
         """
         root_actor = getattr(env, "current_player", 0)
         root_mask = (root_mask if root_mask is not None else env.get_action_mask()).copy()
-        root_mask[1422:1424] = False
         action_dim = len(root_mask)
         legal_indices = np.where(root_mask)[0]
 
@@ -600,7 +599,6 @@ class MultiPlayerMCTS:
         # 1. Initialize Root Node
         root_actor = getattr(env, "current_player", 0)
         root_mask = (root_mask if root_mask is not None else env.get_action_mask()).copy()
-        root_mask[1422:1424] = False
         action_dim = len(root_mask)
         legal_indices = np.where(root_mask)[0]
 

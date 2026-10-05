@@ -510,3 +510,73 @@ fn test_action_mask_fast_and_accurate() {
     }
 }
 
+#[test]
+fn test_interactive_leeching_queue_flow() {
+    let mut env = GaiaEnv::new(GameConfig::default()).unwrap();
+    env.reset();
+
+    // Find Player 0's mine on the map
+    let p0_hex = (0..env.map.count).find(|&i| env.map.hexes[i].player == Some(0)).unwrap();
+    // Find an empty hex adjacent to p0_hex (distance 1)
+    let p1_hex = (0..env.map.count).find(|&i| env.map.hexes[i].player.is_none() && env.map.distance(p0_hex, i) == 1).unwrap();
+    // Set a TradingStation for Player 1 on p1_hex (power value 2)
+    env.map.hexes[p1_hex].player = Some(1);
+    env.map.hexes[p1_hex].building = Some(Building::TradingStation);
+    env.players[1].buildings[Building::TradingStation as usize] = 1;
+
+    // Find another empty hex adjacent to p1_hex for Player 0 to build a mine (distance 1 <= 2)
+    let build_hex = (0..env.map.count).find(|&i| env.map.hexes[i].player.is_none() && env.map.distance(p1_hex, i) == 1 && env.map.distance(p0_hex, i) <= 2).unwrap();
+    let build_coord = env.map.coords[build_hex];
+    // Make planet colonizable by Player 0 (home planet type)
+    let home_planet = gaiapi::rules::faction_planet(env.players[0].faction);
+    env.map.hexes[build_hex].planet = home_planet;
+
+    // Give Player 0 ample resources
+    env.players[0].credits = 15;
+    env.players[0].ore = 10;
+    env.players[0].qic = 5;
+
+    // Give Player 1 power to charge and VP
+    env.players[1].victory_points = 10;
+    env.players[1].power.area1 = 2;
+    env.players[1].power.area2 = 2;
+    env.players[1].power.area3 = 0;
+
+    env.current_player = 0;
+    let res = env.execute_command_from_rl(0, GameCommand::BuildMine { coord: build_coord });
+    assert!(res.is_ok(), "BuildMine failed: {:?}", res);
+
+    // Turn should NOT advance to Player 1's normal turn yet; Player 1 is prompted to leech!
+    assert_eq!(env.current_player, 1);
+    assert_eq!(env.pending_leeches.len(), 1);
+    assert_eq!(env.pending_leeches[0].seat, 1);
+    assert_eq!(env.pending_leeches[0].power_value, 2);
+
+    // Legal commands for Player 1 during leeching: ONLY Decline and ChargePower
+    let legal = env.legal_commands(1);
+    assert_eq!(legal.len(), 2);
+    assert!(legal.contains(&GameCommand::DeclineLeech));
+    assert!(legal.contains(&GameCommand::ChargePower { charge_amount: 2 }));
+
+    let mask = env.action_mask();
+    assert!(mask[1422]); // Decline
+    assert!(mask[1423]); // Charge
+    assert!(!mask[0]);   // Mine is illegal during leech reaction
+
+    // Player 1 accepts leech
+    let leech_res = env.execute_command_from_rl(1, GameCommand::ChargePower { charge_amount: 2 });
+    assert!(leech_res.is_ok(), "Leech ChargePower failed: {:?}", leech_res);
+
+    // Leech queue is now empty
+    assert!(env.pending_leeches.is_empty());
+    // Player 1 paid 1 VP (2 pw - 1 = 1 VP) and charged 2 power from area 1 to area 2
+    assert_eq!(env.players[1].victory_points, 9);
+    assert_eq!(env.players[1].power.area1, 0);
+    assert_eq!(env.players[1].power.area2, 4);
+
+    // Turn now advanced to next player (Player 1) for normal play
+    assert_eq!(env.current_player, 1);
+    let normal_cmds = env.legal_commands(1);
+    assert!(normal_cmds.len() > 2);
+}
+

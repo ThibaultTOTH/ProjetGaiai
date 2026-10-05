@@ -379,8 +379,6 @@ class NativeGaiaEnv:
             self._mask_buf = (ctypes.c_uint8 * self.action_dim)()
         self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
         mask = np.array(self._mask_buf, dtype=bool)
-        # Passive leeching (1422: DeclineLeech, 1423: AcceptLeech) is auto-resolved in RL simulation kernel
-        mask[1422:1424] = False
         return mask
 
     def get_all_vps(self) -> np.ndarray:
@@ -455,14 +453,6 @@ class NativeGaiaEnv:
             elif action == 15:  # Pass
                 flat_action = 1412 + target
 
-        if 1422 <= flat_action < 1424:
-            return GaiaEnvStepResult(
-                obs=self._get_obs(egocentric),
-                reward=0.0,
-                done=self.terminated,
-                action_mask=self.get_action_mask(),
-                info={"round": self.round, "current_player": self.current_player, "player_vp": self.get_all_vps().tolist()},
-            )
 
         actor = getattr(self, "current_player", 0)
         prev_vp = float(self.dll.gaiapi_get_player_vp(self.env_ptr, actor)) if hasattr(self.dll, "gaiapi_get_player_vp") else 0.0
