@@ -19,8 +19,17 @@ import time
 from typing import List, Tuple
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ["PYTHONUNBUFFERED"] = "1"
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
+    except Exception:
+        pass
 
 # Add "training the model" to path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -162,7 +171,8 @@ def run_benchmark_game(
     start_t = time.time()
     move_count = 0
     total_steps = 0
-    MAX_STEPS = 1200
+    MAX_STEPS = 350
+    consecutive_errors = 0
 
     while not env.terminated and total_steps < MAX_STEPS:
         total_steps += 1
@@ -174,6 +184,18 @@ def run_benchmark_game(
             break
 
         is_pro = (curr_p == pro_seat)
+        round_num = getattr(env, "round", 1)
+        pro_curr_vp = float(env.get_all_vps()[pro_seat]) if hasattr(env, "get_all_vps") else 0.0
+
+        # Real-time move heartbeat to stderr (doesn't interfere with redirected tables)
+        player_tag = f"PRO (P{curr_p + 1})" if is_pro else f"TRAIN (P{curr_p + 1})"
+        sys.stderr.write(
+            f"\r  ⚡ [Match #{game_idx:02d}] Coup {total_steps:03d} | R{round_num}/6 | {player_tag} | PRO VP: {pro_curr_vp:.0f} ... "
+        )
+        sys.stderr.flush()
+
+        curr_obs = env._get_obs() if hasattr(env, "_get_obs") else None
+
         if is_pro:
             # Deterministic, high budget, zero exploration noise
             action, _, _ = mcts.search(
@@ -181,6 +203,8 @@ def run_benchmark_game(
                 num_simulations=pro_sims,
                 temperature=0.0,
                 add_noise=False,
+                root_obs=curr_obs,
+                root_mask=curr_mask,
             )
         else:
             # Exploration mode (like self-play training)
@@ -190,6 +214,8 @@ def run_benchmark_game(
                 num_simulations=train_sims,
                 temperature=temp,
                 add_noise=True,
+                root_obs=curr_obs,
+                root_mask=curr_mask,
             )
 
         step_res = env.step(action)
@@ -197,12 +223,26 @@ def run_benchmark_game(
 
         # Fallback if illegal step
         if hasattr(step_res, "info") and "error" in step_res.info:
+            consecutive_errors += 1
+            fallback_ok = False
             alt_actions = np.random.permutation(legal)
             for alt in alt_actions:
                 if alt != action:
                     step_res = env.step(int(alt))
                     if not (hasattr(step_res, "info") and "error" in step_res.info):
+                        fallback_ok = True
+                        consecutive_errors = 0
                         break
+            if not fallback_ok and consecutive_errors >= 3:
+                # Engine deadlock on illegal action mask, end game cleanly
+                env.terminated = True
+                break
+        else:
+            consecutive_errors = 0
+
+    # Clear heartbeat line
+    sys.stderr.write("\r" + " " * 85 + "\r")
+    sys.stderr.flush()
 
     duration = time.time() - start_t
 
@@ -295,7 +335,8 @@ def main():
             f"{rank_str:<8} "
             f"[{other_str}]           "
             f"{delta_str:<8} "
-            f"{dur:.1f}s"
+            f"{dur:.1f}s",
+            flush=True,
         )
 
     print("=" * 78)
