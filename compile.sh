@@ -35,6 +35,10 @@ echo "[*] Compilation en mode release (C-ABI cdylib)..."
 cargo build --release
 
 SO_PATH="$SCRIPT_DIR/projet_gaiapi/target/release/libgaiapi.so"
+if [ ! -f "$SO_PATH" ]; then
+    SO_PATH="$SCRIPT_DIR/target/release/libgaiapi.so"
+fi
+
 if [ -f "$SO_PATH" ]; then
     echo "[✓] Bibliothèque C-ABI compilée avec succès : $SO_PATH"
     cp -f "$SO_PATH" "$SCRIPT_DIR/training the model/libgaiapi.so" 2>/dev/null || true
@@ -43,7 +47,7 @@ if [ -f "$SO_PATH" ]; then
     fi
     echo "[✓] Bibliothèque synchronisée dans 'training the model/' et 'gaia_gui_lab/'."
 else
-    echo "[!] Erreur : $SO_PATH introuvable après compilation !"
+    echo "[!] Erreur : libgaiapi.so introuvable après compilation !"
     exit 1
 fi
 
