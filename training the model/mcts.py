@@ -231,15 +231,24 @@ class MultiPlayerMCTS:
         3. Progressively allocating search budget through Sequential Halving.
         """
         root_actor = getattr(env, "current_player", 0)
-        root_mask = root_mask if root_mask is not None else env.get_action_mask()
+        root_mask = (root_mask if root_mask is not None else env.get_action_mask()).copy()
+        root_mask[1422:1424] = False
         action_dim = len(root_mask)
         legal_indices = np.where(root_mask)[0]
 
-        if len(legal_indices) <= 1:
-            act = int(legal_indices[0]) if len(legal_indices) == 1 else 0
+        if len(legal_indices) == 0:
             probs = np.zeros(action_dim, dtype=np.float32)
-            if len(legal_indices) == 1:
-                probs[act] = 1.0
+            return 1412, probs, {
+                "algorithm": "gumbel_gaz",
+                "root_visits": 0,
+                "selected_action": 1412,
+                "root_entropy": 0.0,
+                "entropy_gated": True,
+            }
+        elif len(legal_indices) == 1:
+            act = int(legal_indices[0])
+            probs = np.zeros(action_dim, dtype=np.float32)
+            probs[act] = 1.0
             return act, probs, {
                 "algorithm": "gumbel_gaz",
                 "root_visits": 0,
@@ -590,12 +599,22 @@ class MultiPlayerMCTS:
 
         # 1. Initialize Root Node
         root_actor = getattr(env, "current_player", 0)
-        root_mask = root_mask if root_mask is not None else env.get_action_mask()
+        root_mask = (root_mask if root_mask is not None else env.get_action_mask()).copy()
+        root_mask[1422:1424] = False
         action_dim = len(root_mask)
         legal_indices = np.where(root_mask)[0]
 
-        if len(legal_indices) <= 1:
-            act = int(legal_indices[0]) if len(legal_indices) == 1 else 0
+        if len(legal_indices) == 0:
+            probs = np.zeros(action_dim, dtype=np.float32)
+            return 1412, probs, {
+                "algorithm": "puct",
+                "root_visits": 0,
+                "selected_action": 1412,
+                "root_entropy": 0.0,
+                "entropy_gated": True,
+            }
+        elif len(legal_indices) == 1:
+            act = int(legal_indices[0])
             probs = np.zeros(action_dim, dtype=np.float32)
             probs[act] = 1.0
             return act, probs, {

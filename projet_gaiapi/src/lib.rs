@@ -472,8 +472,13 @@ impl GaiaEnv {
                         _ => {}
                     }
                 }
-                // Passive leeching queue
-                self.queue_leeching(coord, player as u8);
+                // Passive leeching: opponents within range 2 automatically charge power
+                let opps = actions::find_leech_opportunities(&self.map, coord, player as u8, &self.players);
+                for opp in &opps {
+                    if let Some(opp) = opp {
+                        let _ = actions::execute_leech(&mut self.players[opp.seat as usize], opp.power_value);
+                    }
+                }
             }
             GameCommand::StartGaiaProject { coord } => {
                 actions::execute_start_gaia_project(&mut self.players[player], &mut self.map, coord)?;
@@ -505,8 +510,13 @@ impl GaiaEnv {
                         _ => {}
                     }
                 }
-                // Passive leeching queue
-                self.queue_leeching(coord, player as u8);
+                // Passive leeching: opponents within range 2 automatically charge power
+                let opps = actions::find_leech_opportunities(&self.map, coord, player as u8, &self.players);
+                for opp in &opps {
+                    if let Some(opp) = opp {
+                        let _ = actions::execute_leech(&mut self.players[opp.seat as usize], opp.power_value);
+                    }
+                }
                 // Mandatory tech tile claim trigger on Lab/Academy upgrade
                 // (The agent MUST follow up with a ClaimTechTile command; this is enforced by legal_commands)
                 // Note: actual claiming is done via ClaimTechTile command in the next action.
@@ -556,39 +566,10 @@ impl GaiaEnv {
                 self.pass_order.push(player as u8);
             }
             GameCommand::ChargePower { charge_amount } => {
-                let mut actual_amount = charge_amount;
-                if let Some(opp) = self.pending_leeches.first() {
-                    if opp.seat as usize == player {
-                        actual_amount = opp.power_value;
-                    }
-                }
-                actions::execute_leech(&mut self.players[player], actual_amount)?;
-                if let Some(opp) = self.pending_leeches.first() {
-                    if opp.seat as usize == player {
-                        self.pending_leeches.remove(0);
-                        if let Some(next_opp) = self.pending_leeches.first() {
-                            self.current_player = next_opp.seat as usize;
-                        } else {
-                            self.current_player = self.active_player_before_leech;
-                        }
-                    }
-                }
+                let _ = actions::execute_leech(&mut self.players[player], charge_amount);
             }
             GameCommand::DeclineLeech => {
-                if let Some(opp) = self.pending_leeches.first() {
-                    if opp.seat as usize == player {
-                        self.pending_leeches.remove(0);
-                        if let Some(next_opp) = self.pending_leeches.first() {
-                            self.current_player = next_opp.seat as usize;
-                        } else {
-                            self.current_player = self.active_player_before_leech;
-                        }
-                    } else {
-                        return Err(ActionError::SpecialActionUnavailable(crate::rules::SpecialAction::AmbasPiSwap)); // Dummy error
-                    }
-                } else {
-                    return Err(ActionError::SpecialActionUnavailable(crate::rules::SpecialAction::AmbasPiSwap));
-                }
+                // Passive leeching is automatically resolved in RL kernel; graceful no-op
             }
             GameCommand::BoardAction {
                 action,
@@ -765,6 +746,9 @@ impl GaiaEnv {
                 }
             }
         }
+        // DeclineLeech (1422) and ChargePower (1423) are auto-resolved passive triggers in RL kernel
+        mask[crate::action_space::A_CHARGE_POWER_OFFSET] = false;
+        mask[crate::action_space::A_CHARGE_POWER_OFFSET + 1] = false;
         mask
     }
 
@@ -1321,23 +1305,7 @@ impl GaiaEnv {
             current_player: self.current_player,
         })
     }
-    
-    fn queue_leeching(&mut self, coord: HexCoord, player: u8) {
-        let opps = actions::find_leech_opportunities(&self.map, coord, player, &self.players);
-        for opp in &opps {
-            if let Some(opp) = opp {
-                if self.players[opp.seat as usize].power.can_charge() {
-                    self.pending_leeches.push(*opp);
-                }
-            }
-        }
-        if !self.pending_leeches.is_empty() {
-            let n_players = self.config.players as u8;
-            self.pending_leeches.sort_by_key(|opp| (opp.seat + n_players - player) % n_players);
-            self.active_player_before_leech = self.current_player;
-            self.current_player = self.pending_leeches[0].seat as usize;
-        }
-    }
+
 
     pub fn advance_turn(&mut self) {
         if self.players.iter().all(|player| player.passed) {

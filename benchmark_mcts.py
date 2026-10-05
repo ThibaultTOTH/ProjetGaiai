@@ -178,6 +178,7 @@ def run_benchmark_game(
         total_steps += 1
         curr_p = env.current_player
         curr_mask = env.get_action_mask()
+        curr_mask[1422:1424] = False
         legal = np.where(curr_mask)[0]
         if len(legal) == 0:
             env.terminated = True
