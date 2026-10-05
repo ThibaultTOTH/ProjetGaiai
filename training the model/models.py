@@ -397,7 +397,7 @@ class ScorePredictorNet(nn.Module):
     def forward(self, obs: torch.Tensor, adj_norm: Optional[torch.Tensor] = None) -> torch.Tensor:
         feat = self.backbone(obs, adj_norm=adj_norm) if hasattr(self.backbone, "forward") else self.backbone(obs)
         score = self.head(feat)
-        return score.squeeze(-1)
+        return torch.tanh(score.squeeze(-1))
 
     @torch.no_grad()
     def predict_score(self, obs: torch.Tensor) -> float:
@@ -962,7 +962,7 @@ class DualGaiaAgent(nn.Module):
         device_type = "cuda" if obs.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=obs.is_cuda):
             feat = self.shared_backbone(obs)
-            vals = self.score_net.head(feat).squeeze(-1)
+            vals = torch.tanh(self.score_net.head(feat).squeeze(-1))
             if vals.dim() == 0:
                 vals = vals.unsqueeze(0)
 

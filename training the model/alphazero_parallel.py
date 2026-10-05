@@ -25,7 +25,7 @@ import torch.multiprocessing as mp
 from config import AppConfig
 from models import DualGaiaAgent
 from mcts import MultiPlayerMCTS
-from environment import make_gaia_env, NativeGaiaEnv
+from environment import make_gaia_env, NativeGaiaEnv, compute_competitive_value
 from league import LeagueManager
 from alphazero_trainer import AlphaZeroTrainer, AlphaZeroReplayBuffer, EpochMetrics
 
@@ -202,7 +202,7 @@ def alpha_zero_worker_process(
                     p0_won = bool(len(raw_vps) >= 2 and p0_vp > max([v for i, v in enumerate(raw_vps) if i != 0] + [0.0]))
 
                     final_history = [
-                        (obs_s, mask_s, probs_s, float(raw_vps[p]))
+                        (obs_s, mask_s, probs_s, compute_competitive_value(raw_vps, p))
                         for p, obs_s, mask_s, probs_s in history
                     ]
 

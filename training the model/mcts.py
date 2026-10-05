@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 
 from config import MCTSConfig
+from environment import compute_competitive_value
 from models import DualGaiaAgent
 
 
@@ -482,10 +483,7 @@ class MultiPlayerMCTS:
                                 [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
                                 dtype=np.float32,
                             )
-                        mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                        margin = (raw_vps - mean_vp) / 20.0
-                        ambition = (raw_vps - 90.0) / 40.0
-                        value_vector = 0.6 * margin + 0.4 * ambition
+                        value_vector = np.array([compute_competitive_value(raw_vps, i) for i in range(4)], dtype=np.float32)
                         leaf_unc = 0.0
                     else:
                         curr_mask = item["curr_mask"]
@@ -493,7 +491,6 @@ class MultiPlayerMCTS:
                         pred_score = item["pred_score"]
                         leaf_priors = item["leaf_priors"]
                         leaf_unc = item["leaf_unc"]
-                        cand_milestone = item["cand_milestone"]
 
                         if np.any(curr_mask):
                             node.player = leaf_actor
@@ -508,32 +505,14 @@ class MultiPlayerMCTS:
                                 )
                             node.is_expanded = True
 
-                        if hasattr(sim_env, "get_all_vps"):
-                            leaf_vps = sim_env.get_all_vps()
-                        else:
-                            leaf_vps = np.array(
-                                [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                                dtype=np.float32,
-                            )
-                        delta_vps = leaf_vps - root_vps
-
-                        milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
-                        cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
-
-                        optimism_weight = getattr(self.config, "optimism_weight", 0.35)
-                        ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                        leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
-
-                        raw_vps = np.zeros(4, dtype=np.float32)
-                        raw_vps[leaf_actor] = leaf_projected
+                        # Clean multi-player competitive value vector in [-1, +1]
+                        value_vector = np.zeros(4, dtype=np.float32)
+                        value_vector[leaf_actor] = float(np.clip(pred_score, -1.0, 1.0))
                         for i in range(4):
                             if i != leaf_actor:
-                                raw_vps[i] = pred_score + (root_vps[i] - root_vps[leaf_actor]) + (delta_vps[i] - delta_vps[leaf_actor])
-
-                        mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                        margin = (raw_vps - mean_vp) / 25.0
-                        ambition = (raw_vps - 90.0) / 40.0
-                        value_vector = 0.6 * margin + 0.4 * ambition
+                                rel_delta = float(root_vps[i] - root_vps[leaf_actor]) / 25.0
+                                v_opp = -0.33 * pred_score + 0.33 * math.tanh(rel_delta)
+                                value_vector[i] = float(np.clip(v_opp, -1.0, 1.0))
 
                     # Backpropagate
                     for n in reversed(search_path):
@@ -839,8 +818,7 @@ class MultiPlayerMCTS:
                             [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
                             dtype=np.float32,
                         )
-                    mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                    value_vector = (raw_vps - mean_vp) / 20.0
+                    value_vector = np.array([compute_competitive_value(raw_vps, i) for i in range(4)], dtype=np.float32)
                     leaf_unc = 0.0
                 else:
                     curr_mask = item["curr_mask"]
@@ -862,32 +840,14 @@ class MultiPlayerMCTS:
                             )
                         node.is_expanded = True
 
-                    if hasattr(sim_env, "get_all_vps"):
-                        leaf_vps = sim_env.get_all_vps()
-                    else:
-                        leaf_vps = np.array(
-                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
-                            dtype=np.float32,
-                        )
-                    delta_vps = leaf_vps - root_vps
-
-                    first_action = search_path[1].action_from_parent if len(search_path) > 1 and search_path[1].action_from_parent is not None else -1
-                    cand_milestone = compute_milestone_bonus(first_action) if first_action >= 0 else 0.0
-                    milestone_w = getattr(self.config, "milestone_shaping_weight", 0.50)
-                    cand_bonus = milestone_w * cand_milestone if leaf_actor == root_actor else 0.0
-
-                    optimism_weight = getattr(self.config, "optimism_weight", 0.25)
-                    ego_optimism = optimism_weight * max(0.0, pred_score - 70.0)
-                    leaf_projected = pred_score + delta_vps[leaf_actor] + cand_bonus + ego_optimism
-
-                    raw_vps = np.zeros(4, dtype=np.float32)
-                    raw_vps[leaf_actor] = leaf_projected
+                    # Clean multi-player competitive value vector in [-1, +1]
+                    value_vector = np.zeros(4, dtype=np.float32)
+                    value_vector[leaf_actor] = float(np.clip(pred_score, -1.0, 1.0))
                     for i in range(4):
                         if i != leaf_actor:
-                            raw_vps[i] = pred_score + (root_vps[i] - root_vps[leaf_actor]) + (delta_vps[i] - delta_vps[leaf_actor])
-
-                    mean_vp = float(np.mean(raw_vps)) if len(raw_vps) > 0 else 50.0
-                    value_vector = (raw_vps - mean_vp) / 25.0
+                            rel_delta = float(root_vps[i] - root_vps[leaf_actor]) / 25.0
+                            v_opp = -0.33 * pred_score + 0.33 * math.tanh(rel_delta)
+                            value_vector[i] = float(np.clip(v_opp, -1.0, 1.0))
 
                 for n in reversed(search_path):
                     n.visit_count += 1

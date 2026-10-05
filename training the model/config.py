@@ -374,18 +374,18 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     if preset in ("finetune", "phase2", "grandmaster", "gm"):
         # 👑 PHASE 2 : Fine-Tuning Grand Maître (Cible 220 - 240+ VP)
         cfg.alphazero.enabled = True
-        cfg.alphazero.num_simulations = 32
-        cfg.alphazero.gumbel_candidates = 8
+        cfg.alphazero.num_simulations = 64
+        cfg.alphazero.gumbel_candidates = 10
         cfg.alphazero.games_per_epoch = 4
         cfg.alphazero.training_steps_per_epoch = 100
-        cfg.alphazero.temperature_high = 0.5
-        cfg.alphazero.temperature_low = 0.05
-        cfg.alphazero.dirichlet_eps = 0.15
+        cfg.alphazero.temperature_high = 0.8
+        cfg.alphazero.temperature_low = 0.1
+        cfg.alphazero.dirichlet_eps = 0.25
 
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 32
-        cfg.mcts.gumbel_candidates = 8
+        cfg.mcts.num_simulations = 64
+        cfg.mcts.gumbel_candidates = 10
         cfg.mcts.use_epistemic_uncertainty = False
         cfg.mcts.adaptive_budget_enabled = False
         cfg.mcts.dirichlet_alpha = 0.30
@@ -394,19 +394,19 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.model.block_type = "swiglu"
         cfg.model.policy_activation = "silu"
         cfg.model.score_activation = "silu"
-        cfg.model.policy_dropout = 0.05
-        cfg.model.score_dropout = 0.05
+        cfg.model.policy_dropout = 0.03
+        cfg.model.score_dropout = 0.03
         cfg.model.policy_hidden_layers = [1024, 1024, 512, 256]
         cfg.model.score_hidden_layers = [1024, 1024, 512, 256]
-        cfg.model.policy_weight_decay = 2e-4
-        cfg.model.score_weight_decay = 2e-4
-        cfg.model.use_gnn_map = True
+        cfg.model.policy_weight_decay = 1e-4
+        cfg.model.score_weight_decay = 1e-4
+        cfg.model.use_gnn_map = False
         cfg.model.gnn_layers = 3
         cfg.model.gnn_hidden_dim = 64
-        cfg.model.finetune_mode = False  # Dégelé par défaut pour permettre l'apprentissage complet du backbone
+        cfg.model.finetune_mode = False
 
-        cfg.model.policy_lr = 3e-5
-        cfg.model.score_lr = 1e-4
+        cfg.model.policy_lr = 2.5e-4
+        cfg.model.score_lr = 3.0e-4
         cfg.training.batch_size = 256
         cfg.training.total_episodes = 10000
 

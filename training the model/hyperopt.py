@@ -149,13 +149,13 @@ class AdvancedNASOptimizer:
             "az_policy_lr": float(getattr(cfg.model, "policy_lr", 2.5e-4)),
             "az_value_loss_coef": float(getattr(cfg.alphazero, "value_loss_coef", 1.0)),
             "az_batch_size": int(getattr(cfg.alphazero, "batch_size", 256)),
-            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 16)),
-            "az_gumbel_candidates": int(getattr(cfg.alphazero, "gumbel_candidates", 8)),
+            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 64)),
+            "az_gumbel_candidates": int(getattr(cfg.alphazero, "gumbel_candidates", 10)),
             "az_c_puct": float(getattr(cfg.mcts, "c_puct", 1.414)),
             "az_optimism_power": float(getattr(cfg.alphazero, "optimism_power", 1.0)),
             "az_temp_threshold": int(getattr(cfg.alphazero, "temperature_threshold_move", 30)),
-            "az_milestone_weight": float(getattr(cfg.mcts, "milestone_shaping_weight", 0.50)),
-            "az_optimism_weight": float(getattr(cfg.mcts, "optimism_weight", 0.25)),
+            "az_milestone_weight": float(getattr(cfg.mcts, "milestone_shaping_weight", 0.25)),
+            "az_optimism_weight": float(getattr(cfg.mcts, "optimism_weight", 0.15)),
             # Pretraining Parameters
             "pretrain_lr": 3e-4,
             "pretrain_weight_decay": 1e-4,
@@ -232,22 +232,22 @@ class AdvancedNASOptimizer:
             "initial_booster_draft_enabled": random.choice([True, False]),
             "tech_tile_dispatch_enabled": random.choice([True, False]),
             # AlphaZero Parameters
-            "az_policy_lr": float(random.choice([1.5e-4, 2.5e-4, 3.5e-4, 5e-4])),
-            "az_value_loss_coef": float(random.choice([0.25, 0.50, 1.0, 1.5])),
-            "az_batch_size": int(random.choice([128, 256, 512])),
-            "az_num_simulations": int(random.choice([8, 16, 24, 32])),
-            "az_gumbel_candidates": int(random.choice([4, 6, 8, 10])),
-            "az_c_puct": float(random.choice([1.2, 1.414, 1.8, 2.0])),
-            "az_optimism_power": float(random.choice([0.5, 1.0, 1.5])),
-            "az_temp_threshold": int(random.choice([15, 25, 35])),
-            "az_milestone_weight": float(random.choice([0.25, 0.50, 0.75])),
-            "az_optimism_weight": float(random.choice([0.15, 0.25, 0.35])),
+            "az_policy_lr": float(random.choice([1.5e-4, 2.5e-4, 3.5e-4])),
+            "az_value_loss_coef": float(random.choice([0.50, 1.0, 1.5])),
+            "az_batch_size": int(random.choice([256, 512])),
+            "az_num_simulations": int(random.choice([48, 64, 96, 128])),
+            "az_gumbel_candidates": int(random.choice([8, 10, 12, 16])),
+            "az_c_puct": float(random.choice([1.2, 1.414, 1.8])),
+            "az_optimism_power": float(random.choice([0.5, 1.0])),
+            "az_temp_threshold": int(random.choice([20, 30, 40])),
+            "az_milestone_weight": float(random.choice([0.15, 0.25, 0.35])),
+            "az_optimism_weight": float(random.choice([0.10, 0.15, 0.20])),
             # Pretraining Parameters
-            "pretrain_lr": float(random.choice([1.5e-4, 3e-4, 5e-4, 8e-4])),
+            "pretrain_lr": float(random.choice([2e-4, 3e-4, 4e-4, 5e-4])),
             "pretrain_weight_decay": float(random.choice([1e-5, 1e-4, 5e-4])),
-            "pretrain_value_weight": float(random.choice([0.2, 0.5, 1.0])),
-            "pretrain_label_smoothing": float(random.choice([0.0, 0.03, 0.05])),
-            "pretrain_batch_size": int(random.choice([128, 256, 512])),
+            "pretrain_value_weight": float(random.choice([0.3, 0.5, 0.8])),
+            "pretrain_label_smoothing": float(random.choice([0.03, 0.05, 0.08])),
+            "pretrain_batch_size": int(random.choice([256, 512])),
         }
 
     def mutate_candidate(self, parent: Dict[str, Any]) -> Dict[str, Any]:
@@ -552,7 +552,8 @@ class AdvancedNASOptimizer:
                     logits = agent.action_net(b_obs)
                     p_val = agent.score_net(b_obs).view(-1)
                     loss_p = criterion_p(logits, b_act)
-                    loss_v = criterion_v(p_val, b_val.view(-1)) / 25.0
+                    target_v = torch.tanh(b_val.view(-1))
+                    loss_v = criterion_v(p_val, target_v)
                     total_loss = loss_p + val_w * loss_v
 
                 scaler.scale(total_loss).backward()
@@ -582,7 +583,8 @@ class AdvancedNASOptimizer:
                         logits = agent.action_net(b_obs)
                         p_val = agent.score_net(b_obs).view(-1)
                         loss_p = criterion_p(logits, b_act)
-                        loss_v = criterion_v(p_val, b_val.view(-1)) / 25.0
+                        target_v = torch.tanh(b_val.view(-1))
+                        loss_v = criterion_v(p_val, target_v)
                         tot_loss += (loss_p + val_w * loss_v).item() * len(b_act)
 
                     top1 = logits.argmax(dim=-1)

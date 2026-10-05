@@ -8,6 +8,7 @@ Provides:
 
 import copy
 import ctypes
+import math
 import os
 import sys
 import warnings
@@ -748,6 +749,27 @@ def format_flat_action(action_id: int) -> str:
         sub = action_id - 3124
         return f"FreeAction({free_names[sub]})"
     return f"Action_{action_id}"
+
+
+def compute_competitive_value(raw_vps: Any, player_idx: int) -> float:
+    """Computes bounded competitive value Z_p in [-1.0, +1.0] for player p in a 4-player game.
+
+    Combines:
+    1. Competitive win/loss margin vs the highest rival score (80% weight).
+    2. Absolute score ambition benchmarked against 120 VP (20% weight).
+    """
+    vps = [float(v) for v in raw_vps]
+    if not vps or player_idx >= len(vps):
+        return 0.0
+    p_vp = vps[player_idx]
+    other_vps = [v for i, v in enumerate(vps) if i != player_idx]
+    max_opp_vp = max(other_vps) if other_vps else 50.0
+
+    margin = (p_vp - max_opp_vp) / 25.0
+    ambition = (p_vp - 120.0) / 40.0
+
+    z = 0.80 * math.tanh(margin) + 0.20 * math.tanh(ambition)
+    return float(np.clip(z, -1.0, 1.0))
 
 
 def make_gaia_env(

@@ -233,13 +233,11 @@ def train_supervised(
             with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
                 logits = agent.action_net(batch_obs)
                 pred_val = agent.score_net(batch_obs).view(-1)
-                target_val = batch_val.view(-1)
+                target_val = torch.tanh(batch_val.view(-1))
 
                 loss_p = criterion_policy(logits, batch_act)
-                raw_loss_v = criterion_value(pred_val, target_val)
-                # Scale Huber loss relative to standard VP deviation (~25 VP)
-                norm_loss_v = raw_loss_v / 25.0
-                loss = loss_p + 0.5 * norm_loss_v
+                loss_v = criterion_value(pred_val, target_val)
+                loss = loss_p + 0.5 * loss_v
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -248,7 +246,7 @@ def train_supervised(
             scaler.update()
 
             total_policy_loss += loss_p.item() * B
-            total_value_loss += raw_loss_v.item() * B
+            total_value_loss += loss_v.item() * B
             total_train_samples += B
 
             # Top-1 & Top-5 accuracy

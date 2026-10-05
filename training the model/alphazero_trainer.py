@@ -12,6 +12,7 @@ import random
 import threading
 
 from config import AppConfig
+from environment import compute_competitive_value
 from models import DualGaiaAgent
 from mcts import MultiPlayerMCTS
 from league import LeagueManager, LeagueMember
@@ -284,9 +285,9 @@ class AlphaZeroTrainer:
         ):
             self.league_manager.update_match_results(participants, raw_vps)
 
-        # Store true Victory Points (0 - 250+ VP) for natural calibration with MCTS and GUI
+        # Store bounded competitive value Z_p in [-1, +1]
         final_history = [
-            (obs, mask, probs, float(raw_vps[p]) if p < len(raw_vps) else 0.0)
+            (obs, mask, probs, compute_competitive_value(raw_vps, p))
             for p, obs, mask, probs in history
         ]
         return final_history, p0_vp, p0_won, move_count
@@ -306,7 +307,7 @@ class AlphaZeroTrainer:
             pred_values = self.agent.score_net(obs_t)
             logits = self.agent.action_net(obs_t, mask_t)
             
-            # Huber Smooth L1 loss on VP prevents gradient explosion
+            # Smooth L1 loss on bounded [-1.0, +1.0] competitive values
             value_loss = F.smooth_l1_loss(pred_values.view(-1), value_t.view(-1))
             
             # Safe Cross-Entropy / Policy Loss:
@@ -324,11 +325,9 @@ class AlphaZeroTrainer:
             
             # 4. Guarantee finite scalars
             policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
-            value_loss = torch.nan_to_num(value_loss, nan=0.0, posinf=100.0, neginf=-100.0)
+            value_loss = torch.nan_to_num(value_loss, nan=0.0, posinf=10.0, neginf=-10.0)
             
-            # Normalize VP scale (variance ~25 VP) so value gradients do not overwhelm policy gradients
-            norm_value_loss = value_loss / 25.0
-            loss = policy_loss + self.az_config.value_loss_coef * norm_value_loss
+            loss = policy_loss + self.az_config.value_loss_coef * value_loss
             
             # Safe entropy calculation over legal actions
             probs = torch.where(mask_t, torch.exp(log_probs), torch.zeros_like(log_probs))
