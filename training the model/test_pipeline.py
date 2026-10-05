@@ -568,8 +568,8 @@ def test_rnad_equilibrium():
     assert torch.allclose(p_ref_updated, expected_val, atol=1e-5), "Polyak update formula mismatch!"
 
     # 4. Check KL divergence computation on dummy batch
-    batch_obs = torch.randn(4, 2476)
-    batch_mask = torch.ones(4, trainer.agent.config.action_dim, dtype=torch.bool)
+    batch_obs = torch.randn(4, 2476, device=trainer.device)
+    batch_mask = torch.ones(4, trainer.agent.config.action_dim, dtype=torch.bool, device=trainer.device)
     logits = trainer.agent.action_net(batch_obs, batch_mask)
     with torch.no_grad():
         ref_logits = trainer.ref_policy_net(batch_obs, batch_mask)
