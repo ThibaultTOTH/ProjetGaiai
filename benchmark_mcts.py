@@ -41,7 +41,7 @@ import numpy as np
 import torch
 
 from config import get_training_preset, AppConfig
-from environment import make_gaia_env, NativeGaiaEnv
+from environment import make_gaia_env, NativeGaiaEnv, format_flat_action
 from models import DualGaiaAgent
 from mcts import MultiPlayerMCTS
 
@@ -187,13 +187,6 @@ def run_benchmark_game(
         round_num = getattr(env, "round", 1)
         pro_curr_vp = float(env.get_all_vps()[pro_seat]) if hasattr(env, "get_all_vps") else 0.0
 
-        # Real-time move heartbeat to stderr (doesn't interfere with redirected tables)
-        player_tag = f"PRO (P{curr_p + 1})" if is_pro else f"TRAIN (P{curr_p + 1})"
-        sys.stderr.write(
-            f"\r  ⚡ [Match #{game_idx:02d}] Coup {total_steps:03d} | R{round_num}/6 | {player_tag} | PRO VP: {pro_curr_vp:.0f} ... "
-        )
-        sys.stderr.flush()
-
         curr_obs = env._get_obs() if hasattr(env, "_get_obs") else None
 
         if is_pro:
@@ -218,12 +211,23 @@ def run_benchmark_game(
                 root_mask=curr_mask,
             )
 
+        action_name = format_flat_action(int(action))
+        player_tag = f"PRO (P{curr_p + 1})" if is_pro else f"TRAIN (P{curr_p + 1})"
+        sys.stderr.write(
+            f"\r  ⚡ [Match #{game_idx:02d}] Coup {total_steps:03d} | R{round_num}/6 | {player_tag} | {action_name[:32]:<32} | PRO: {pro_curr_vp:.0f} VP ... "
+        )
+        sys.stderr.flush()
+
         step_res = env.step(action)
         move_count += 1
 
         # Fallback if illegal step
         if hasattr(step_res, "info") and "error" in step_res.info:
             consecutive_errors += 1
+            sys.stderr.write(
+                f"\n  ⚠️ [Rejet moteur] {player_tag} action {action} ({action_name}) invalide: {step_res.info.get('error', '')}\n"
+            )
+            sys.stderr.flush()
             fallback_ok = False
             alt_actions = np.random.permutation(legal)
             for alt in alt_actions:
@@ -241,7 +245,7 @@ def run_benchmark_game(
             consecutive_errors = 0
 
     # Clear heartbeat line
-    sys.stderr.write("\r" + " " * 85 + "\r")
+    sys.stderr.write("\r" + " " * 95 + "\r")
     sys.stderr.flush()
 
     duration = time.time() - start_t
