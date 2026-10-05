@@ -126,17 +126,14 @@ def load_agent(checkpoint_path: str, cfg: AppConfig, device: torch.device) -> Du
 
     if os.path.exists(target_path):
         print(f"  📦 Loading checkpoint: {os.path.relpath(target_path, ROOT_DIR)}")
-        data = torch.load(target_path, map_location=device, weights_only=False)
-        state_dict = data.get("model_state", None) or data.get("action_net_state", None) or data
-        if isinstance(state_dict, dict) and "action_net_state" in state_dict:
-            state_dict = state_dict["action_net_state"]
-        
-        # Load backbone & heads safely
         try:
-            agent.load_state_dict(state_dict, strict=False)
-            print("  [✓] Weights loaded successfully.")
+            meta = agent.load_checkpoint(target_path, device=device)
+            agent = agent.to(device)
+            ep = meta.get("epoch", "?")
+            param_count = sum(p.numel() for p in agent.parameters() if p.requires_grad)
+            print(f"  [✓] Weights loaded successfully (Epoch: {ep} | Parameters: {param_count:,}).")
         except Exception as e:
-            print(f"  [!] Partial weight load notice: {e}")
+            print(f"  [!] Checkpoint load error: {e}")
     else:
         print(f"  ⚠️ Warning: No checkpoint found at {checkpoint_path}. Testing with random agent.")
 

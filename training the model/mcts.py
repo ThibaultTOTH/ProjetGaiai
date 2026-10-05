@@ -293,12 +293,13 @@ class MultiPlayerMCTS:
             else num_simulations
         )
 
-        # 2. Gumbel noise perturbation
-        u = np.random.uniform(1e-6, 1.0 - 1e-6, size=len(legal_indices))
-        gumbel_noise = -np.log(-np.log(u))
+        # 2. Gumbel noise perturbation (only during exploratory search / self-play)
         perturbed_logits = np.copy(raw_logits)
-        for i, a_idx in enumerate(legal_indices):
-            perturbed_logits[a_idx] += gumbel_noise[i]
+        if add_noise and len(legal_indices) > 1:
+            u = np.random.uniform(1e-6, 1.0 - 1e-6, size=len(legal_indices))
+            gumbel_noise = -np.log(-np.log(u))
+            for i, a_idx in enumerate(legal_indices):
+                perturbed_logits[a_idx] += gumbel_noise[i]
 
         # 3. Two-Stage: Top-k Candidates Selection
         k = min(getattr(self.config, "gumbel_candidates", 4), len(legal_indices))
