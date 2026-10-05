@@ -557,36 +557,28 @@ impl GaiaEnv {
             }
             GameCommand::ChargePower { charge_amount } => {
                 let actual_amount = if let Some(opp) = self.pending_leeches.first() {
-                    if opp.seat as usize == player {
-                        opp.power_value
-                    } else {
-                        charge_amount
-                    }
+                    opp.power_value
                 } else {
                     charge_amount
                 };
                 actions::execute_leech(&mut self.players[player], actual_amount)?;
-                if let Some(opp) = self.pending_leeches.first() {
-                    if opp.seat as usize == player {
-                        self.pending_leeches.remove(0);
-                        if let Some(next_opp) = self.pending_leeches.first() {
-                            self.current_player = next_opp.seat as usize;
-                        } else {
-                            self.current_player = self.active_player_before_leech;
-                        }
-                    }
+                if !self.pending_leeches.is_empty() {
+                    self.pending_leeches.remove(0);
+                }
+                if let Some(next_opp) = self.pending_leeches.first() {
+                    self.current_player = next_opp.seat as usize;
+                } else {
+                    self.current_player = self.active_player_before_leech;
                 }
             }
             GameCommand::DeclineLeech => {
-                if let Some(opp) = self.pending_leeches.first() {
-                    if opp.seat as usize == player {
-                        self.pending_leeches.remove(0);
-                        if let Some(next_opp) = self.pending_leeches.first() {
-                            self.current_player = next_opp.seat as usize;
-                        } else {
-                            self.current_player = self.active_player_before_leech;
-                        }
-                    }
+                if !self.pending_leeches.is_empty() {
+                    self.pending_leeches.remove(0);
+                }
+                if let Some(next_opp) = self.pending_leeches.first() {
+                    self.current_player = next_opp.seat as usize;
+                } else {
+                    self.current_player = self.active_player_before_leech;
                 }
             }
             GameCommand::BoardAction {
@@ -735,7 +727,7 @@ impl GaiaEnv {
         }
         if !self.pending_leeches.is_empty() {
             if let Some(opp) = self.pending_leeches.first() {
-                if opp.seat as usize == player {
+                if opp.seat as usize == player || player == self.current_player {
                     return vec![
                         GameCommand::DeclineLeech,
                         GameCommand::ChargePower { charge_amount: opp.power_value },

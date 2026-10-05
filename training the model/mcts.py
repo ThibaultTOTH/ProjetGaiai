@@ -276,6 +276,25 @@ class MultiPlayerMCTS:
                 priors = F.softmax(logits_tensor, dim=-1).squeeze(0).cpu().numpy()
                 raw_logits = logits_tensor.squeeze(0).cpu().numpy()
 
+        # Fast path for passive reactions (Leech 1422 / 1423)
+        # Prevents burning 128 full multi-step MCTS tree rollouts on 1-bit boolean reaction queries
+        if set(legal_indices).issubset({1422, 1423}):
+            round_num = getattr(env, "round", 1)
+            if 1423 in legal_indices and (round_num <= 3 or priors[1423] >= priors[1422]):
+                chosen_act = 1423
+            else:
+                chosen_act = 1422 if 1422 in legal_indices else int(legal_indices[0])
+
+            probs = np.zeros(action_dim, dtype=np.float32)
+            probs[chosen_act] = 1.0
+            return chosen_act, probs, {
+                "algorithm": "reaction_fast_path",
+                "root_visits": 1,
+                "selected_action": chosen_act,
+                "root_entropy": 0.0,
+                "entropy_gated": True,
+            }
+
         # Root exploration noise (Dirichlet) for training self-play
         if add_noise and len(legal_indices) > 1:
             dir_alpha = float(getattr(self.config, "dirichlet_alpha", 0.30))
@@ -642,6 +661,24 @@ class MultiPlayerMCTS:
                     priors = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
                 else:
                     priors = self.agent.predict_opponent_action(obs_tensor, mask_tensor).cpu().numpy()
+
+        # Fast path for passive reactions (Leech 1422 / 1423)
+        if set(legal_indices).issubset({1422, 1423}):
+            round_num = getattr(env, "round", 1)
+            if 1423 in legal_indices and (round_num <= 3 or priors[1423] >= priors[1422]):
+                chosen_act = 1423
+            else:
+                chosen_act = 1422 if 1422 in legal_indices else int(legal_indices[0])
+
+            probs = np.zeros(action_dim, dtype=np.float32)
+            probs[chosen_act] = 1.0
+            return chosen_act, probs, {
+                "algorithm": "reaction_fast_path",
+                "root_visits": 1,
+                "selected_action": chosen_act,
+                "root_entropy": 0.0,
+                "entropy_gated": True,
+            }
 
         p_legal = priors[legal_indices]
         p_norm = p_legal / (np.sum(p_legal) + 1e-12)

@@ -212,9 +212,11 @@ def run_benchmark_game(
             )
 
         action_name = format_flat_action(int(action))
+        is_reaction = int(action) in (1422, 1423)
+        act_display = f"⚡[REACT] {action_name}" if is_reaction else f"🎯 {action_name}"
         player_tag = f"PRO (P{curr_p + 1})" if is_pro else f"TRAIN (P{curr_p + 1})"
         sys.stderr.write(
-            f"\r  ⚡ [Match #{game_idx:02d}] Coup {total_steps:03d} | R{round_num}/6 | {player_tag} | {action_name[:32]:<32} | PRO: {pro_curr_vp:.0f} VP ... "
+            f"\r  ⚡ [Match #{game_idx:02d}] Coup {total_steps:03d} | R{round_num}/6 | {player_tag} | {act_display[:34]:<34} | PRO: {pro_curr_vp:.0f} VP ... "
         )
         sys.stderr.flush()
 
