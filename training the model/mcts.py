@@ -248,6 +248,7 @@ class MultiPlayerMCTS:
         add_noise: bool = False,
         root_obs: Optional[np.ndarray] = None,
         root_mask: Optional[np.ndarray] = None,
+        epoch: Optional[int] = None,
     ) -> Tuple[int, np.ndarray, Dict[str, Any]]:
         """Performs MCTS search using configured algorithm (Gumbel GAZ or PUCT)."""
         algo = getattr(self.config, "algorithm", "gumbel").lower()
@@ -255,8 +256,23 @@ class MultiPlayerMCTS:
         temp = temperature if temperature is not None else self.config.temperature
 
         if algo == "gumbel":
-            return self._search_gumbel(env, num_simulations=sims, temperature=temp, add_noise=add_noise, root_obs=root_obs, root_mask=root_mask)
-        return self._search_puct(env, num_simulations=sims, temperature=temp, add_noise=add_noise, root_obs=root_obs, root_mask=root_mask)
+            return self._search_gumbel(
+                env,
+                num_simulations=sims,
+                temperature=temp,
+                add_noise=add_noise,
+                root_obs=root_obs,
+                root_mask=root_mask,
+                epoch=epoch,
+            )
+        return self._search_puct(
+            env,
+            num_simulations=sims,
+            temperature=temp,
+            add_noise=add_noise,
+            root_obs=root_obs,
+            root_mask=root_mask,
+        )
 
     def _search_gumbel(
         self,
@@ -266,6 +282,7 @@ class MultiPlayerMCTS:
         add_noise: bool = False,
         root_obs: Optional[np.ndarray] = None,
         root_mask: Optional[np.ndarray] = None,
+        epoch: Optional[int] = None,
     ) -> Tuple[int, np.ndarray, Dict[str, Any]]:
         """Gumbel AlphaZero (Two-Stage Sequential Halving / TSS GAZ 2026).
 
@@ -377,11 +394,19 @@ class MultiPlayerMCTS:
         if is_entropy_gated:
             k = min(k, max(1, effective_sims))
         
+        # Annealing / Decay of shaping heuristics: linearly fades to 0 over 500 epochs
+        # Epoch 1: 100% heuristic guidance | Epoch 250: 50% | Epoch 500+: 0% (pure RL)
+        if epoch is not None:
+            shaping_scale = max(0.0, 1.0 - float(epoch) / 500.0)
+        else:
+            shaping_scale = 1.0
+
         # Apply tactical milestones and sharp premature-pass penalty to candidate scoring
         cand_scores = np.copy(perturbed_logits)
-        for a in legal_indices:
-            cand_scores[a] += compute_milestone_bonus(a)
-            cand_scores[a] -= compute_premature_pass_penalty(a, root_obs)
+        if shaping_scale > 0.0:
+            for a in legal_indices:
+                cand_scores[a] += shaping_scale * compute_milestone_bonus(a)
+                cand_scores[a] -= shaping_scale * compute_premature_pass_penalty(a, root_obs)
 
         sorted_legal = sorted(legal_indices, key=lambda a: cand_scores[a], reverse=True)
         candidates = list(sorted_legal[:k])
@@ -586,7 +611,11 @@ class MultiPlayerMCTS:
         q_scores = np.zeros(action_dim, dtype=np.float32)
         for a in legal_indices:
             child = root.children.get(a)
-            shaping_term = compute_milestone_bonus(a) - compute_premature_pass_penalty(a, root_obs)
+            if shaping_scale > 0.0:
+                shaping_term = shaping_scale * (compute_milestone_bonus(a) - compute_premature_pass_penalty(a, root_obs))
+            else:
+                shaping_term = 0.0
+
             if child is not None and child.visit_count > 0:
                 q_val = child.get_q(root_actor)
                 unc_val = (child.total_uncertainty / child.visit_count) if unc_scale > 0 else 0.0

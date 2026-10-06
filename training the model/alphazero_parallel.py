@@ -140,6 +140,7 @@ def alpha_zero_worker_process(
                 temp_low = msg.get("temp_low", app_cfg.alphazero.temperature_low)
                 temp_thresh = msg.get("temp_thresh", app_cfg.alphazero.temperature_threshold_move)
                 game_seed = msg.get("seed", base_seed + random.randint(1, 1000000))
+                current_epoch_num = msg.get("epoch", 1)
 
                 try:
                     # Reset environment
@@ -179,6 +180,7 @@ def alpha_zero_worker_process(
                             add_noise=True,
                             root_obs=curr_obs,
                             root_mask=curr_mask,
+                            epoch=current_epoch_num,
                         )
 
                         history.append((curr_player, curr_obs, curr_mask, probs))
@@ -350,6 +352,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
                         "temp_low": self.az_config.temperature_low,
                         "temp_thresh": self.az_config.temperature_threshold_move,
                         "seed": int(time.time() * 1000) % 1000000 + epoch * 100 + wid,
+                        "epoch": epoch,
                     })
                     games_dispatched += 1
 
@@ -412,6 +415,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
                                 "temp_low": self.az_config.temperature_low,
                                 "temp_thresh": self.az_config.temperature_threshold_move,
                                 "seed": int(time.time() * 1000) % 1000000 + epoch * 100 + games_dispatched,
+                                "epoch": epoch,
                             })
                             games_dispatched += 1
 

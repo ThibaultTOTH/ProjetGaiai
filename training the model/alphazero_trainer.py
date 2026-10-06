@@ -221,7 +221,8 @@ class AlphaZeroTrainer:
                     env, 
                     num_simulations=self.az_config.num_simulations, 
                     temperature=temp,
-                    add_noise=True
+                    add_noise=True,
+                    epoch=self.current_epoch,
                 )
                 
                 history.append((current_player, obs, mask, probs))
