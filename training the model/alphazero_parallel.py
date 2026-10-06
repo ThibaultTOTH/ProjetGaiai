@@ -153,7 +153,7 @@ def alpha_zero_worker_process(
                     history = []
                     move_count = 0
                     total_game_steps = 0
-                    MAX_STEPS = 1200
+                    MAX_STEPS = 3000
 
                     while not env.terminated and total_game_steps < MAX_STEPS:
                         if stop_event.is_set():

@@ -22,28 +22,71 @@ from models import DualGaiaAgent
 def compute_milestone_bonus(action: int) -> float:
     """Calculates tactical milestone bonus for productive strategic actions in Gaia Project."""
     if 0 <= action < 200:         # BuildMine
-        return 0.3
+        return 0.5
     elif 400 <= action < 600:       # UpgradeTradingStation
-        return 0.4
+        return 0.8
     elif 600 <= action < 800:     # UpgradeResearchLab
-        return 0.5
+        return 1.0
     elif 800 <= action < 1000:    # UpgradePlanetaryInstitute
-        return 0.6
+        return 1.5
     elif 1000 <= action < 1200:   # UpgradeAcademy
-        return 0.6
+        return 1.5
     elif 1400 <= action < 1406:   # FormFederation
-        return 1.2
+        return 2.5
     elif 1406 <= action < 1412:   # AdvanceResearch
-        return 0.5
+        return 1.0
     elif 1444 <= action < 1498:   # ClaimTechTile
-        return 0.4
+        return 0.8
     elif 1498 <= action < 2308:   # ClaimAdvTechTile
-        return 0.7
+        return 1.5
     elif 2308 <= action < 3108:   # ExploreSpaceship
-        return 0.5
+        return 0.8
     elif 200 <= action < 400:     # StartGaiaProject
-        return 0.3
+        return 0.6
     return 0.0
+
+
+def compute_premature_pass_penalty(action: int, obs: Optional[np.ndarray]) -> float:
+    """Heavily penalizes passing when player sits on actionable stockpiles of resources.
+
+    If player has:
+    - >= 5 credits (base_idx + 3)
+    - >= 3 ore (base_idx + 4)
+    - >= 3 knowledge (base_idx + 5)
+    - >= 4 spendable power in bowl 3 (base_idx + 12)
+    passing is catastrophic and cuts engine building short.
+    """
+    # Pass action space is 1412..1421 (pass + booster selection)
+    if not (1412 <= action < 1422):
+        return 0.0
+    if obs is None or len(obs) < 475:
+        return 0.0
+
+    # Ego-centric player slice starts at offset 88
+    base_idx = 88
+    credits_val = float(obs[base_idx + 3]) * 30.0
+    ore_val = float(obs[base_idx + 4]) * 15.0
+    k_val = float(obs[base_idx + 5]) * 15.0
+    qic_val = float(obs[base_idx + 6]) * 15.0
+    p3_val = float(obs[base_idx + 12]) * 15.0
+
+    penalty = 0.0
+    # Can build or upgrade (ore + credits)
+    if ore_val >= 2.0 and credits_val >= 3.0:
+        penalty += 1.5
+    if ore_val >= 4.0:
+        penalty += 1.0
+    # Can research (knowledge >= 4)
+    if k_val >= 4.0:
+        penalty += 2.0
+    # Can spend power actions (power in bowl 3 >= 3)
+    if p3_val >= 4.0:
+        penalty += 1.5
+    # Has QIC to explore or tech up
+    if qic_val >= 2.0:
+        penalty += 1.0
+
+    return penalty
 
 
 class MCTSNode:
@@ -329,11 +372,18 @@ class MultiPlayerMCTS:
             for i, a_idx in enumerate(legal_indices):
                 perturbed_logits[a_idx] += gumbel_noise[i]
 
-        # 3. Two-Stage: Top-k Candidates Selection
+        # 3. Two-Stage: Top-k Candidates Selection with Strategic Prior Shaping
         k = min(getattr(self.config, "gumbel_candidates", 4), len(legal_indices))
         if is_entropy_gated:
             k = min(k, max(1, effective_sims))
-        sorted_legal = sorted(legal_indices, key=lambda a: perturbed_logits[a], reverse=True)
+        
+        # Apply tactical milestones and sharp premature-pass penalty to candidate scoring
+        cand_scores = np.copy(perturbed_logits)
+        for a in legal_indices:
+            cand_scores[a] += compute_milestone_bonus(a)
+            cand_scores[a] -= compute_premature_pass_penalty(a, root_obs)
+
+        sorted_legal = sorted(legal_indices, key=lambda a: cand_scores[a], reverse=True)
         candidates = list(sorted_legal[:k])
 
         # Initialize root node with children
@@ -536,12 +586,13 @@ class MultiPlayerMCTS:
         q_scores = np.zeros(action_dim, dtype=np.float32)
         for a in legal_indices:
             child = root.children.get(a)
+            shaping_term = compute_milestone_bonus(a) - compute_premature_pass_penalty(a, root_obs)
             if child is not None and child.visit_count > 0:
                 q_val = child.get_q(root_actor)
                 unc_val = (child.total_uncertainty / child.visit_count) if unc_scale > 0 else 0.0
-                q_scores[a] = raw_logits[a] + 2.0 * q_val + unc_scale * unc_val
+                q_scores[a] = raw_logits[a] + 2.0 * q_val + unc_scale * unc_val + shaping_term
             else:
-                q_scores[a] = raw_logits[a]
+                q_scores[a] = raw_logits[a] + shaping_term
 
         exp_s = np.exp(q_scores[legal_indices] - np.max(q_scores[legal_indices]))
         probs = np.zeros(action_dim, dtype=np.float32)
