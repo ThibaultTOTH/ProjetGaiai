@@ -230,11 +230,13 @@ def train_supervised(
 
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
-                logits = agent.action_net(batch_obs, batch_mask)
+                # In supervised BC, compute policy loss on unmasked logits to prevent log(0) / inf
+                # if the expert action falls outside a noisy simulated mask
+                logits_unmasked = agent.action_net(batch_obs, action_mask=None)
                 pred_val = agent.score_net(batch_obs).view(-1)
                 target_val = torch.tanh(batch_val.view(-1))
 
-                loss_p = criterion_policy(logits, batch_act)
+                loss_p = criterion_policy(logits_unmasked, batch_act)
                 loss_v = criterion_value(pred_val, target_val)
                 loss = loss_p + 0.5 * loss_v
 
@@ -250,9 +252,9 @@ def train_supervised(
 
             # Top-1 & Top-5 accuracy
             with torch.no_grad():
-                top1 = logits.argmax(dim=-1)
+                top1 = logits_unmasked.argmax(dim=-1)
                 correct_top1 += (top1 == batch_act).sum().item()
-                _, top5 = logits.topk(5, dim=-1)
+                _, top5 = logits_unmasked.topk(5, dim=-1)
                 correct_top5 += (top5 == batch_act.unsqueeze(-1)).any(dim=-1).sum().item()
 
         scheduler.step()
@@ -273,7 +275,7 @@ def train_supervised(
                 B = batch_act.size(0)
 
                 with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
-                    logits = agent.action_net(batch_obs, batch_mask)
+                    logits = agent.action_net(batch_obs, action_mask=None)
                 top1 = logits.argmax(dim=-1)
                 val_correct_top1 += (top1 == batch_act).sum().item()
                 _, top5 = logits.topk(5, dim=-1)
