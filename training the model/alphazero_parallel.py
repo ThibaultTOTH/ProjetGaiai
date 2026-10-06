@@ -364,17 +364,15 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
                 # Collect batched evaluation requests from workers
                 eval_requests = []
                 try:
-                    first_req = self.req_queue.get(timeout=0.005)
+                    first_req = self.req_queue.get(timeout=0.002)
                     eval_requests.append(first_req)
-                    # Micro-coalescing window (up to 0.6ms) to group multi-worker leaves into one GPU forward pass
-                    deadline = time.perf_counter() + 0.0006
-                    max_batch_requests = min(64, max(4, self.num_workers * 2))
-                    while len(eval_requests) < max_batch_requests and time.perf_counter() < deadline:
+                    # Non-blocking burst drain of all waiting worker requests
+                    max_batch_requests = min(128, max(8, self.num_workers * 4))
+                    while len(eval_requests) < max_batch_requests:
                         try:
-                            req = self.req_queue.get_nowait()
-                            eval_requests.append(req)
+                            eval_requests.append(self.req_queue.get_nowait())
                         except Exception:
-                            time.sleep(0.00005)
+                            break
                 except Exception:
                     continue
 
