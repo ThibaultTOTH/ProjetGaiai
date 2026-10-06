@@ -32,7 +32,7 @@ from alphazero_trainer import AlphaZeroTrainer, AlphaZeroReplayBuffer, EpochMetr
 
 class MCTSRemoteAgentProxy:
     """Lightweight client proxy running inside CPU worker processes.
-    
+
     Instead of loading heavy PyTorch weights in every worker process,
     this proxy routes root and leaf evaluation queries through an IPC pipe
     to the central GPU Batch Server, which evaluates them in large batched FP16 passes.
@@ -229,7 +229,7 @@ def alpha_zero_worker_process(
 
 class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
     """High-Throughput Parallel Batched AlphaZero Trainer.
-    
+
     Spawns multiple CPU worker processes playing games simultaneously,
     coalescing leaf neural network evaluations into large batched forward passes
     on the dedicated GPU (e.g. RTX 5070 with AMP FP16).
@@ -242,7 +242,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
         num_workers: Optional[int] = None,
     ):
         super().__init__(config, agent)
-        
+
         # Determine optimal worker count
         cpu_count = os.cpu_count() or 4
         if num_workers is not None:
@@ -364,7 +364,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
                 # Collect batched evaluation requests from workers
                 eval_requests = []
                 try:
-                    first_req = self.req_queue.get(timeout=0.002)
+                    first_req = self.req_queue.get(timeout=0.05)
                     eval_requests.append(first_req)
                     # Non-blocking burst drain of all waiting worker requests
                     max_batch_requests = min(128, max(8, self.num_workers * 4))
@@ -519,7 +519,14 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
             total_entropy = 0.0
             total_pred_score = 0.0
 
-            steps = self.az_config.training_steps_per_epoch if len(self.replay_buffer) >= 16 else 0
+            # Démarre l'entraînement uniquement quand le buffer est bien rempli (Warmup)
+            if len(self.replay_buffer) >= 10000:
+                # Ratio de rejeu ciblé (ex: 4 = chaque transition est vue ~4 fois)
+                replay_ratio = 4.0
+                # epoch_moves contient le nombre de coups générés à cette époque
+                steps = max(1, int((epoch_moves * replay_ratio) / self.az_config.batch_size))
+            else:
+                steps = 0
             for _ in range(steps):
                 if self._stop_event.is_set():
                     break

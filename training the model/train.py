@@ -130,6 +130,12 @@ def parse_args():
         default=None,
         help="Path to custom JSON file with hyperparameters to apply",
     )
+    parser.add_argument(
+        "--rgsc-epoch",
+        type=int,
+        default=500,
+        help="Époque d'activation de RGSC Go-Exploit",
+    )
     return parser.parse_args()
 
 
@@ -417,7 +423,8 @@ def main():
             except Exception as e:
                 print(f"  [!] Report generation notice: {e}")
         print("=" * 78)
-
+    cfg.training.rgsc_start_epoch = args.rgsc_epoch
+    # Assure-toi que rgsc_enabled reste True pour que le buffer soit bien alloué au démarrage
 
 if __name__ == "__main__":
     main()

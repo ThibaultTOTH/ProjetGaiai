@@ -144,9 +144,13 @@ class AlphaZeroTrainer:
         self._is_running = False
 
     def self_play_game(self, env: Any) -> Tuple[List[Tuple[np.ndarray, np.ndarray, np.ndarray, float]], float, bool, int]:
+        rgsc_active = (
+            getattr(self.config.training, "rgsc_enabled", True)
+            and self.current_epoch >= getattr(self.config.training, "rgsc_start_epoch", 500)
+        )
         # 1. Reset or Jump into a Mid-Game Crisis Puzzle (RGSC / Jeu sur problème)
         if (
-            getattr(self.config.training, "rgsc_enabled", True)
+            rgsc_active
             and self.state_buffer is not None
             and len(self.state_buffer) > 0
             and np.random.rand() < getattr(self.config.training, "rgsc_reset_prob", 0.30)
@@ -208,7 +212,7 @@ class AlphaZeroTrainer:
                 
                 # Clone state for regret tracking if in round >= 2
                 need_rgsc_clone = (
-                    getattr(self.config.training, "rgsc_enabled", True)
+                    rgsc_active
                     and self.state_buffer is not None
                     and getattr(env, "round", 1) >= 2
                 )
