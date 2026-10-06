@@ -262,18 +262,35 @@ def parse_move_actions(move_str: str) -> List[int]:
 
 
 class GaiaExpertDataset(Dataset):
-    """PyTorch Dataset holding parsed expert human game trajectories."""
+    """PyTorch Dataset holding parsed expert human game trajectories with full observation tensors."""
 
     def __init__(self, pt_file: Path):
-        self.data = torch.load(pt_file, weights_only=True)
+        self.data = torch.load(pt_file, weights_only=False)
         self.actions = self.data["actions"]
         self.values = self.data["values"]
         self.factions = self.data["factions"]
+        self.has_obs = "observations" in self.data
+        if self.has_obs:
+            self.observations = self.data["observations"]
+            self.action_masks = self.data["action_masks"]
+        else:
+            logger.warning(
+                "Dataset has no observation tensors. Regenerate with the Rust "
+                "simulator to enable supervised training."
+            )
 
     def __len__(self) -> int:
         return len(self.actions)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int):
+        if self.has_obs:
+            return (
+                self.observations[idx],
+                self.action_masks[idx],
+                self.actions[idx],
+                self.values[idx],
+                self.factions[idx],
+            )
         return self.actions[idx], self.values[idx], self.factions[idx]
 
 
@@ -282,17 +299,41 @@ def build_expert_dataset(
     out_dir: Path = DATASET_DIR,
     min_winning_score: int = 140,
 ) -> Path:
-    """Parses all valid scraped games and builds a compact dataset file."""
+    """Parses all valid scraped games and builds a compact dataset file.
+
+    IMPORTANT: Replays each game through the Rust simulator to capture
+    observation tensors at every step. Without obs tensors, the neural
+    network has no input for training.
+    """
+    import sys
+    training_dir = Path(__file__).resolve().parent.parent / "training the model"
+    if str(training_dir) not in sys.path:
+        sys.path.insert(0, str(training_dir))
+
+    from environment import NativeGaiaEnv, compute_competitive_value
+
     out_dir.mkdir(parents=True, exist_ok=True)
     game_files = list(raw_dir.glob("*.json"))
     logger.info(f"Processing {len(game_files)} game files from {raw_dir}...")
 
+    all_obs = []
+    all_action_masks = []
     all_actions = []
     all_values = []
     all_factions = []
 
     parsed_games = 0
     skipped_games = 0
+    replay_failures = 0
+
+    # Check if simulator is available for replay-based obs extraction
+    has_simulator = NativeGaiaEnv.is_available()
+    if not has_simulator:
+        logger.warning(
+            "Rust simulator NOT available. Falling back to action-only dataset "
+            "(no observation tensors — supervised training will NOT work until "
+            "the simulator is compiled)."
+        )
 
     for gf in game_files:
         try:
@@ -306,42 +347,113 @@ def build_expert_dataset(
         players = game.get("players", [])
         scores_by_faction = {}
         for p in players:
-            f = p.get("faction")
-            if f:
-                scores_by_faction[f] = p.get("score", 0)
+            faction_name = p.get("faction")
+            if faction_name:
+                scores_by_faction[faction_name] = p.get("score", 0)
 
         max_score = max(scores_by_faction.values()) if scores_by_faction else 0
         if max_score < min_winning_score:
             skipped_games += 1
             continue
 
+        # Parse all moves into action indices first
         moves = game.get("data", {}).get("moveHistory", [])
+        game_actions = []  # list of (faction_name, action_index)
         for m in moves:
             parts = m.split()
             if not parts:
                 continue
-
             actor_str = parts[0].lower()
-            faction_id = FACTION_TO_ID.get(actor_str)
-            if faction_id is None:
+            if actor_str not in FACTION_TO_ID:
                 continue
-
             action_indices = parse_move_actions(m)
             for action_idx in action_indices:
-                final_score = scores_by_faction.get(actor_str, 100)
-                # Normalize VP to roughly [-1, 1] range: (score - 100) / 50
-                norm_value = (float(final_score) - 100.0) / 50.0
+                game_actions.append((actor_str, action_idx))
 
+        if not game_actions:
+            skipped_games += 1
+            continue
+
+        # Compute competitive value targets for each player
+        num_players = len(scores_by_faction)
+        faction_names = list(scores_by_faction.keys())
+        raw_vps = [float(scores_by_faction[fn]) for fn in faction_names]
+
+        # If simulator is available, replay the game to get observations
+        if has_simulator:
+            try:
+                env = NativeGaiaEnv(
+                    players=min(4, max(2, num_players)),
+                    seed=hash(gf.name) % 1000000,
+                    egocentric=True,
+                )
+                obs, mask = env.reset()
+
+                # Map factions to seats
+                faction_to_seat = {}
+                for seat_idx, fn in enumerate(faction_names[:env.num_players]):
+                    faction_id = FACTION_TO_ID.get(fn, seat_idx)
+                    env.set_player_faction(seat_idx, faction_id)
+                    faction_to_seat[fn] = seat_idx
+                obs = env._get_obs()
+
+                for actor_faction, action_idx in game_actions:
+                    if env.terminated:
+                        break
+
+                    seat = faction_to_seat.get(actor_faction, 0)
+                    faction_id = FACTION_TO_ID.get(actor_faction, 0)
+
+                    # Capture observation and mask BEFORE the action
+                    current_obs = env._get_obs().copy()
+                    current_mask = env.get_action_mask().copy()
+
+                    # Compute competitive value for this player
+                    value = compute_competitive_value(raw_vps, seat)
+
+                    all_obs.append(current_obs)
+                    all_action_masks.append(current_mask)
+                    all_actions.append(action_idx)
+                    all_values.append(value)
+                    all_factions.append(faction_id)
+
+                    # Execute action in simulator
+                    step_res = env.step(action_idx)
+
+                del env  # Free native memory
+
+            except Exception as e:
+                replay_failures += 1
+                if replay_failures <= 5:
+                    logger.warning(f"Replay failed for {gf.name}: {e}")
+                # Fallback: store without obs (action-only)
+                for actor_faction, action_idx in game_actions:
+                    faction_id = FACTION_TO_ID.get(actor_faction, 0)
+                    seat = faction_names.index(actor_faction) if actor_faction in faction_names else 0
+                    value = compute_competitive_value(raw_vps, seat)
+                    all_actions.append(action_idx)
+                    all_values.append(value)
+                    all_factions.append(faction_id)
+        else:
+            # No simulator: store action-only data with competitive values
+            for actor_faction, action_idx in game_actions:
+                faction_id = FACTION_TO_ID.get(actor_faction, 0)
+                seat = faction_names.index(actor_faction) if actor_faction in faction_names else 0
+                value = compute_competitive_value(raw_vps, seat)
                 all_actions.append(action_idx)
-                all_values.append(norm_value)
+                all_values.append(value)
                 all_factions.append(faction_id)
 
         parsed_games += 1
 
     logger.info(
-        f"Parsed {parsed_games} games ({skipped_games} skipped). "
+        f"Parsed {parsed_games} games ({skipped_games} skipped, {replay_failures} replay failures). "
         f"Total expert moves extracted: {len(all_actions):,}"
     )
+    if all_obs:
+        logger.info(f"Observation tensors captured: {len(all_obs):,} (obs_dim={all_obs[0].shape[0]})")
+    else:
+        logger.warning("NO observation tensors captured. Compile the Rust engine to enable full dataset generation.")
 
     dataset_dict = {
         "actions": torch.tensor(all_actions, dtype=torch.long),
@@ -350,6 +462,11 @@ def build_expert_dataset(
         "num_games": parsed_games,
         "num_samples": len(all_actions),
     }
+
+    # Add observation tensors and masks if captured via simulator replay
+    if all_obs:
+        dataset_dict["observations"] = torch.from_numpy(np.stack(all_obs))
+        dataset_dict["action_masks"] = torch.from_numpy(np.stack(all_action_masks).astype(np.bool_))
 
     out_file = out_dir / "gaia_expert_dataset.pt"
     torch.save(dataset_dict, out_file)

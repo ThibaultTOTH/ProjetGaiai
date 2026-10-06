@@ -65,7 +65,7 @@ def train_supervised(
         raise FileNotFoundError(f"Dataset not found at {dataset_path}. Run convert_to_dataset first.")
 
     logger.info(f"Loading dataset from {dataset_path}...")
-    raw = torch.load(dataset_path, weights_only=True)
+    raw = torch.load(dataset_path, weights_only=False)
     actions = raw["actions"]
     values = raw["values"]
     factions = raw["factions"]
@@ -86,7 +86,11 @@ def train_supervised(
     action_dim = 3130
 
     if observations is not None:
-        dataset = TensorDataset(observations, actions, values, factions)
+        action_masks = raw.get("action_masks", None)
+        if action_masks is not None:
+            dataset = TensorDataset(observations, action_masks, actions, values, factions)
+        else:
+            dataset = TensorDataset(observations, actions, values, factions)
     else:
         dataset = TensorDataset(actions, values, factions)
         
@@ -180,15 +184,18 @@ def train_supervised(
             for i in range(18)
         ]).to(device)
 
-    def _build_batch_obs(batch):
-        if len(batch) == 4:
-            # We have true observations (obs, act, val, fac)
-            b_obs = batch[0].to(device).float()
-            return b_obs
+    def _build_batch(batch):
+        """Unpacks batch into (obs, mask_or_None, act, val, fac) regardless of dataset format."""
+        if len(batch) == 5:
+            # (obs, action_mask, act, val, fac) - full dataset with simulator replay
+            return batch[0].to(device).float(), batch[1].to(device).bool(), batch[2], batch[3], batch[4]
+        elif len(batch) == 4:
+            # (obs, act, val, fac) - obs without masks
+            return batch[0].to(device).float(), None, batch[1], batch[2], batch[3]
         else:
-            # Vectorized O(1) template lookup by faction index
+            # (act, val, fac) - action-only, use faction templates
             b_fac = batch[2].to(device).clamp(0, 17)
-            return template_tensor[b_fac]
+            return template_tensor[b_fac], None, batch[0], batch[1], batch[2]
 
     # Joint optimizer with cosine annealing and L2 weight decay regularization
     optimizer = torch.optim.AdamW(agent.parameters(), lr=lr, weight_decay=weight_decay)
@@ -216,22 +223,14 @@ def train_supervised(
 
         t0 = time.time()
         for batch in train_loader:
-            if len(batch) == 4:
-                batch_obs, batch_act, batch_val, batch_fac = batch
-            else:
-                batch_act, batch_val, batch_fac = batch
-                
+            batch_obs, batch_mask, batch_act, batch_val, batch_fac = _build_batch(batch)
             batch_act = batch_act.to(device)
             batch_val = batch_val.to(device).unsqueeze(-1)
-            batch_fac = batch_fac.to(device)
             B = batch_act.size(0)
-
-            # Construct grounded observation vector from authentic templates
-            batch_obs = _build_batch_obs(batch)
 
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
-                logits = agent.action_net(batch_obs)
+                logits = agent.action_net(batch_obs, batch_mask)
                 pred_val = agent.score_net(batch_obs).view(-1)
                 target_val = torch.tanh(batch_val.view(-1))
 
@@ -269,20 +268,12 @@ def train_supervised(
         val_samples = 0
         with torch.no_grad():
             for batch in val_loader:
-                if len(batch) == 4:
-                    batch_obs, batch_act, batch_val, batch_fac = batch
-                else:
-                    batch_act, batch_val, batch_fac = batch
-                    
+                batch_obs, batch_mask, batch_act, batch_val, batch_fac = _build_batch(batch)
                 batch_act = batch_act.to(device)
-                batch_val = batch_val.to(device).unsqueeze(-1)
-                batch_fac = batch_fac.to(device)
                 B = batch_act.size(0)
 
-                batch_obs = _build_batch_obs(batch)
-
                 with torch.amp.autocast(device_type="cuda" if use_cuda else "cpu", enabled=use_cuda):
-                    logits = agent.action_net(batch_obs)
+                    logits = agent.action_net(batch_obs, batch_mask)
                 top1 = logits.argmax(dim=-1)
                 val_correct_top1 += (top1 == batch_act).sum().item()
                 _, top5 = logits.topk(5, dim=-1)

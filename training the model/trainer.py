@@ -531,12 +531,16 @@ class RLTrainer:
         self.agent.train()
 
         # 1. Dynamically update learning rates for this epoch
+        # NOTE: self.optimizer has 3 param groups:
+        #   [0] shared_backbone → policy_lr
+        #   [1] policy_head → policy_lr
+        #   [2] value_head → score_lr
         curr_policy_lr = self.compute_scheduled_lr(self.config.model.policy_lr)
         curr_score_lr = self.compute_scheduled_lr(self.config.model.score_lr)
-        for g in self.policy_optimizer.param_groups:
-            g["lr"] = curr_policy_lr
-        for g in self.value_optimizer.param_groups:
-            g["lr"] = curr_score_lr
+        self.optimizer.param_groups[0]["lr"] = curr_policy_lr  # backbone
+        self.optimizer.param_groups[1]["lr"] = curr_policy_lr  # policy head
+        if len(self.optimizer.param_groups) > 2:
+            self.optimizer.param_groups[2]["lr"] = curr_score_lr  # value head
 
         # 2. Dynamically update entropy coefficient
         entropy_coef = self.compute_scheduled_entropy()

@@ -530,8 +530,9 @@ class ActionOptimizerNet(nn.Module):
         if action_mask is not None:
             if action_mask.dim() == 1 and logits.dim() == 2:
                 action_mask = action_mask.unsqueeze(0)
-            neg_val = torch.tensor(-1e4, dtype=logits.dtype, device=logits.device)
-            logits = torch.where(action_mask, logits, neg_val)
+            # Use dtype-adaptive masking value: -1e9 for FP32/BF16, -6e4 for FP16 (safe under 65504 limit)
+            neg_val = -6e4 if logits.dtype == torch.float16 else -1e9
+            logits = torch.where(action_mask, logits, torch.tensor(neg_val, dtype=logits.dtype, device=logits.device))
 
         if return_opponent:
             opp_logits = self.opponent_head(feat)
@@ -914,7 +915,8 @@ class DualGaiaAgent(nn.Module):
             if getattr(self.config, "use_opponent_modeling", False) and actor != 0:
                 logits = self.action_net.opponent_head(feat)
             if action_mask is not None:
-                logits = torch.where(action_mask, logits, -1e4)
+                neg_val = -6e4 if logits.dtype == torch.float16 else -1e9
+                logits = torch.where(action_mask, logits, neg_val)
             priors = F.softmax(logits, dim=-1)
 
         return priors.squeeze(0).float().cpu().numpy(), logits.squeeze(0).float().cpu().numpy()
@@ -976,7 +978,8 @@ class DualGaiaAgent(nn.Module):
                     logits = torch.where(opp_mask, opp_logits, logits)
 
             if action_masks is not None:
-                logits = torch.where(action_masks, logits, -1e4)
+                neg_val = -6e4 if logits.dtype == torch.float16 else -1e9
+                logits = torch.where(action_masks, logits, neg_val)
 
             priors = F.softmax(logits, dim=-1)
 
