@@ -18,14 +18,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+SCRAPER_DIR = str(Path(__file__).resolve().parent)
+while sys.path and sys.path[0] == SCRAPER_DIR:
+    sys.path.pop(0)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TRAINING_DIR = PROJECT_ROOT / "training the model"
 CHECKPOINTS_DIR = PROJECT_ROOT / "checkpoints"
 
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 if str(TRAINING_DIR) not in sys.path:
-    sys.path.insert(1, str(TRAINING_DIR))
+    sys.path.insert(0, str(TRAINING_DIR))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from environment import NativeGaiaEnv
 from models import DualGaiaAgent
