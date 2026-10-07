@@ -149,11 +149,11 @@ class AdvancedNASOptimizer:
             "az_policy_lr": float(getattr(cfg.model, "policy_lr", 2.5e-4)),
             "az_value_loss_coef": float(getattr(cfg.alphazero, "value_loss_coef", 1.0)),
             "az_batch_size": int(getattr(cfg.alphazero, "batch_size", 256)),
-            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 64)),
-            "az_gumbel_candidates": int(getattr(cfg.alphazero, "gumbel_candidates", 10)),
+            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 32)),
+            "az_gumbel_candidates": int(getattr(cfg.alphazero, "gumbel_candidates", 8)),
             "az_c_puct": float(getattr(cfg.mcts, "c_puct", 1.414)),
             "az_optimism_power": float(getattr(cfg.alphazero, "optimism_power", 1.0)),
-            "az_temp_threshold": int(getattr(cfg.alphazero, "temperature_threshold_move", 30)),
+            "az_temp_threshold": int(getattr(cfg.alphazero, "temperature_threshold_move", 4)),
             "az_milestone_weight": float(getattr(cfg.mcts, "milestone_shaping_weight", 0.25)),
             "az_optimism_weight": float(getattr(cfg.mcts, "optimism_weight", 0.15)),
             # Pretraining Parameters
@@ -235,11 +235,11 @@ class AdvancedNASOptimizer:
             "az_policy_lr": float(random.choice([1.5e-4, 2.5e-4, 3.5e-4])),
             "az_value_loss_coef": float(random.choice([0.50, 1.0, 1.5])),
             "az_batch_size": int(random.choice([256, 512])),
-            "az_num_simulations": int(random.choice([48, 64, 96, 128])),
-            "az_gumbel_candidates": int(random.choice([8, 10, 12, 16])),
+            "az_num_simulations": int(random.choice([16, 24, 32])),
+            "az_gumbel_candidates": int(random.choice([4, 8, 12])),
             "az_c_puct": float(random.choice([1.2, 1.414, 1.8])),
             "az_optimism_power": float(random.choice([0.5, 1.0])),
-            "az_temp_threshold": int(random.choice([20, 30, 40])),
+            "az_temp_threshold": int(random.choice([2, 4, 6])),
             "az_milestone_weight": float(random.choice([0.15, 0.25, 0.35])),
             "az_optimism_weight": float(random.choice([0.10, 0.15, 0.20])),
             # Pretraining Parameters
@@ -367,7 +367,7 @@ class AdvancedNASOptimizer:
         cfg.alphazero.num_simulations = int(p.get("az_num_simulations", 16))
         cfg.alphazero.gumbel_candidates = int(p.get("az_gumbel_candidates", 8))
         cfg.alphazero.optimism_power = float(p.get("az_optimism_power", 1.0))
-        cfg.alphazero.temperature_threshold_move = int(p.get("az_temp_threshold", 30))
+        cfg.alphazero.temperature_threshold_move = int(p.get("az_temp_threshold", 4))
         cfg.alphazero.games_per_epoch = 1
         cfg.alphazero.training_steps_per_epoch = 15
 
@@ -488,18 +488,19 @@ class AdvancedNASOptimizer:
         from torch.utils.data import DataLoader, TensorDataset
         if ds_path.exists():
             try:
-                raw = torch.load(ds_path, weights_only=True)
-                actions = raw["actions"][:10000]
-                values = raw["values"][:10000]
-                factions = raw["factions"][:10000]
+                raw = torch.load(ds_path, weights_only=False)
+                n_samples = min(25000, len(raw["actions"]))
+                actions = raw["actions"][:n_samples]
+                values = raw["values"][:n_samples]
+                factions = raw["factions"][:n_samples]
                 observations = raw.get("observations", None)
                 if observations is not None:
-                    observations = observations[:10000]
-                if observations is not None:
+                    observations = observations[:n_samples]
                     dataset = TensorDataset(observations, actions, values, factions)
                 else:
                     dataset = TensorDataset(actions, values, factions)
-            except Exception:
+            except Exception as e:
+                print(f"[Hyperopt Pretrain] Error loading {ds_path}: {e}")
                 dataset = None
         else:
             dataset = None
