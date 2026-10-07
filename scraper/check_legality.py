@@ -3,14 +3,19 @@ import re
 import sys
 from pathlib import Path
 
+import numpy as np
+
+SCRAPER_DIR = str(Path(__file__).resolve().parent)
+while sys.path and sys.path[0] == SCRAPER_DIR:
+    sys.path.pop(0)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TRAINING_DIR = PROJECT_ROOT / "training the model"
-SCRAPER_DIR = PROJECT_ROOT / "scraper"
 
-if str(TRAINING_DIR) not in sys.path:
-    sys.path.insert(0, str(TRAINING_DIR))
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(1, str(PROJECT_ROOT))
+    sys.path.insert(0, str(PROJECT_ROOT))
+if str(TRAINING_DIR) not in sys.path:
+    sys.path.insert(1, str(TRAINING_DIR))
 
 from environment import NativeGaiaEnv
 from scraper.rebuild_expert_dataset import (
