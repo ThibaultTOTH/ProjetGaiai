@@ -489,7 +489,7 @@ class AdvancedNASOptimizer:
         if ds_path.exists():
             try:
                 raw = torch.load(ds_path, weights_only=False)
-                n_samples = min(25000, len(raw["actions"]))
+                n_samples = min(50000, len(raw["actions"]))
                 actions = raw["actions"][:n_samples]
                 values = raw["values"][:n_samples]
                 factions = raw["factions"][:n_samples]
@@ -500,19 +500,15 @@ class AdvancedNASOptimizer:
                 else:
                     dataset = TensorDataset(actions, values, factions)
             except Exception as e:
-                print(f"[Hyperopt Pretrain] Error loading {ds_path}: {e}")
+                logger.error(f"[Hyperopt Pretrain] Error loading {ds_path}: {e}")
                 dataset = None
         else:
             dataset = None
 
         if dataset is None:
-            # Fallback synthetic slice for fast automated test environments
-            n_mock = 200
-            dataset = TensorDataset(
-                torch.randn(n_mock, cfg.model.obs_dim),
-                torch.randint(0, cfg.model.action_dim, (n_mock,)),
-                torch.randn(n_mock) * 20.0 + 120.0,
-                torch.randint(0, 18, (n_mock,)),
+            raise FileNotFoundError(
+                f"Authentic expert dataset not found or unreadable at {ds_path}. "
+                f"Run 'python scraper/rebuild_expert_dataset.py' to generate it."
             )
 
         train_len = int(len(dataset) * 0.8)
