@@ -1,4 +1,4 @@
-﻿//! Sector definitions and layout geometry for Gaia Project.
+//! Sector definitions and layout geometry for Gaia Project.
 //!
 //! Mirrors `sector.ts` and the sector definitions from `map.ts` in the reference engine.
 
@@ -11,18 +11,31 @@ use crate::rules::Planet;
 /// Available sector tiles in the base game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SectorId {
+    #[serde(rename = "1", alias = "S1", alias = "s1")]
     S1,
+    #[serde(rename = "2", alias = "S2", alias = "s2")]
     S2,
+    #[serde(rename = "3", alias = "S3", alias = "s3")]
     S3,
+    #[serde(rename = "4", alias = "S4", alias = "s4")]
     S4,
+    #[serde(rename = "5A", alias = "5a", alias = "S5A", alias = "s5a")]
     S5A,
+    #[serde(rename = "5B", alias = "5b", alias = "S5B", alias = "s5b")]
     S5B,
+    #[serde(rename = "6A", alias = "6a", alias = "S6A", alias = "s6a")]
     S6A,
+    #[serde(rename = "6B", alias = "6b", alias = "S6B", alias = "s6b")]
     S6B,
+    #[serde(rename = "7A", alias = "7a", alias = "S7A", alias = "s7a")]
     S7A,
+    #[serde(rename = "7B", alias = "7b", alias = "S7B", alias = "s7b")]
     S7B,
+    #[serde(rename = "8", alias = "S8", alias = "s8")]
     S8,
+    #[serde(rename = "9", alias = "S9", alias = "s9")]
     S9,
+    #[serde(rename = "10", alias = "S10", alias = "s10")]
     S10,
 }
 

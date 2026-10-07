@@ -2,6 +2,8 @@
 //!
 //! Zero-allocation simulation suitable for high-throughput RL.
 
+use serde::{Deserialize, Serialize};
+
 use crate::board::HexCoord;
 use crate::hex::Hex;
 use crate::rules::{Planet, qic_for_distance};
@@ -14,7 +16,7 @@ pub const MAP_SIZE: usize = 200;
 pub const NO_NEIGHBOR: u8 = 255;
 
 /// Sector placement specification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SectorPlacement {
     pub sector: SectorId,
     pub rotation: u8,
@@ -22,9 +24,10 @@ pub struct SectorPlacement {
 }
 
 /// Map configuration describing sectors on the board.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapConfiguration {
     pub sectors: Vec<SectorPlacement>,
+    #[serde(default)]
     pub mirror: bool,
 }
 

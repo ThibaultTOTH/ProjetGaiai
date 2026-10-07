@@ -465,3 +465,40 @@ pub unsafe extern "C" fn gaiapi_free_string(s: *mut c_char) {
     if s.is_null() { return; }
     unsafe { let _ = CString::from_raw(s); }
 }
+
+/// Loads a map configuration from a JSON string and updates the environment's map.
+/// Returns true if successful, false otherwise.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gaiapi_load_map_json(env: *mut GaiaEnv, json_str: *const c_char) -> bool {
+    if env.is_null() || json_str.is_null() {
+        return false;
+    }
+    let c_str = unsafe { std::ffi::CStr::from_ptr(json_str) };
+    let Ok(str_slice) = c_str.to_str() else {
+        return false;
+    };
+    let Ok(config) = serde_json::from_str::<crate::map::MapConfiguration>(str_slice) else {
+        return false;
+    };
+    if let Some(env) = unsafe { env.as_mut() } {
+        env.map.load_configuration(&config);
+        true
+    } else {
+        false
+    }
+}
+
+/// Returns the canonical 0-based spatial hex index for coordinate (q, r, s), or -1 if not on map.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gaiapi_get_hex_index(env: *mut GaiaEnv, q: i16, r: i16, s: i16) -> i32 {
+    if let Some(env) = unsafe { env.as_ref() } {
+        if let Some(idx) = env.map.coords[..env.map.count].iter().position(|c| c.q == q && c.r == r && c.s == s) {
+            idx as i32
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
+}
+

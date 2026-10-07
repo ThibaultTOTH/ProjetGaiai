@@ -303,6 +303,19 @@ class NativeGaiaEnv:
                 ]
                 dll.gaiapi_step_target.restype = ctypes.c_bool
 
+            if hasattr(dll, "gaiapi_load_map_json"):
+                dll.gaiapi_load_map_json.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+                dll.gaiapi_load_map_json.restype = ctypes.c_bool
+
+            if hasattr(dll, "gaiapi_get_hex_index"):
+                dll.gaiapi_get_hex_index.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                ]
+                dll.gaiapi_get_hex_index.restype = ctypes.c_int32
+
             cls._dll_instance = dll
         return cls._dll_instance
 
@@ -597,6 +610,19 @@ class NativeGaiaEnv:
             arr = np.frombuffer(adj_buf, dtype=np.uint8, count=1200).reshape((200, 6))
             return arr.copy()
         return build_canonical_hex_adjacency()
+
+    def load_map_json(self, map_json: str) -> bool:
+        """Loads an exact map configuration JSON from BGS into the native environment."""
+        if hasattr(self.dll, "gaiapi_load_map_json"):
+            b_json = map_json.encode("utf-8")
+            return bool(self.dll.gaiapi_load_map_json(self.env_ptr, b_json))
+        return False
+
+    def get_hex_index(self, q: int, r: int, s: int) -> int:
+        """Returns the 0-based canonical flat hex index (0..199) for coordinates (q, r, s), or -1."""
+        if hasattr(self.dll, "gaiapi_get_hex_index"):
+            return int(self.dll.gaiapi_get_hex_index(self.env_ptr, ctypes.c_int16(q), ctypes.c_int16(r), ctypes.c_int16(s)))
+        return -1
 
 
 def build_canonical_hex_adjacency() -> np.ndarray:
