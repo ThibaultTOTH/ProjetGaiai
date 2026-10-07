@@ -236,6 +236,8 @@ class MCTSConfig:
     min_simulations: int = 2
     optimism_weight: float = 0.25  # Pousse le modèle vers l'optimisme (recherche de branches à fort VP)
     milestone_shaping_weight: float = 0.50  # Bonus de jalon tactique pour actions structurantes (fédérations, labos, mines)
+    shaping_anneal_epochs: int = 500  # Durée de décroissance quadratique violente de l'incitation tactique (>= 500 époques)
+    initial_shaping_scale: float = 50.0  # Force initiale de shaping anti-pass prématuré (atteint exactement 0.0 à 500 époques)
 
 
 @dataclass

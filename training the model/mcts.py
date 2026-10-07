@@ -89,6 +89,20 @@ def compute_premature_pass_penalty(action: int, obs: Optional[np.ndarray]) -> fl
     return penalty
 
 
+def compute_shaping_scale(epoch: Optional[int], anneal_horizon: int = 500, initial_scale: float = 50.0) -> float:
+    """Computes a violent quadratic annealing schedule over at least anneal_horizon (default: 500) epochs.
+
+    Starts with high force at Epoch 1 to strictly prevent premature pass collapse and force early engine building.
+    Violently decays via a power-2 curve to reach exactly 0.0 at epoch 500+, giving the network 100% strategic freedom.
+    """
+    if epoch is None:
+        return initial_scale
+    if epoch >= anneal_horizon:
+        return 0.0
+    decay = max(0.0, 1.0 - float(epoch) / float(anneal_horizon))
+    return float(initial_scale * (decay ** 2))
+
+
 class MCTSNode:
     """A high-performance node in the Multi-Player MCTS search tree with __slots__."""
 
@@ -394,12 +408,11 @@ class MultiPlayerMCTS:
         if is_entropy_gated:
             k = min(k, max(1, effective_sims))
         
-        # Annealing / Decay of shaping heuristics: linearly fades to 0 over 500 epochs
-        # Epoch 1: 100% heuristic guidance | Epoch 250: 50% | Epoch 500+: 0% (pure RL)
-        if epoch is not None:
-            shaping_scale = 50*max(0.0, 1.0 - float(epoch) / 5000.0)
-        else:
-            shaping_scale = 50
+        # Violent quadratic annealing schedule over at least 500 epochs:
+        # Strictly prevents premature pass collapses and forces early expansion in early epochs,
+        # then violently reaches exactly 0.0 at epoch 500+, leaving the neural agent 100% strategically autonomous.
+        anneal_horizon = getattr(self.config, "shaping_anneal_epochs", 500)
+        shaping_scale = compute_shaping_scale(epoch, anneal_horizon=anneal_horizon, initial_scale=50.0)
 
         # Apply tactical milestones and sharp premature-pass penalty to candidate scoring
         cand_scores = np.copy(perturbed_logits)
@@ -434,8 +447,9 @@ class MultiPlayerMCTS:
         if hasattr(env, "get_all_vps"):
             root_vps = env.get_all_vps()
         else:
+            num_p = getattr(env, "num_players", 4)
             root_vps = np.array(
-                [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
+                [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * num_p)],
                 dtype=np.float32,
             )
 
@@ -554,8 +568,9 @@ class MultiPlayerMCTS:
                         if hasattr(sim_env, "get_all_vps"):
                             raw_vps = sim_env.get_all_vps()
                         else:
+                            num_p = getattr(sim_env, "num_players", 4)
                             raw_vps = np.array(
-                                [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                                [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * num_p)],
                                 dtype=np.float32,
                             )
                         value_vector = np.array([compute_competitive_value(raw_vps, i) for i in range(4)], dtype=np.float32)
@@ -581,12 +596,14 @@ class MultiPlayerMCTS:
                             node.is_expanded = True
 
                         # Clean multi-player competitive value vector in [-1, +1]
+                        num_p = max(1, len(root_vps))
                         value_vector = np.zeros(4, dtype=np.float32)
                         value_vector[leaf_actor] = float(np.clip(pred_score, -1.0, 1.0))
-                        for i in range(4):
+                        opp_scale = 1.0 / max(1.0, float(num_p - 1))
+                        for i in range(min(4, num_p)):
                             if i != leaf_actor:
                                 rel_delta = float(root_vps[i] - root_vps[leaf_actor]) / 25.0
-                                v_opp = -0.33 * pred_score + 0.33 * math.tanh(rel_delta)
+                                v_opp = -opp_scale * pred_score + opp_scale * math.tanh(rel_delta)
                                 value_vector[i] = float(np.clip(v_opp, -1.0, 1.0))
 
                     # Backpropagate
@@ -776,8 +793,9 @@ class MultiPlayerMCTS:
         if hasattr(env, "get_all_vps"):
             root_vps = env.get_all_vps()
         else:
+            num_p = getattr(env, "num_players", 4)
             root_vps = np.array(
-                [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * 4)],
+                [float(p.get("vp", 0.0)) for p in getattr(env, "players_state", [{"vp": 0.0}] * num_p)],
                 dtype=np.float32,
             )
 
@@ -900,8 +918,9 @@ class MultiPlayerMCTS:
                     if hasattr(sim_env, "get_all_vps"):
                         raw_vps = sim_env.get_all_vps()
                     else:
+                        num_p = getattr(sim_env, "num_players", 4)
                         raw_vps = np.array(
-                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * 4)],
+                            [float(p.get("vp", 0.0)) for p in getattr(sim_env, "players_state", [{"vp": 0.0}] * num_p)],
                             dtype=np.float32,
                         )
                     value_vector = np.array([compute_competitive_value(raw_vps, i) for i in range(4)], dtype=np.float32)
@@ -927,12 +946,14 @@ class MultiPlayerMCTS:
                         node.is_expanded = True
 
                     # Clean multi-player competitive value vector in [-1, +1]
+                    num_p = max(1, len(root_vps))
                     value_vector = np.zeros(4, dtype=np.float32)
                     value_vector[leaf_actor] = float(np.clip(pred_score, -1.0, 1.0))
-                    for i in range(4):
+                    opp_scale = 1.0 / max(1.0, float(num_p - 1))
+                    for i in range(min(4, num_p)):
                         if i != leaf_actor:
                             rel_delta = float(root_vps[i] - root_vps[leaf_actor]) / 25.0
-                            v_opp = -0.33 * pred_score + 0.33 * math.tanh(rel_delta)
+                            v_opp = -opp_scale * pred_score + opp_scale * math.tanh(rel_delta)
                             value_vector[i] = float(np.clip(v_opp, -1.0, 1.0))
 
                 for n in reversed(search_path):

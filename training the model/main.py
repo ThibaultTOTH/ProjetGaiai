@@ -18,7 +18,7 @@ import tkinter as tk
 from config import AppConfig
 from environment import make_gaia_env
 from gui import GaiaRLStudioGUI
-from trainer import RLTrainer
+from alphazero_trainer import AlphaZeroTrainer
 
 
 def run_cli_training(args: argparse.Namespace) -> None:
@@ -33,36 +33,35 @@ def run_cli_training(args: argparse.Namespace) -> None:
         cfg.training.total_episodes = args.epochs
 
     print("\n" + "=" * 60, flush=True)
-    print("  GAIA PROJECT - DEEP REINFORCEMENT LEARNING TRAINER (CLI)", flush=True)
+    print("  GAIA PROJECT - ALPHAZERO DEEP RL TRAINER (CLI)", flush=True)
     print("=" * 60, flush=True)
 
-    trainer = RLTrainer(cfg)
+    trainer = AlphaZeroTrainer(cfg)
     device_name = (
-        trainer.hw_info.get("device_name", "CPU")
+        torch.cuda.get_device_name(trainer.device)
         if trainer.device.type == "cuda"
         else "CPU"
     )
     print(f"Device: {device_name} ({trainer.device})", flush=True)
     print(f"Target Epochs: {cfg.training.total_episodes}", flush=True)
-    print(f"Batch Size: {cfg.training.batch_size} | Rollout Steps: {cfg.training.rollout_steps_per_epoch}\n", flush=True)
+    print(f"Simulations / Move: {cfg.mcts.num_simulations}\n", flush=True)
 
-    env = make_gaia_env()
+    env = make_gaia_env(players=cfg.model.num_players)
     print(f"Environment: {type(env).__name__}\n", flush=True)
-    for epoch in range(1, cfg.training.total_episodes + 1):
-        metrics = trainer.train_step(env)
+
+    def _on_metrics(m):
         print(
-            f"Epoch {metrics.epoch:04d} | "
-            f"Steps/s: {metrics.steps_per_sec:5.0f} | "
-            f"P-Loss: {metrics.policy_loss:6.3f} | "
-            f"V-Loss: {metrics.value_loss:6.3f} | "
-            f"Pred VP: {metrics.avg_predicted_score:5.1f} | "
-            f"WinRate: {metrics.win_rate * 100:3.0f}%",
+            f"Epoch {m.epoch:04d} | "
+            f"Steps/s: {m.steps_per_sec:5.0f} | "
+            f"P-Loss: {m.policy_loss:6.3f} | "
+            f"V-Loss: {m.value_loss:6.3f} | "
+            f"Avg VP: {m.avg_real_score:5.1f} | "
+            f"WinRate: {m.win_rate * 100:3.0f}%",
             flush=True,
         )
 
-    print("\n[Done] Training complete. Evaluating final model...", flush=True)
-    win_rate, avg_score, _ = trainer.evaluate_model(num_games=10)
-    print(f"Final Validation: Win Rate = {win_rate * 100:.1f}% | Avg Score = {avg_score:.1f} VP", flush=True)
+    trainer.run_training_loop(env, max_epochs=cfg.training.total_episodes, callback=_on_metrics)
+    print("\n[Done] Training complete.", flush=True)
 
 
 def main() -> None:

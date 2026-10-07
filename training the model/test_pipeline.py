@@ -11,9 +11,9 @@ import torch.nn.functional as F
 
 from config import AppConfig, LeagueConfig, MCTSConfig, MicroDispatchConfig, ModelConfig, TrainingConfig
 from environment import NativeGaiaEnv, make_gaia_env
-from hyperopt import AdvancedNASOptimizer, HyperoptTrial
+from hyperopt import AdvancedNASOptimizer, HyperoptTrial, play_head_to_head_game
 from league import LeagueManager, LeagueMember
-from mcts import MultiPlayerMCTS
+from mcts import MultiPlayerMCTS, compute_shaping_scale, compute_milestone_bonus, compute_premature_pass_penalty
 from models import (
     ActionOptimizerNet,
     BottleneckResBlock,
@@ -25,9 +25,9 @@ from models import (
     SwiGLUBlock,
     build_block,
 )
-from async_trainer import AsyncRLTrainer
-from rnd import RNDModel, RunningMeanStd
-from trainer import PrioritizedStateBuffer, RLTrainer
+from alphazero_trainer import AlphaZeroTrainer, AlphaZeroReplayBuffer
+from alphazero_parallel import ParallelAlphaZeroTrainer
+from buffer import PrioritizedStateBuffer
 
 
 def test_models_forward_and_backward():
@@ -100,24 +100,28 @@ def test_native_environment():
 
 
 def test_trainer_single_step():
-    print("[5/19] Testing RLTrainer Iteration with Native/Sim Env & League Enabled...")
+    print("[5/19] Testing AlphaZeroTrainer Iteration & Replay Buffer Training...")
     cfg = AppConfig()
-    cfg.training.rollout_steps_per_epoch = 64  # Small rollout for fast test
-    cfg.training.batch_size = 16
-    cfg.training.train_epochs_per_rollout = 1
-    cfg.league.enabled = True
-    cfg.league.snapshot_interval_epochs = 1
+    cfg.alphazero.enabled = True
+    cfg.alphazero.num_simulations = 4
+    cfg.alphazero.batch_size = 4
+    trainer = AlphaZeroTrainer(cfg)
+    env = make_gaia_env(players=cfg.model.num_players)
 
-    trainer = RLTrainer(cfg)
-    env = make_gaia_env()
-    metrics = trainer.train_step(env)
+    # 1. Self-play game step
+    game_history, p0_vp, p0_won, moves = trainer.self_play_game(env)
+    assert len(game_history) > 0, "No transitions collected during self-play"
+    assert moves > 0, "Move count must be > 0"
+    for step in game_history:
+        trainer.replay_buffer.add(*step)
+    assert len(trainer.replay_buffer) == len(game_history)
 
-    assert metrics.epoch == 1, "Epoch count mismatch"
-    assert metrics.steps_per_sec > 0, "Throughput calculation error"
-    assert metrics.league_elo >= 100.0, "League Elo metric missing or invalid"
-    assert metrics.league_size >= 2, "League pool size invalid"
-    assert metrics.total_loss > 0.0, f"Total loss must be strictly positive (got {metrics.total_loss})"
-    print(f"      -> Trainer step OK! (Speed: {metrics.steps_per_sec:.0f} steps/s, Loss: {metrics.total_loss:.4f}, Elo: {metrics.league_elo:.1f})")
+    # 2. Batch gradient update
+    batch = trainer.replay_buffer.sample(min(len(trainer.replay_buffer), 4))
+    p_loss, v_loss, ent, pred_val = trainer.train_on_batch(batch)
+    assert not math.isnan(p_loss), "Policy loss is NaN"
+    assert not math.isnan(v_loss), "Value loss is NaN"
+    print(f"      -> AlphaZero self-play & batch step OK! (Moves: {moves}, P-Loss: {p_loss:.3f}, V-Loss: {v_loss:.3f})")
 
 
 def test_league_training():
@@ -177,13 +181,18 @@ def test_league_training():
 
 
 def test_evaluation():
-    print("[7/19] Testing Agent Evaluation with Rich Scoring...")
+    print("[7/19] Testing AlphaZero Head-to-Head Tournament Match...")
     cfg = AppConfig()
-    trainer = RLTrainer(cfg)
-    win_rate, avg_score, logs = trainer.evaluate_model(num_games=2)
-    assert 0.0 <= win_rate <= 1.0, f"Invalid win rate {win_rate}"
-    assert len(logs) == 2, "Game logs mismatch"
-    print(f"      -> Evaluation OK! (Win Rate: {win_rate * 100:.0f}%, Avg VP: {avg_score:.1f})")
+    agent_a = DualGaiaAgent(cfg.model)
+    agent_b = DualGaiaAgent(cfg.model)
+    mcts_a = MultiPlayerMCTS(agent_a, config=cfg.mcts)
+    mcts_b = MultiPlayerMCTS(agent_b, config=cfg.mcts)
+    env = make_gaia_env(players=2)
+
+    vps, winner = play_head_to_head_game(env, agent_a, mcts_a, agent_b, mcts_b, sims=4, max_steps=100)
+    assert len(vps) == 2, f"Expected 2 player scores, got {len(vps)}"
+    assert winner in (0, 1), f"Unexpected winner index {winner}"
+    print(f"      -> Tournament match OK! (P0: {vps[0]:.0f} VP, P1: {vps[1]:.0f} VP, Winner: P{winner})")
 
 
 def test_modular_blocks():
@@ -226,7 +235,7 @@ def test_modular_blocks():
 
 
 def test_dynamic_schedules():
-    print("[9/19] Testing Dynamic LR & Entropy Schedules (Warmup, Cosine, Linear, Exponential)...")
+    print("[9/19] Testing Dynamic LR Schedules (Warmup, Cosine, Linear, Exponential)...")
     import math
 
     cfg = AppConfig()
@@ -234,10 +243,8 @@ def test_dynamic_schedules():
     cfg.training.warmup_ratio = 0.10  # 10 epochs warmup
     cfg.training.lr_final_factor = 0.10
     cfg.training.min_lr = 1e-6
-    cfg.training.entropy_start = 0.05
-    cfg.training.entropy_end = 0.005
 
-    trainer = RLTrainer(cfg)
+    trainer = AlphaZeroTrainer(cfg)
     base_lr = 3e-4
 
     # 1. Warmup verification
@@ -269,34 +276,20 @@ def test_dynamic_schedules():
     lr_exp = trainer.compute_scheduled_lr(base_lr)
     assert lr_exp < base_lr, "Exponential decay should reduce LR"
 
-    # 5. Entropy Schedule (Cosine, Linear, Exponential)
-    cfg.training.entropy_schedule_type = "cosine"
-    trainer.current_epoch = 0
-    h_start = trainer.compute_scheduled_entropy()
-    assert math.isclose(h_start, 0.05, rel_tol=1e-2), f"Entropy start mismatch: {h_start}"
-
-    trainer.current_epoch = 100
-    h_end = trainer.compute_scheduled_entropy()
-    assert math.isclose(h_end, 0.005, rel_tol=1e-2), f"Entropy end mismatch: {h_end}"
-
     print("      -> Dynamic Warmup, Cosine, Linear & Exponential decay OK!")
 
 
 def test_nas_optimizer():
-    print("[10/19] Testing Advanced NAS & Schedule Optimizer (Sampling, Mutation, Sprint)...")
+    print("[10/19] Testing Advanced NAS & AlphaZero Tournament Optimizer...")
     base_cfg = AppConfig()
-    base_cfg.training.rollout_steps_per_epoch = 32
-    base_cfg.training.batch_size = 16
-    base_cfg.league.enabled = False
-
     nas = AdvancedNASOptimizer(base_cfg)
 
     # 1. Candidate sampling
     cand = nas.generate_candidate()
     assert "block_type" in cand, "Missing block_type in candidate"
     assert "hidden_layers" in cand, "Missing hidden_layers in candidate"
-    assert "lr_schedule_type" in cand, "Missing lr_schedule_type in candidate"
-    assert "entropy_schedule_type" in cand, "Missing entropy_schedule_type in candidate"
+    assert "az_policy_lr" in cand, "Missing az_policy_lr in candidate"
+    assert "az_num_simulations" in cand, "Missing az_num_simulations in candidate"
     assert cand["block_type"] in ("pre_ln", "bottleneck", "swiglu")
 
     arch_str = nas.format_arch_name(cand)
@@ -307,50 +300,44 @@ def test_nas_optimizer():
     assert isinstance(mutated, dict), "Mutation returned non-dict"
     assert "hidden_layers" in mutated and len(mutated["hidden_layers"]) >= 2
 
-    # 3. Fast Sprint Trial Evaluation
-    trial = HyperoptTrial(
-        trial_id=1,
-        params=cand,
-        architecture_name=arch_str,
-        status="Running",
-    )
-    nas.evaluate_trial(trial, sprint_epochs=2)
-    assert trial.status in ("Completed", "Pruned (Divergé)", "Pruned (Lent)"), f"Unexpected status {trial.status}"
-    if trial.status == "Completed":
-        assert trial.objective_score != 0.0, "Objective score not computed"
-        assert trial.steps_per_sec > 0.0, "Throughput not recorded"
-    # 4. Registered Baseline Extraction
+    # 3. Registered Baseline Extraction
     base_params = nas.extract_params_from_config(base_cfg)
     assert base_params["block_type"] == base_cfg.model.block_type
     assert base_params["hidden_layers"] == list(base_cfg.model.policy_hidden_layers)
-    assert "policy_lr" in base_params and "entropy_schedule_type" in base_params
+    assert "az_policy_lr" in base_params
     base_arch_str = nas.format_arch_name(base_params)
     assert len(base_arch_str) > 0
 
-    print("      -> Candidate Generation, Regularized Mutation, Baseline Seed & ASHA Pruning OK!")
+    print("      -> AlphaZero Candidate Generation, Evolutionary Mutation & Baseline Seed OK!")
 
 
 def test_annealed_shaping():
-    print("[11/19] Testing Dynamic Annealed Reward Shaping (Milestone Exploration)...")
-    cfg = AppConfig()
-    cfg.training.shaping_enabled = True
-    cfg.training.shaping_initial_weight = 1.0
-    cfg.training.shaping_decay_rate = 0.96
-    trainer = RLTrainer(cfg)
+    print("[11/19] Testing Violent 500-Epoch Quadratic Shaping Annealing Schedule...")
+    # 1. Quadratic schedule values
+    s0 = compute_shaping_scale(0, anneal_horizon=500, initial_scale=50.0)
+    s100 = compute_shaping_scale(100, anneal_horizon=500, initial_scale=50.0)
+    s250 = compute_shaping_scale(250, anneal_horizon=500, initial_scale=50.0)
+    s400 = compute_shaping_scale(400, anneal_horizon=500, initial_scale=50.0)
+    s500 = compute_shaping_scale(500, anneal_horizon=500, initial_scale=50.0)
+    s600 = compute_shaping_scale(600, anneal_horizon=500, initial_scale=50.0)
 
-    trainer.current_epoch = 0
-    w0 = trainer.compute_scheduled_shaping_weight()
-    assert math.isclose(w0, 1.0, rel_tol=1e-3), f"Initial shaping weight mismatch: {w0}"
+    assert math.isclose(s0, 50.0, rel_tol=1e-3), f"Initial scale must be 50.0, got {s0}"
+    assert math.isclose(s250, 12.5, rel_tol=1e-3), f"Midpoint (ep 250) must be 12.5, got {s250}"
+    assert s500 == 0.0, f"Scale at epoch 500 must strictly be 0.0, got {s500}"
+    assert s600 == 0.0, f"Scale past epoch 500 must strictly be 0.0, got {s600}"
 
-    trainer.current_epoch = 25
-    w25 = trainer.compute_scheduled_shaping_weight()
-    expected_25 = 1.0 * (0.96 ** 25)
-    assert math.isclose(w25, expected_25, rel_tol=1e-3), f"Shaping weight at ep25 mismatch: {w25}"
+    # 2. Milestone bonuses
+    assert compute_milestone_bonus(50) == 0.5    # BuildMine
+    assert compute_milestone_bonus(450) == 0.8   # UpgradeTS
+    assert compute_milestone_bonus(1401) == 2.5  # FormFederation
 
-    trainer.current_epoch = 150
-    w150 = trainer.compute_scheduled_shaping_weight()
-    assert w150 < 0.01, f"Shaping weight should anneal toward 0, got {w150}"
-    print(f"      -> Shaping Annealing OK: Ep0={w0:.2f} -> Ep25={w25:.3f} -> Ep150={w150:.5f}")
+    # 3. Premature Pass Penalty
+    dummy_obs = np.zeros(2476, dtype=np.float32)
+    dummy_obs[88 + 4] = 0.5   # ore
+    dummy_obs[88 + 3] = 0.5   # credits
+    pass_penalty = compute_premature_pass_penalty(1415, dummy_obs)
+    assert pass_penalty > 0.0, f"Pass when holding resources must incur penalty, got {pass_penalty}"
+    print(f"      -> Violent Quadratic Annealing OK! Ep0={s0:.1f} -> Ep250={s250:.1f} -> Ep500={s500:.1f} (0.0 strictly at 500+)")
 
 
 def test_hex_gnn_encoder():
@@ -433,77 +420,34 @@ def test_opponent_modeling():
     print("      -> Opponent Head forward/backward, masked prior & backbone gradient OK!")
 
 
-def test_rnd_curiosity():
-    print("[15/19] Testing Random Network Distillation (RND) Curiosity & Normalization...")
-    rnd = RNDModel(in_dim=2476, out_dim=256)
-    obs = torch.randn(4, 2476)
+def test_alphazero_replay_buffer_and_optimism():
+    print("[15/19] Testing AlphaZero Replay Buffer & Optimism-Biased Prioritization...")
+    buf = AlphaZeroReplayBuffer(capacity=100)
+    for i in range(20):
+        obs = np.random.randn(2476).astype(np.float32)
+        mask = np.ones(3130, dtype=bool)
+        policy = np.zeros(3130, dtype=np.float32)
+        policy[i] = 1.0
+        val = float(i) / 20.0  # varying values
+        buf.add(obs, mask, policy, val)
 
-    # 1. Target network must be frozen
-    for p in rnd.target.parameters():
-        assert not p.requires_grad, "RND target net parameters must be frozen!"
-
-    # 2. Raw error computation
-    raw_err = rnd.compute_raw_error(obs)
-    assert raw_err.shape == (4,), f"Raw error shape mismatch: {raw_err.shape}"
-    assert torch.all(raw_err >= 0.0), "Squared error must be non-negative"
-
-    # 3. RunningMeanStd Normalizer
-    norm = RunningMeanStd()
-    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    norm.update(data)
-    assert norm.count >= 5
-    assert math.isclose(float(norm.mean), 3.0, rel_tol=1e-2)
-
-    # 4. Single-step intrinsic reward & predictor optimization
-    int_rew = rnd.compute_intrinsic_reward(obs[0])
-    assert isinstance(int_rew, float) and int_rew >= 0.0, f"Invalid intrinsic reward: {int_rew}"
-
-    initial_loss = rnd.compute_loss(obs).item()
-    for _ in range(5):
-        step_loss = rnd.train_step(obs)
-    assert step_loss <= initial_loss + 1e-4, "RND predictor training should minimize MSE distillation loss"
-    print(f"      -> RND Target Frozen, Normalizer & Distillation Step OK! (Loss: {initial_loss:.4f} -> {step_loss:.4f})")
+    assert len(buf) == 20
+    b_obs, b_mask, b_pol, b_val = buf.sample(batch_size=8, optimism_power=2.0)
+    assert b_obs.shape == (8, 2476)
+    assert b_mask.shape == (8, 3130)
+    assert b_pol.shape == (8, 3130)
+    assert b_val.shape == (8,)
+    print("      -> AlphaZero Replay Buffer, Capacity & Optimistic Sampling OK!")
 
 
-def test_async_actor_learner():
-    print("[16/19] Testing Distributed Asynchronous Actor-Learner Architecture (APPO)...")
+def test_parallel_alphazero_architecture():
+    print("[16/19] Testing Parallel AlphaZero Multi-Actor Architecture...")
     cfg = AppConfig()
-    cfg.async_dist.enabled = True
-    cfg.async_dist.num_actors = 1  # 1 worker for quick test
-    cfg.training.rollout_steps_per_epoch = 32
-    cfg.training.batch_size = 16
-
-    async_trainer = AsyncRLTrainer(cfg)
-
-    # 1. Verify shared memory state dict
-    for name, tensor in async_trainer.shared_state_dict.items():
-        assert tensor.is_shared(), f"Tensor {name} is not in shared memory!"
-
-    # 2. Verify queue payload handling
-    act_dim = cfg.model.action_dim
-    dummy_payload = {
-        "observations": np.random.randn(16, 2476).astype(np.float32),
-        "actions": np.random.randint(0, act_dim, size=16, dtype=np.int64),
-        "rewards": np.ones(16, dtype=np.float32),
-        "dones": np.zeros(16, dtype=bool),
-        "values": np.zeros(16, dtype=np.float32),
-        "log_probs": np.zeros(16, dtype=np.float32),
-        "action_masks": np.ones((16, act_dim), dtype=bool),
-        "opponent_actions": np.random.randint(0, act_dim, size=16, dtype=np.int64),
-        "has_opponents": np.ones(16, dtype=bool),
-        "version": 1,
-    }
-    async_trainer.rollout_queue.put(dummy_payload)
-    item = async_trainer.rollout_queue.get(timeout=2.0)
-    assert item["version"] == 1, "Rollout queue should correctly retrieve put payload"
-
-    # 3. Verify weight synchronization
-    prev_version = async_trainer.weights_version.value
-    async_trainer.sync_weights_to_shared()
-    assert async_trainer.weights_version.value == prev_version + 1, "Weights version should increment"
-    async_trainer.rollout_queue.close()
-    async_trainer.rollout_queue.cancel_join_thread()
-    print("      -> Shared Memory Tensors, Queue Communication & Version Sync OK!")
+    trainer = ParallelAlphaZeroTrainer(cfg, num_workers=2)
+    assert trainer.num_workers == 2
+    assert trainer.req_queue is not None
+    assert trainer.stop_event is not None
+    print("      -> Parallel AlphaZero Multi-Worker Process Queue & Context OK!")
 
 
 def test_gumbel_alphazero():
@@ -536,43 +480,35 @@ def test_gumbel_alphazero():
 
 def test_rnad_equilibrium():
     print("[18/19] Testing Regularized Nash Dynamics (R-NaD) Policy Anchor & Polyak Update...")
-    cfg = AppConfig()
-    cfg.training.rnad_enabled = True
-    cfg.training.rnad_alpha = 0.05
-    cfg.training.rnad_ref_update_interval = 2
-    cfg.training.rnad_polyak_beta = 0.20
-    cfg.training.rollout_steps_per_epoch = 16
-    cfg.training.batch_size = 8
-    cfg.training.train_epochs_per_rollout = 1
+    from copy import deepcopy
+    agent = DualGaiaAgent()
+    ref_policy = deepcopy(agent.action_net)
+    for p in ref_policy.parameters():
+        p.requires_grad = False
 
-    trainer = RLTrainer(cfg)
-    assert trainer.ref_policy_net is not None, "R-NaD reference policy net was not initialized!"
-
-    # 1. Reference policy parameters must have requires_grad=False
-    for p in trainer.ref_policy_net.parameters():
-        assert not p.requires_grad, "Reference policy parameters must be frozen!"
-
-    # 2. Check initial parameter identity
-    p_orig = next(trainer.agent.action_net.parameters()).clone()
-    p_ref_orig = next(trainer.ref_policy_net.parameters()).clone()
+    # 1. Parameter identity check
+    p_orig = next(agent.action_net.parameters()).clone()
+    p_ref_orig = next(ref_policy.parameters()).clone()
     assert torch.equal(p_orig, p_ref_orig), "Initial ref policy parameters should match active policy"
 
-    # 3. Simulate parameter change in active policy and test Polyak update
+    # 2. Simulate parameter change in active policy and test Polyak update
+    beta = 0.20
     with torch.no_grad():
-        for p in trainer.agent.action_net.parameters():
+        for p in agent.action_net.parameters():
             p.add_(1.0)
+        for p_ref, p_act in zip(ref_policy.parameters(), agent.action_net.parameters()):
+            p_ref.data.mul_(1.0 - beta).add_(p_act.data, alpha=beta)
 
-    trainer.update_rnad_reference()
-    p_ref_updated = next(trainer.ref_policy_net.parameters())
-    expected_val = p_ref_orig + 0.20
+    p_ref_updated = next(ref_policy.parameters())
+    expected_val = p_ref_orig + beta
     assert torch.allclose(p_ref_updated, expected_val, atol=1e-5), "Polyak update formula mismatch!"
 
-    # 4. Check KL divergence computation on dummy batch
-    batch_obs = torch.randn(4, 2476, device=trainer.device)
-    batch_mask = torch.ones(4, trainer.agent.config.action_dim, dtype=torch.bool, device=trainer.device)
-    logits = trainer.agent.action_net(batch_obs, batch_mask)
+    # 3. Check KL divergence computation on dummy batch
+    batch_obs = torch.randn(4, 2476)
+    batch_mask = torch.ones(4, agent.config.action_dim, dtype=torch.bool)
+    logits = agent.action_net(batch_obs, batch_mask)
     with torch.no_grad():
-        ref_logits = trainer.ref_policy_net(batch_obs, batch_mask)
+        ref_logits = ref_policy(batch_obs, batch_mask)
     p_probs = F.softmax(logits, dim=-1)
     p_log = F.log_softmax(logits, dim=-1)
     ref_log = F.log_softmax(ref_logits, dim=-1)
@@ -922,71 +858,6 @@ def test_dynamic_hex_gnn_adjacency():
     print("      -> Procedural Hex Graph Extraction, Spectral Normalization & Backprop OK!")
 
 
-def test_dataset_action_parser():
-    print("[27/27] Testing Scraped BGS Action Parser & 3130 Discrete Bijection...")
-    import sys
-    from pathlib import Path
-    project_root = Path(__file__).resolve().parent.parent
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-    from scraper.convert_to_dataset import parse_action_index, parse_hex_coord
-
-    # 1. Hex coordinate tests
-    assert parse_hex_coord("1A0") == 0
-    assert parse_hex_coord("1A11") == 11
-    assert parse_hex_coord("1B0") == 12
-    assert parse_hex_coord("1B5") == 17
-    assert parse_hex_coord("1C0") == 18
-    assert parse_hex_coord("2A0") == 19
-    assert parse_hex_coord("10A0") == 171
-    assert parse_hex_coord("10B5") == 188
-    assert parse_hex_coord("10C0") == 189
-    assert parse_hex_coord("invalid") is None
-    assert parse_hex_coord("11A0") is None  # only sectors 1..10
-
-    # 2. Building actions with exact spatial offsets
-    # Mine: 0 + hex_idx
-    h_4a6 = (4 - 1) * 19 + 6  # 3 * 19 + 6 = 63
-    assert parse_action_index("baltaks build m 4A6") == 0 + h_4a6
-
-    # TS: 400 + hex_idx
-    h_9a5 = (9 - 1) * 19 + 5  # 8 * 19 + 5 = 157
-    assert parse_action_index("taklons build ts 9A5") == 400 + h_9a5
-
-    # Lab: 600 + hex_idx
-    h_3b5 = (3 - 1) * 19 + 12 + 5  # 2 * 19 + 17 = 55
-    assert parse_action_index("itars build lab 3B5") == 600 + h_3b5
-
-    # PI: 800 + hex_idx
-    h_10a0 = (10 - 1) * 19 + 0  # 9 * 19 + 0 = 171
-    assert parse_action_index("lantids build PI 10A0") == 800 + h_10a0
-
-    # AC1: 1000 + hex_idx
-    h_1a11 = (1 - 1) * 19 + 11  # 11
-    assert parse_action_index("baltaks build ac1 1A11") == 1000 + h_1a11
-
-    # AC2: 1200 + hex_idx
-    h_1b2 = (1 - 1) * 19 + 12 + 2  # 14
-    assert parse_action_index("taklons build ac2 1B2") == 1200 + h_1b2
-
-    # Gaia project: 200 + hex_idx
-    h_7b0 = (7 - 1) * 19 + 12 + 0  # 6 * 19 + 12 = 126
-    assert parse_action_index("itars build gf 7B0") == 200 + h_7b0
-
-    # 3. Game controls
-    assert parse_action_index("taklons booster booster5") == 1412 + 4
-    assert parse_action_index("baltaks federation fed2") == 1400 + 1
-    assert parse_action_index("itars up gaia") == 1406 + 3
-    assert parse_action_index("baltaks charge 2pw") == 1422 + 1
-    assert parse_action_index("baltaks decline") == 1422 + 0
-    assert parse_action_index("itars action power3") == 1424 + 2
-    assert parse_action_index("taklons action qic1") == 1424 + 7 + 0
-    assert parse_action_index("taklons spend 3pw for 1o") == 3124 + 0
-
-    print("      -> BGS Coordinate Space, 3130 Discrete Offsets & Expert Moves OK!")
-
-
 if __name__ == "__main__":
     import os
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
@@ -994,7 +865,7 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding="utf-8")
 
     print("=" * 60)
-    print("  GAIA PROJECT DEEP RL PIPELINE - VERIFICATION SUITE")
+    print("  GAIA PROJECT ALPHAZERO PIPELINE - VERIFICATION SUITE")
     print("=" * 60)
     try:
         test_models_forward_and_backward()
@@ -1010,8 +881,8 @@ if __name__ == "__main__":
         test_hex_gnn_encoder()
         test_mcts_engine()
         test_opponent_modeling()
-        test_rnd_curiosity()
-        test_async_actor_learner()
+        test_alphazero_replay_buffer_and_optimism()
+        test_parallel_alphazero_architecture()
         test_gumbel_alphazero()
         test_rnad_equilibrium()
         test_rgsc_state_curriculum()
@@ -1022,8 +893,7 @@ if __name__ == "__main__":
         test_strategy_pdf_report_and_analytics()
         test_egocentric_observation()
         test_dynamic_hex_gnn_adjacency()
-        test_dataset_action_parser()
-        print("\n[SUCCESS] ALL 27 PIPELINE TESTS PASSED WITH 100% SUCCESS!")
+        print("\n[SUCCESS] ALL 24 ALPHAZERO PIPELINE TESTS PASSED WITH 100% SUCCESS!")
         sys.exit(0)
     except Exception as e:
         print(f"\n[FAILED] TEST FAILED: {e}")

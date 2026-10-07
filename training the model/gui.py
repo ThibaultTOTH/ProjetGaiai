@@ -42,11 +42,9 @@ from config import AppConfig, get_training_preset
 from environment import format_flat_action, make_gaia_env
 from hyperopt import HyperoptTrial, HyperparameterOptimizer
 from mcts import MultiPlayerMCTS
-from async_trainer import AsyncRLTrainer
 from alphazero_trainer import AlphaZeroTrainer
-from muzero import MuZeroTrainer
+from alphazero_parallel import ParallelAlphaZeroTrainer
 from models import DualGaiaAgent
-from trainer import RLTrainer, TrainingMetrics
 
 matplotlib.use("TkAgg")
 
@@ -56,14 +54,10 @@ class GaiaRLStudioGUI:
 
     def _create_trainer(self) -> Any:
         algo = getattr(self, 'var_training_algo', None)
-        algo_name = algo.get() if algo else ("AlphaZero" if getattr(self.config.alphazero, "enabled", False) else "PPO")
-        if algo_name == "AlphaZero":
+        algo_name = algo.get() if algo else "AlphaZero (Parallèle)"
+        if "Single" in algo_name or "Mono" in algo_name:
             return AlphaZeroTrainer(self.config)
-        if algo_name == "MuZero":
-            return MuZeroTrainer(self.config)
-        if getattr(self.config.async_dist, "enabled", False):
-            return AsyncRLTrainer(self.config)
-        return RLTrainer(self.config)
+        return ParallelAlphaZeroTrainer(self.config)
 
     def __init__(self, root: tk.Tk, config: Optional[AppConfig] = None):
         self.root = root
@@ -386,10 +380,9 @@ class GaiaRLStudioGUI:
         ttk.Checkbutton(sec_hw, text="Activer TF32 (Tensor Cores Ampere/Ada/Blackwell)", variable=self.var_tf32).grid(row=0, column=3, padx=12, sticky=tk.W)
 
         ttk.Label(sec_hw, text="Algorithme :").grid(row=1, column=0, sticky=tk.W, padx=4, pady=3)
-        default_algo = "Imitation (Supervisé)" if getattr(c, "_is_imitation", False) else ("AlphaZero" if getattr(c.alphazero, "enabled", False) else "PPO")
-        self.var_training_algo = tk.StringVar(value=default_algo)
-        ttk.Combobox(sec_hw, textvariable=self.var_training_algo, values=["Imitation (Supervisé)", "AlphaZero", "MuZero", "PPO"], state="readonly", width=col_w).grid(row=1, column=1, sticky=tk.W, padx=4)
-        ttk.Label(sec_hw, text="Imitation = Pré-entraînement humain (>170 VP) | AlphaZero = MCTS+Self-Play | MuZero = Latent MCTS", font=("Segoe UI", 8)).grid(row=1, column=2, columnspan=3, sticky=tk.W, padx=8)
+        self.var_training_algo = tk.StringVar(value="AlphaZero (Parallèle)")
+        ttk.Combobox(sec_hw, textvariable=self.var_training_algo, values=["AlphaZero (Parallèle)", "AlphaZero (Mono-processus)"], state="readonly", width=col_w).grid(row=1, column=1, sticky=tk.W, padx=4)
+        ttk.Label(sec_hw, text="AlphaZero = Multi-Actor CPU MCTS + Batched GPU Inference (RTX 5070 / AMP FP16)", font=("Segoe UI", 8)).grid(row=1, column=2, columnspan=3, sticky=tk.W, padx=8)
 
         # 2. Modern Deep RL Architecture
         sec_arch = ttk.LabelFrame(scrollable_frame, text="2. Architecture Réseau & Blocs Modernes", padding=8)
@@ -663,12 +656,7 @@ class GaiaRLStudioGUI:
         self.var_fp16.set(c.hardware.use_mixed_precision)
         self.var_tf32.set(c.hardware.enable_tf32)
 
-        if getattr(c.alphazero, "enabled", False):
-            self.var_training_algo.set("AlphaZero")
-        elif getattr(c.muzero, "enabled", False):
-            self.var_training_algo.set("MuZero")
-        else:
-            self.var_training_algo.set("PPO")
+        self.var_training_algo.set("AlphaZero (Parallèle)")
 
         self.var_block_type.set(c.model.block_type)
         self.var_activation.set(c.model.policy_activation)
@@ -747,16 +735,12 @@ class GaiaRLStudioGUI:
         self._sync_config_to_ui()
         self.hyperopt.base_config = deepcopy(self.config)
 
-        if name in ("pretrain", "imitation", "fondation", "phase1"):
-            if hasattr(self, "var_training_algo"):
-                self.var_training_algo.set("Imitation (Supervisé)")
-        elif name in ("finetune", "alphazero", "grandmaster", "phase2"):
-            if hasattr(self, "var_training_algo"):
-                self.var_training_algo.set("AlphaZero")
+        if hasattr(self, "var_training_algo"):
+            self.var_training_algo.set("AlphaZero (Parallèle)")
 
         labels = {
-            "pretrain": "🚀 1. Imitation Expert (>170 VP)",
-            "finetune": "👑 2. AlphaZero Fine-Tuning (220+ VP)",
+            "grandmaster": "🏆 Grandmaster AlphaZero (220+ VP)",
+            "finetune": "👑 2. AlphaZero Fine-Tuning",
             "fast": "⚡ Test Rapide",
         }
         name_str = labels.get(name, name.upper())
@@ -774,8 +758,7 @@ class GaiaRLStudioGUI:
         c.hardware.enable_tf32 = self.var_tf32.get()
 
         algo = self.var_training_algo.get()
-        c.alphazero.enabled = (algo == "AlphaZero")
-        c.muzero.enabled = (algo == "MuZero")
+        c.alphazero.enabled = True
 
         c.model.block_type = self.var_block_type.get()
         c.model.policy_activation = self.var_activation.get()
@@ -1192,53 +1175,15 @@ class GaiaRLStudioGUI:
 
         max_epochs = self.var_max_epochs.get()
 
-        if algo_name == "Imitation (Supervisé)":
-            import threading
-            from pathlib import Path
-            from scraper.train_supervised import train_supervised
-            from scraper.config import DATASET_DIR
-            dataset_path = DATASET_DIR / "gaia_expert_dataset.pt"
-            ckpt_path = Path("checkpoints/gaia_supervised_pretrained.pt")
-            batch_sz = self.var_batch.get()
-            lr_val = float(self.var_policy_lr.get())
-
-            def _imitation_thread():
-                try:
-                    train_supervised(
-                        dataset_path=dataset_path,
-                        output_checkpoint=ckpt_path,
-                        epochs=max_epochs,
-                        batch_size=batch_sz,
-                        lr=lr_val,
-                        callback=_on_metrics,
-                    )
-                finally:
-                    _on_finish()
-            t = threading.Thread(target=_imitation_thread, daemon=True)
-            t.start()
-        elif algo_name in ("AlphaZero", "MuZero"):
-            if algo_name == "AlphaZero" and os.path.exists("checkpoints/gaia_supervised_pretrained.pt"):
-                if getattr(self.trainer, "current_epoch", 0) == 0:
-                    try:
-                        self.trainer.load_checkpoint("checkpoints/gaia_supervised_pretrained.pt")
-                    except Exception:
-                        pass
-            # AlphaZero/MuZero use run_training_loop with a callback
-            import threading
-            env = make_gaia_env(players=self.config.model.num_players)
-            def _az_thread():
-                try:
-                    self.trainer.run_training_loop(env, max_epochs=max_epochs, callback=_on_metrics)
-                finally:
-                    _on_finish()
-            t = threading.Thread(target=_az_thread, daemon=True)
-            t.start()
-        else:
-            self.trainer.start_background_training(
-                on_metrics=_on_metrics,
-                on_finished=_on_finish,
-                max_epochs=max_epochs,
-            )
+        import threading
+        env = make_gaia_env(players=self.config.model.num_players)
+        def _az_thread():
+            try:
+                self.trainer.run_training_loop(env, max_epochs=max_epochs, callback=_on_metrics)
+            finally:
+                _on_finish()
+        t = threading.Thread(target=_az_thread, daemon=True)
+        t.start()
 
     def _on_pause_training(self) -> None:
         if self.trainer.is_paused():

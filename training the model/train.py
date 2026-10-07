@@ -22,12 +22,9 @@ import numpy as np
 import torch
 
 from analytics import generate_strategy_pdf
-from async_trainer import AsyncRLTrainer
 from alphazero_trainer import AlphaZeroTrainer
-from muzero import MuZeroTrainer
 from config import AppConfig, get_training_preset
 from environment import NativeGaiaEnv, make_gaia_env
-from trainer import RLTrainer, TrainingMetrics
 
 
 def parse_args():
@@ -284,20 +281,12 @@ def main():
     if hasattr(args, "rgsc_epoch"):
         cfg.training.rgsc_start_epoch = args.rgsc_epoch
 
-    if algo == "alphazero":
-        if args.actors > 1:
-            from alphazero_parallel import ParallelAlphaZeroTrainer
-            trainer = ParallelAlphaZeroTrainer(cfg, num_workers=args.actors)
-        else:
-            trainer = AlphaZeroTrainer(cfg)
-    elif algo == "muzero":
-        trainer = MuZeroTrainer(cfg)
-    elif args.async_appo:
-        cfg.async_dist.enabled = True
-        cfg.async_dist.num_actors = args.actors
-        trainer = AsyncRLTrainer(cfg)
+    # Instantiate AlphaZero Trainer (Parallel multi-worker or single-process)
+    if args.actors > 1:
+        from alphazero_parallel import ParallelAlphaZeroTrainer
+        trainer = ParallelAlphaZeroTrainer(cfg, num_workers=args.actors)
     else:
-        trainer = RLTrainer(cfg)
+        trainer = AlphaZeroTrainer(cfg)
     device = trainer.device
 
     # 2. Check for Resume

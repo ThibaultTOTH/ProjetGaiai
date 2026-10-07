@@ -143,6 +143,40 @@ class AlphaZeroTrainer:
         self._pause_event.clear()
         self._is_running = False
 
+    def compute_scheduled_lr(self, base_lr: float) -> float:
+        """Calculates scheduled learning rate with warmup and cosine/exponential/linear decay."""
+        cfg = self.config.training
+        total_episodes = max(1, getattr(cfg, "total_episodes", 100))
+        warmup_epochs = max(1, int(getattr(cfg, "warmup_ratio", 0.05) * total_episodes))
+        lr_final_factor = getattr(cfg, "lr_final_factor", 0.10)
+        min_lr = getattr(cfg, "min_lr", 1e-6)
+        schedule_type = getattr(cfg, "lr_schedule_type", "cosine").lower()
+
+        if self.current_epoch < warmup_epochs:
+            alpha = float(self.current_epoch) / float(warmup_epochs)
+            return float(min_lr + alpha * (base_lr - min_lr))
+
+        progress = float(self.current_epoch - warmup_epochs) / float(max(1, total_episodes - warmup_epochs))
+        progress = max(0.0, min(1.0, progress))
+
+        if schedule_type == "cosine":
+            decay = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return float(base_lr * (lr_final_factor + (1.0 - lr_final_factor) * decay))
+        elif schedule_type == "linear":
+            return float(base_lr * (1.0 - progress * (1.0 - lr_final_factor)))
+        elif schedule_type == "exponential":
+            rate = getattr(cfg, "exp_decay_rate", 0.98)
+            return float(max(min_lr, base_lr * (rate ** (self.current_epoch - warmup_epochs))))
+        return base_lr
+
+    def update_learning_rate(self) -> float:
+        """Applies scheduled learning rate to the optimizer."""
+        base_lr = getattr(self.config.model, "policy_lr", 2.5e-4)
+        new_lr = self.compute_scheduled_lr(base_lr)
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = new_lr
+        return new_lr
+
     def self_play_game(self, env: Any) -> Tuple[List[Tuple[np.ndarray, np.ndarray, np.ndarray, float]], float, bool, int]:
         rgsc_active = (
             getattr(self.config.training, "rgsc_enabled", True)
