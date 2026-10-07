@@ -397,9 +397,9 @@ class MultiPlayerMCTS:
         # Annealing / Decay of shaping heuristics: linearly fades to 0 over 500 epochs
         # Epoch 1: 100% heuristic guidance | Epoch 250: 50% | Epoch 500+: 0% (pure RL)
         if epoch is not None:
-            shaping_scale = max(0.0, 1.0 - float(epoch) / 500.0)
+            shaping_scale = 50*max(0.0, 1.0 - float(epoch) / 5000.0)
         else:
-            shaping_scale = 1.0
+            shaping_scale = 50
 
         # Apply tactical milestones and sharp premature-pass penalty to candidate scoring
         cand_scores = np.copy(perturbed_logits)

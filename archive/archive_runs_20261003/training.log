@@ -1,0 +1,1835 @@
+Traceback (most recent call last):
+Traceback (most recent call last):
+Process SpawnProcess-11:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ^^^^^^^^^^^^
+    ...<4 lines>...
+        root_obs=curr_obs,
+
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 145, in search
+    return np.array([self.v0 * inv, self.v1 * inv, self.v2 * inv, self.v3 * inv], dtype=np.float32)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 272, in _search_gumbel
+    p_norm = p_legal / (np.sum(p_legal) + 1e-12)
+                           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 427, in step
+            obs=self._get_obs(egocentric),
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    flat_action = action
+    ^^^^^
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ^^^^^^^^^^^^
+    ...<4 lines>...
+        root_obs=curr_obs,
+
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 145, in search
+    return np.array([self.v0 * inv, self.v1 * inv, self.v2 * inv, self.v3 * inv], dtype=np.float32)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 272, in _search_gumbel
+    p_norm = p_legal / (np.sum(p_legal) + 1e-12)
+                           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 458, in step
+    if target is not None and hasattr(self.dll, "gaiapi_step_target"):
+                    ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 368, in get_action_mask
+    self.dll.gaiapi_get_observation_egocentric(self.env_ptr, self._obs_buf, self.obs_dim)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ^^^^^^^^^^^^
+    ...<4 lines>...
+        root_obs=curr_obs,
+
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 145, in search
+    return np.array([self.v0 * inv, self.v1 * inv, self.v2 * inv, self.v3 * inv], dtype=np.float32)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 272, in _search_gumbel
+    p_norm = p_legal / (np.sum(p_legal) + 1e-12)
+                           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 455, in step
+    actor = getattr(self, "current_player", 0)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 360, in _get_obs
+    self.terminated = False
+        ^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ^^^^^^^^^^^^
+    ...<4 lines>...
+        root_obs=curr_obs,
+
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 145, in search
+    return np.array([self.v0 * inv, self.v1 * inv, self.v2 * inv, self.v3 * inv], dtype=np.float32)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 272, in _search_gumbel
+    p_norm = p_legal / (np.sum(p_legal) + 1e-12)
+                           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 458, in step
+    if target is not None and hasattr(self.dll, "gaiapi_step_target"):
+                    ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 368, in get_action_mask
+    self.dll.gaiapi_get_observation_egocentric(self.env_ptr, self._obs_buf, self.obs_dim)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+------------------------------------------------------------------------------
+  🏁 Training Session Finished | Elapsed Time: 14.2 minutes
+  💾 Latest weights saved: checkpoints/az_checkpoint_295.pt
+  📄 Generating Strategic Analysis & Game Theory Report...
+  [✓] Report PDF saved -> runs/gaia_strategy_report_ep295.pdf
+==============================================================================
+(base) thibaulttoth@pop-os:~/ProjetGaiai$ python3 "training the model/train.py" \
+  --algo alphazero \
+  --preset grandmaster \
+  --use-best-hyperparams \
+  --actors 11 \
+  --resume auto \
+  --device cuda
+  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: runs/best_hyperparams_alphazero.json
+[LeagueManager] Initialized with 5 historical snapshot(s).
+==============================================================================
+  🌌 GAIA PROJECT DEEP RL — SOTA PRODUCTION TRAINER
+==============================================================================
+  🚀 GPU: NVIDIA GeForce RTX 5070 (11.5 GB VRAM)
+  ⚡ Mixed Precision: ON (AMP FP16/BF16) | TF32: ON
+  ⚙️ Preset: [GRANDMASTER] | Target Epochs: 10000 | Batch: 256
+  🧠 Network: SWIGLU (silu) Layers=[1024, 1024, 512, 256]
+  🗺️ Map GNN: Flat MLP
+  🏆 League: Gaussian Elo ZPD (sigma=150)
+  🛡️ SOTA Modules: R-NaD=OFF | RGSC Go-Exploit=ON | RND Curiosity=OFF
+  🌲 MCTS Inference: GUMBEL GAZ (32 sims) | MC-Dropout Epistemic Guidance=OFF
+  🏎️ Game Engine: Rust Native C-ABI (DLL/so) [<2µs/step]
+  🔄 Resumed From Epoch: 295
+------------------------------------------------------------------------------
+Époque     Cadence      Pertes (Pol. / Valeur)   VP Moyen     Victoires    Algo       VRAM
+------------------------------------------------------------------------------
+  * [Parallel MCTS Engine] Initialized 11 CPU worker processes with dynamic GPU batching.
+------------------------------------------------------------------------------
+  🏁 Training Session Finished | Elapsed Time: 0.0 minutes
+  💾 Latest weights saved: checkpoints/az_checkpoint_296.pt
+  📄 Generating Strategic Analysis & Game Theory Report...
+  [✓] Report PDF saved -> runs/gaia_strategy_report_ep296.pdf
+==============================================================================
+Traceback (most recent call last):
+  File "/home/thibaulttoth/ProjetGaiai/training the model/train.py", line 423, in <module>
+    main()
+    ~~~~^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/train.py", line 388, in main
+    trainer.run_training_loop(env, max_epochs=target_epochs, callback=_az_callback)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 490, in run_training_loop
+    priors_np = priors.float().cpu().numpy()
+RuntimeError: Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.
+(base) thibaulttoth@pop-os:~/ProjetGaiai$  ^C
+(base) thibaulttoth@pop-os:~/ProjetGaiai$ # 1. Récupérer le fix et les tests
+git pull origin main
+
+# 2. Relancer le trainer
+python3 "training the model/train.py" \
+  --algo alphazero \
+  --preset grandmaster \
+  --use-best-hyperparams \
+  --actors 11 \
+  --resume auto \
+  --device cuda
+remote: Enumerating objects: 8, done.
+remote: Counting objects: 100% (8/8), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 5 (delta 3), reused 5 (delta 3), pack-reused 0 (from 0)
+Dépaquetage des objets: 100% (5/5), 1.64 Kio | 558.00 Kio/s, fait.
+Depuis https://github.com/ThibaultTOTH/ProjetGaiai
+ * branch            main       -> FETCH_HEAD
+   acc7a2f..1575826  main       -> origin/main
+Mise à jour acc7a2f..1575826
+Fast-forward
+ test_parallel_multiworker.py             | 52 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ training the model/alphazero_parallel.py | 64 +++++++++++++++++++++++++++++++++++-----------------------------
+ 2 files changed, 87 insertions(+), 29 deletions(-)
+ create mode 100644 test_parallel_multiworker.py
+  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: runs/best_hyperparams_alphazero.json
+[LeagueManager] Initialized with 5 historical snapshot(s).
+==============================================================================
+  🌌 GAIA PROJECT DEEP RL — SOTA PRODUCTION TRAINER
+==============================================================================
+  🚀 GPU: NVIDIA GeForce RTX 5070 (11.5 GB VRAM)
+  ⚡ Mixed Precision: ON (AMP FP16/BF16) | TF32: ON
+  ⚙️ Preset: [GRANDMASTER] | Target Epochs: 10000 | Batch: 256
+  🧠 Network: SWIGLU (silu) Layers=[1024, 1024, 512, 256]
+  🗺️ Map GNN: Flat MLP
+  🏆 League: Gaussian Elo ZPD (sigma=150)
+  🛡️ SOTA Modules: R-NaD=OFF | RGSC Go-Exploit=ON | RND Curiosity=OFF
+  🌲 MCTS Inference: GUMBEL GAZ (32 sims) | MC-Dropout Epistemic Guidance=OFF
+  🏎️ Game Engine: Rust Native C-ABI (DLL/so) [<2µs/step]
+  🔄 Resumed From Epoch: 296
+------------------------------------------------------------------------------
+Époque     Cadence      Pertes (Pol. / Valeur)   VP Moyen     Victoires    Algo       VRAM
+------------------------------------------------------------------------------
+  * [Parallel MCTS Engine] Initialized 11 CPU worker processes with dynamic GPU batching.
+[0297/10000] 18 st/s      P=+3.531 V=1.246          48.9 VP    0%           ALPHAZERO  285 MB
+[0298/10000] 20 st/s      P=+3.588 V=1.365          51.3 VP    18%          ALPHAZERO  285 MB
+[0299/10000] 17 st/s      P=+3.653 V=1.231          55.3 VP    0%           ALPHAZERO  285 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0300 (Current Elo: 1200.0)
+[0300/10000] 16 st/s      P=+3.658 V=1.260          55.7 VP    9%           ALPHAZERO  319 MB
+[0301/10000] 19 st/s      P=+3.670 V=1.543          55.8 VP    27%          ALPHAZERO  319 MB
+[0302/10000] 16 st/s      P=+3.676 V=1.373          51.1 VP    9%           ALPHAZERO  319 MB
+[0303/10000] 17 st/s      P=+3.678 V=1.292          64.2 VP    36%          ALPHAZERO  319 MB
+[0304/10000] 17 st/s      P=+3.685 V=1.262          56.1 VP    18%          ALPHAZERO  319 MB
+[0305/10000] 17 st/s      P=+3.692 V=1.315          60.6 VP    27%          ALPHAZERO  319 MB
+[0306/10000] 20 st/s      P=+3.696 V=1.173          50.6 VP    0%           ALPHAZERO  319 MB
+[0307/10000] 17 st/s      P=+3.696 V=1.241          56.3 VP    27%          ALPHAZERO  319 MB
+[0308/10000] 19 st/s      P=+3.699 V=1.148          54.3 VP    27%          ALPHAZERO  319 MB
+[0309/10000] 18 st/s      P=+3.700 V=1.293          56.4 VP    9%           ALPHAZERO  319 MB
+[0310/10000] 18 st/s      P=+3.704 V=1.233          62.0 VP    18%          ALPHAZERO  319 MB
+^C
+[!] Interrupt received (Ctrl+C). Saving current checkpoint before exiting...
+Process SpawnProcess-10:
+Process SpawnProcess-1:
+Process SpawnProcess-4:
+Traceback (most recent call last):
+Traceback (most recent call last):
+Process SpawnProcess-11:
+Traceback (most recent call last):
+Process SpawnProcess-7:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 371, in _search_gumbel
+    curr_mask = sim_env.get_action_mask()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 380, in get_action_mask
+    self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Traceback (most recent call last):
+Process SpawnProcess-8:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 356, in _search_gumbel
+    sim_env.step_fast(act)
+    ~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 370, in _search_gumbel
+    curr_obs = sim_env._get_obs()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 370, in _get_obs
+    self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 370, in _search_gumbel
+    curr_obs = sim_env._get_obs()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 370, in _get_obs
+    self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+Process SpawnProcess-6:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 370, in _search_gumbel
+    curr_obs = sim_env._get_obs()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 370, in _get_obs
+    self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Process SpawnProcess-3:
+Process SpawnProcess-2:
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 187, in alpha_zero_worker_process
+    step_res = env.step(action)
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 469, in step
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 370, in _search_gumbel
+    curr_obs = sim_env._get_obs()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 370, in _get_obs
+    self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Process SpawnProcess-5:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 356, in _search_gumbel
+    sim_env.step_fast(act)
+    ~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Process SpawnProcess-9:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+------------------------------------------------------------------------------
+  🏁 Training Session Finished | Elapsed Time: 10.9 minutes
+  💾 Latest weights saved: checkpoints/az_checkpoint_311.pt
+  📄 Generating Strategic Analysis & Game Theory Report...
+  [✓] Report PDF saved -> runs/gaia_strategy_report_ep311.pdf
+==============================================================================
+^[[A(base) thibaulttoth@pop-os:~/ProjetGai
+(base) thibaulttoth@pop-os:~/ProjetGaiai$ python3 "training the model/train.py" \
+  --algo alphazero \
+  --preset grandmaster \
+  --use-best-hyperparams \
+  --actors 11 \
+  --batch-size 512 \
+  --resume auto \
+  --device cuda
+  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: runs/best_hyperparams_alphazero.json
+[LeagueManager] Initialized with 6 historical snapshot(s).
+==============================================================================
+  🌌 GAIA PROJECT DEEP RL — SOTA PRODUCTION TRAINER
+==============================================================================
+  🚀 GPU: NVIDIA GeForce RTX 5070 (11.5 GB VRAM)
+  ⚡ Mixed Precision: ON (AMP FP16/BF16) | TF32: ON
+  ⚙️ Preset: [GRANDMASTER] | Target Epochs: 10000 | Batch: 512
+  🧠 Network: SWIGLU (silu) Layers=[1024, 1024, 512, 256]
+  🗺️ Map GNN: Flat MLP
+  🏆 League: Gaussian Elo ZPD (sigma=150)
+  🛡️ SOTA Modules: R-NaD=OFF | RGSC Go-Exploit=ON | RND Curiosity=OFF
+  🌲 MCTS Inference: GUMBEL GAZ (32 sims) | MC-Dropout Epistemic Guidance=OFF
+  🏎️ Game Engine: Rust Native C-ABI (DLL/so) [<2µs/step]
+  🔄 Resumed From Epoch: 311
+------------------------------------------------------------------------------
+Époque     Cadence      Pertes (Pol. / Valeur)   VP Moyen     Victoires    Algo       VRAM
+------------------------------------------------------------------------------
+  * [Parallel MCTS Engine] Initialized 11 CPU worker processes with dynamic GPU batching.
+[0312/10000] 13 st/s      P=+3.718 V=2.238          58.3 VP    27%          ALPHAZERO  319 MB
+[0313/10000] 19 st/s      P=+3.728 V=1.528          60.9 VP    18%          ALPHAZERO  319 MB
+[0314/10000] 18 st/s      P=+3.742 V=1.250          57.3 VP    18%          ALPHAZERO  319 MB
+[0315/10000] 17 st/s      P=+3.741 V=1.656          63.9 VP    18%          ALPHAZERO  319 MB
+^CProcess SpawnProcess-5:
+Process SpawnProcess-9:
+Traceback (most recent call last):
+Process SpawnProcess-8:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 133, in alpha_zero_worker_process
+    if cmd_pipe.poll(0.01):
+       ~~~~~~~~~~~~~^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+           ~~~~~~~~~~^^^^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 440, in _poll
+    r = wait([self], timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+Process SpawnProcess-11:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 370, in _search_gumbel
+    curr_obs = sim_env._get_obs()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 370, in _get_obs
+    self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 371, in _search_gumbel
+    curr_mask = sim_env.get_action_mask()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 380, in get_action_mask
+    self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Process SpawnProcess-2:
+Process SpawnProcess-1:
+Process SpawnProcess-7:
+Traceback (most recent call last):
+Traceback (most recent call last):
+
+[!] Interrupt received (Ctrl+C). Saving current checkpoint before exiting...
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+Process SpawnProcess-4:
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 371, in _search_gumbel
+    curr_mask = sim_env.get_action_mask()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 380, in get_action_mask
+    self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Process SpawnProcess-3:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 356, in _search_gumbel
+    sim_env.step_fast(act)
+    ~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 371, in _search_gumbel
+    curr_mask = sim_env.get_action_mask()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 380, in get_action_mask
+    self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Process SpawnProcess-10:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 370, in _search_gumbel
+    curr_obs = sim_env._get_obs()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 370, in _get_obs
+    self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Process SpawnProcess-6:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+------------------------------------------------------------------------------
+  🏁 Training Session Finished | Elapsed Time: 3.9 minutes
+  💾 Latest weights saved: checkpoints/az_checkpoint_316.pt
+  📄 Generating Strategic Analysis & Game Theory Report...
+  [✓] Report PDF saved -> runs/gaia_strategy_report_ep316.pdf
+==============================================================================
+(base) thibaulttoth@pop-os:~/ProjetGaiai$ python3 "training the model/train.py"   --algo alphazero   --preset grandmaster   --use-bes
+t-hyperparams   --actors 11   --resume auto   --device cuda
+  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: runs/best_hyperparams_alphazero.json
+[LeagueManager] Initialized with 6 historical snapshot(s).
+==============================================================================
+  🌌 GAIA PROJECT DEEP RL — SOTA PRODUCTION TRAINER
+==============================================================================
+  🚀 GPU: NVIDIA GeForce RTX 5070 (11.5 GB VRAM)
+  ⚡ Mixed Precision: ON (AMP FP16/BF16) | TF32: ON
+  ⚙️ Preset: [GRANDMASTER] | Target Epochs: 10000 | Batch: 256
+  🧠 Network: SWIGLU (silu) Layers=[1024, 1024, 512, 256]
+  🗺️ Map GNN: Flat MLP
+  🏆 League: Gaussian Elo ZPD (sigma=150)
+  🛡️ SOTA Modules: R-NaD=OFF | RGSC Go-Exploit=ON | RND Curiosity=OFF
+  🌲 MCTS Inference: GUMBEL GAZ (32 sims) | MC-Dropout Epistemic Guidance=OFF
+  🏎️ Game Engine: Rust Native C-ABI (DLL/so) [<2µs/step]
+  🔄 Resumed From Epoch: 316
+------------------------------------------------------------------------------
+Époque     Cadence      Pertes (Pol. / Valeur)   VP Moyen     Victoires    Algo       VRAM
+------------------------------------------------------------------------------
+  * [Parallel MCTS Engine] Initialized 11 CPU worker processes with dynamic GPU batching.
+[0317/10000] 16 st/s      P=+3.619 V=1.681          62.7 VP    27%          ALPHAZERO  319 MB
+[0318/10000] 16 st/s      P=+3.696 V=2.475          56.0 VP    0%           ALPHAZERO  319 MB
+[0319/10000] 17 st/s      P=+3.729 V=1.319          65.5 VP    27%          ALPHAZERO  319 MB
+[0320/10000] 19 st/s      P=+3.747 V=1.069          56.5 VP    18%          ALPHAZERO  319 MB
+[0321/10000] 17 st/s      P=+3.743 V=1.306          61.1 VP    18%          ALPHAZERO  319 MB
+[0322/10000] 18 st/s      P=+3.751 V=1.248          65.6 VP    36%          ALPHAZERO  319 MB
+[0323/10000] 16 st/s      P=+3.757 V=1.336          54.7 VP    27%          ALPHAZERO  319 MB
+[0324/10000] 17 st/s      P=+3.755 V=1.484          56.6 VP    9%           ALPHAZERO  319 MB
+[0325/10000] 18 st/s      P=+3.764 V=1.326          60.5 VP    18%          ALPHAZERO  319 MB
+[0326/10000] 19 st/s      P=+3.765 V=1.275          56.5 VP    18%          ALPHAZERO  319 MB
+[0327/10000] 18 st/s      P=+3.776 V=1.306          53.7 VP    9%           ALPHAZERO  319 MB
+[0328/10000] 17 st/s      P=+3.785 V=1.330          55.6 VP    9%           ALPHAZERO  319 MB
+[0329/10000] 16 st/s      P=+3.784 V=1.367          66.9 VP    36%          ALPHAZERO  319 MB
+[0330/10000] 18 st/s      P=+3.791 V=1.226          59.7 VP    18%          ALPHAZERO  319 MB
+[0331/10000] 21 st/s      P=+3.787 V=1.183          66.1 VP    27%          ALPHAZERO  319 MB
+[0332/10000] 17 st/s      P=+3.789 V=1.290          62.2 VP    27%          ALPHAZERO  319 MB
+[0333/10000] 17 st/s      P=+3.796 V=1.203          54.5 VP    9%           ALPHAZERO  319 MB
+[0334/10000] 18 st/s      P=+3.791 V=1.268          57.9 VP    0%           ALPHAZERO  319 MB
+[0335/10000] 19 st/s      P=+3.795 V=1.254          58.7 VP    18%          ALPHAZERO  319 MB
+[0336/10000] 18 st/s      P=+3.793 V=1.415          59.1 VP    9%           ALPHAZERO  319 MB
+[0337/10000] 20 st/s      P=+3.790 V=1.254          61.2 VP    27%          ALPHAZERO  319 MB
+[0338/10000] 18 st/s      P=+3.789 V=1.406          59.5 VP    18%          ALPHAZERO  319 MB
+[0339/10000] 19 st/s      P=+3.791 V=1.405          55.9 VP    0%           ALPHAZERO  319 MB
+[0340/10000] 22 st/s      P=+3.794 V=1.362          61.5 VP    27%          ALPHAZERO  319 MB
+[0341/10000] 18 st/s      P=+3.796 V=1.362          56.5 VP    9%           ALPHAZERO  319 MB
+[0342/10000] 17 st/s      P=+3.794 V=1.347          64.8 VP    27%          ALPHAZERO  319 MB
+[0343/10000] 17 st/s      P=+3.793 V=1.424          62.9 VP    36%          ALPHAZERO  319 MB
+[0344/10000] 18 st/s      P=+3.794 V=1.297          57.0 VP    9%           ALPHAZERO  319 MB
+[0345/10000] 17 st/s      P=+3.798 V=1.297          65.1 VP    27%          ALPHAZERO  319 MB
+[0346/10000] 19 st/s      P=+3.795 V=1.287          56.1 VP    9%           ALPHAZERO  319 MB
+[0347/10000] 14 st/s      P=+3.799 V=1.180          60.5 VP    18%          ALPHAZERO  319 MB
+[0348/10000] 18 st/s      P=+3.799 V=1.255          60.1 VP    18%          ALPHAZERO  319 MB
+[0349/10000] 18 st/s      P=+3.799 V=1.286          56.4 VP    9%           ALPHAZERO  319 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0350 (Current Elo: 1200.0)
+[0350/10000] 18 st/s      P=+3.796 V=1.221          63.9 VP    9%           ALPHAZERO  354 MB
+[0351/10000] 20 st/s      P=+3.801 V=1.252          52.8 VP    0%           ALPHAZERO  353 MB
+[0352/10000] 19 st/s      P=+3.797 V=1.185          56.9 VP    9%           ALPHAZERO  353 MB
+[0353/10000] 19 st/s      P=+3.802 V=1.127          64.1 VP    36%          ALPHAZERO  353 MB
+[0354/10000] 18 st/s      P=+3.796 V=1.060          58.2 VP    27%          ALPHAZERO  353 MB
+[0355/10000] 18 st/s      P=+3.797 V=1.167          56.5 VP    18%          ALPHAZERO  353 MB
+[0356/10000] 19 st/s      P=+3.801 V=1.164          59.6 VP    9%           ALPHAZERO  353 MB
+[0357/10000] 17 st/s      P=+3.792 V=1.220          63.3 VP    27%          ALPHAZERO  353 MB
+[0358/10000] 20 st/s      P=+3.801 V=1.254          57.1 VP    9%           ALPHAZERO  353 MB
+[0359/10000] 18 st/s      P=+3.801 V=1.193          56.8 VP    27%          ALPHAZERO  353 MB
+[0360/10000] 20 st/s      P=+3.798 V=1.270          60.3 VP    18%          ALPHAZERO  353 MB
+[0361/10000] 17 st/s      P=+3.802 V=1.167          61.7 VP    27%          ALPHAZERO  353 MB
+[0362/10000] 19 st/s      P=+3.799 V=1.199          57.5 VP    9%           ALPHAZERO  353 MB
+[0363/10000] 17 st/s      P=+3.798 V=1.108          59.8 VP    18%          ALPHAZERO  353 MB
+[0364/10000] 17 st/s      P=+3.804 V=1.216          57.9 VP    18%          ALPHAZERO  353 MB
+[0365/10000] 18 st/s      P=+3.803 V=1.168          68.5 VP    45%          ALPHAZERO  353 MB
+[0366/10000] 17 st/s      P=+3.800 V=1.132          54.4 VP    9%           ALPHAZERO  353 MB
+[0367/10000] 18 st/s      P=+3.799 V=1.171          65.1 VP    18%          ALPHAZERO  353 MB
+[0368/10000] 20 st/s      P=+3.803 V=1.178          63.9 VP    27%          ALPHAZERO  353 MB
+[0369/10000] 16 st/s      P=+3.808 V=1.231          60.9 VP    9%           ALPHAZERO  353 MB
+[0370/10000] 17 st/s      P=+3.802 V=1.137          60.6 VP    9%           ALPHAZERO  353 MB
+[0371/10000] 21 st/s      P=+3.804 V=1.123          61.5 VP    18%          ALPHAZERO  353 MB
+[0372/10000] 19 st/s      P=+3.807 V=1.155          63.7 VP    27%          ALPHAZERO  353 MB
+[0373/10000] 19 st/s      P=+3.804 V=1.128          59.1 VP    9%           ALPHAZERO  353 MB
+[0374/10000] 19 st/s      P=+3.807 V=1.089          57.6 VP    27%          ALPHAZERO  353 MB
+[0375/10000] 17 st/s      P=+3.805 V=1.094          62.9 VP    27%          ALPHAZERO  353 MB
+[0376/10000] 19 st/s      P=+3.807 V=1.197          64.6 VP    27%          ALPHAZERO  353 MB
+[0377/10000] 18 st/s      P=+3.808 V=1.165          63.7 VP    9%           ALPHAZERO  353 MB
+[0378/10000] 19 st/s      P=+3.804 V=1.149          63.4 VP    18%          ALPHAZERO  353 MB
+[0379/10000] 19 st/s      P=+3.808 V=1.177          59.5 VP    18%          ALPHAZERO  353 MB
+[0380/10000] 19 st/s      P=+3.803 V=1.094          64.5 VP    36%          ALPHAZERO  353 MB
+[0381/10000] 17 st/s      P=+3.810 V=1.149          59.6 VP    18%          ALPHAZERO  353 MB
+[0382/10000] 18 st/s      P=+3.809 V=1.132          59.5 VP    9%           ALPHAZERO  353 MB
+[0383/10000] 19 st/s      P=+3.803 V=1.115          62.7 VP    9%           ALPHAZERO  353 MB
+[0384/10000] 18 st/s      P=+3.810 V=1.112          56.3 VP    27%          ALPHAZERO  353 MB
+[0385/10000] 19 st/s      P=+3.809 V=1.182          63.4 VP    9%           ALPHAZERO  353 MB
+[0386/10000] 19 st/s      P=+3.808 V=1.079          52.7 VP    9%           ALPHAZERO  353 MB
+[0387/10000] 18 st/s      P=+3.805 V=1.111          54.0 VP    9%           ALPHAZERO  353 MB
+[0388/10000] 18 st/s      P=+3.814 V=1.150          57.4 VP    9%           ALPHAZERO  353 MB
+[0389/10000] 18 st/s      P=+3.810 V=1.127          60.4 VP    36%          ALPHAZERO  353 MB
+[0390/10000] 16 st/s      P=+3.808 V=1.086          54.5 VP    0%           ALPHAZERO  353 MB
+[0391/10000] 19 st/s      P=+3.812 V=1.092          68.1 VP    45%          ALPHAZERO  353 MB
+[0392/10000] 20 st/s      P=+3.807 V=1.093          61.8 VP    9%           ALPHAZERO  353 MB
+[0393/10000] 19 st/s      P=+3.806 V=1.137          70.6 VP    27%          ALPHAZERO  353 MB
+[0394/10000] 18 st/s      P=+3.807 V=1.127          65.4 VP    27%          ALPHAZERO  353 MB
+[0395/10000] 18 st/s      P=+3.810 V=1.120          66.8 VP    27%          ALPHAZERO  353 MB
+[0396/10000] 16 st/s      P=+3.811 V=1.130          58.9 VP    9%           ALPHAZERO  353 MB
+[0397/10000] 17 st/s      P=+3.805 V=1.166          65.2 VP    36%          ALPHAZERO  353 MB
+[0398/10000] 18 st/s      P=+3.809 V=1.235          62.3 VP    27%          ALPHAZERO  353 MB
+[0399/10000] 18 st/s      P=+3.807 V=1.158          56.4 VP    18%          ALPHAZERO  353 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0400 (Current Elo: 1200.0)
+[0400/10000] 19 st/s      P=+3.813 V=1.127          66.2 VP    36%          ALPHAZERO  387 MB
+[0401/10000] 20 st/s      P=+3.812 V=1.127          59.6 VP    18%          ALPHAZERO  387 MB
+[0402/10000] 19 st/s      P=+3.811 V=1.117          68.3 VP    45%          ALPHAZERO  387 MB
+[0403/10000] 20 st/s      P=+3.813 V=1.119          56.8 VP    9%           ALPHAZERO  387 MB
+[0404/10000] 17 st/s      P=+3.809 V=1.102          57.8 VP    9%           ALPHAZERO  387 MB
+[0405/10000] 19 st/s      P=+3.809 V=1.117          66.1 VP    36%          ALPHAZERO  387 MB
+[0406/10000] 15 st/s      P=+3.813 V=1.145          64.6 VP    9%           ALPHAZERO  387 MB
+[0407/10000] 17 st/s      P=+3.812 V=1.174          60.1 VP    27%          ALPHAZERO  387 MB
+[0408/10000] 16 st/s      P=+3.810 V=1.219          66.4 VP    27%          ALPHAZERO  387 MB
+[0409/10000] 18 st/s      P=+3.810 V=1.235          62.4 VP    18%          ALPHAZERO  387 MB
+[0410/10000] 18 st/s      P=+3.816 V=1.226          59.5 VP    9%           ALPHAZERO  387 MB
+[0411/10000] 24 st/s      P=+3.810 V=1.266          62.6 VP    27%          ALPHAZERO  387 MB
+[0412/10000] 18 st/s      P=+3.812 V=1.203          66.2 VP    18%          ALPHAZERO  387 MB
+[0413/10000] 18 st/s      P=+3.816 V=1.208          61.5 VP    27%          ALPHAZERO  387 MB
+[0414/10000] 16 st/s      P=+3.813 V=1.143          60.4 VP    9%           ALPHAZERO  387 MB
+[0415/10000] 20 st/s      P=+3.813 V=1.178          68.6 VP    36%          ALPHAZERO  387 MB
+[0416/10000] 18 st/s      P=+3.813 V=1.199          64.2 VP    27%          ALPHAZERO  387 MB
+[0417/10000] 21 st/s      P=+3.815 V=1.159          60.7 VP    18%          ALPHAZERO  387 MB
+[0418/10000] 20 st/s      P=+3.814 V=1.129          61.7 VP    18%          ALPHAZERO  387 MB
+[0419/10000] 24 st/s      P=+3.813 V=1.102          64.0 VP    18%          ALPHAZERO  387 MB
+[0420/10000] 20 st/s      P=+3.812 V=1.112          58.4 VP    18%          ALPHAZERO  387 MB
+[0421/10000] 19 st/s      P=+3.819 V=1.124          62.5 VP    27%          ALPHAZERO  387 MB
+[0422/10000] 19 st/s      P=+3.814 V=1.121          55.2 VP    9%           ALPHAZERO  387 MB
+^CProcess SpawnProcess-9:
+Process SpawnProcess-3:
+Process SpawnProcess-1:
+
+[!] Interrupt received (Ctrl+C). Saving current checkpoint before exiting...
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 133, in alpha_zero_worker_process
+    if cmd_pipe.poll(0.01):
+       ~~~~~~~~~~~~~^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 133, in alpha_zero_worker_process
+    if cmd_pipe.poll(0.01):
+       ~~~~~~~~~~~~~^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+           ~~~~~~~~~~^^^^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+           ~~~~~~~~~~^^^^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 440, in _poll
+    r = wait([self], timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 440, in _poll
+    r = wait([self], timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 133, in alpha_zero_worker_process
+    if cmd_pipe.poll(0.01):
+       ~~~~~~~~~~~~~^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+           ~~~~~~~~~~^^^^^^^^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 440, in _poll
+    r = wait([self], timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+Process SpawnProcess-8:
+Process SpawnProcess-11:
+Traceback (most recent call last):
+Traceback (most recent call last):
+Process SpawnProcess-2:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Traceback (most recent call last):
+Process SpawnProcess-6:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 356, in _search_gumbel
+    sim_env.step_fast(act)
+    ~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Process SpawnProcess-4:
+Traceback (most recent call last):
+Process SpawnProcess-7:
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 356, in _search_gumbel
+    sim_env.step_fast(act)
+    ~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 371, in _search_gumbel
+    curr_mask = sim_env.get_action_mask()
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 380, in get_action_mask
+    self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Process SpawnProcess-5:
+Traceback (most recent call last):
+Process SpawnProcess-10:
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 356, in _search_gumbel
+    sim_env.step_fast(act)
+    ~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/home/thibaulttoth/anaconda3/lib/python3.13/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/alphazero_parallel.py", line 175, in alpha_zero_worker_process
+    action, probs, _ = mcts.search(
+                       ~~~~~~~~~~~^
+        env,
+        ^^^^
+    ...<4 lines>...
+        root_mask=curr_mask,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 214, in search
+    return self._search_gumbel(env, num_simulations=sims, temperature=temp, root_obs=root_obs, root_mask=root_mask)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/mcts.py", line 346, in _search_gumbel
+    sim_env.step_fast(cand_act)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/thibaulttoth/ProjetGaiai/training the model/environment.py", line 398, in step_fast
+    success = self.dll.gaiapi_step(
+        self.env_ptr,
+    ...<4 lines>...
+        ctypes.byref(self._cp_buf),
+    )
+KeyboardInterrupt
+------------------------------------------------------------------------------
+  🏁 Training Session Finished | Elapsed Time: 89.3 minutes
+  💾 Latest weights saved: checkpoints/az_checkpoint_423.pt
+  📄 Generating Strategic Analysis & Game Theory Report...
+  [✓] Report PDF saved -> runs/gaia_strategy_report_ep423.pdf
+==============================================================================
+(base) thibaulttoth@pop-os:~/ProjetGaiai$ # Dans le dossier ProjetGaiai
+mkdir -p archive_dev
+mv checkpoints archive_dev/
+mv league_checkpoints archive_dev/
+mv runs/*.pdf archive_dev/ 2>/dev/null || true
+(base) thibaulttoth@pop-os:~/ProjetGaiai$ python3 "training the model/train.py" \
+  --algo alphazero \
+  --preset grandmaster \
+  --use-best-hyperparams \
+  --actors 11 \
+  --device cuda --resume auto
+  ✨ [Hyperopt] Loaded and applied optimal hyperparameters from: runs/best_hyperparams_alphazero.json
+==============================================================================
+  🌌 GAIA PROJECT DEEP RL — SOTA PRODUCTION TRAINER
+==============================================================================
+  🚀 GPU: NVIDIA GeForce RTX 5070 (11.5 GB VRAM)
+  ⚡ Mixed Precision: ON (AMP FP16/BF16) | TF32: ON
+  ⚙️ Preset: [GRANDMASTER] | Target Epochs: 10000 | Batch: 256
+  🧠 Network: SWIGLU (silu) Layers=[1024, 1024, 512, 256]
+  🗺️ Map GNN: Flat MLP
+  🏆 League: Gaussian Elo ZPD (sigma=150)
+  🛡️ SOTA Modules: R-NaD=OFF | RGSC Go-Exploit=ON | RND Curiosity=OFF
+  🌲 MCTS Inference: GUMBEL GAZ (32 sims) | MC-Dropout Epistemic Guidance=OFF
+  🏎️ Game Engine: Rust Native C-ABI (DLL/so) [<2µs/step]
+------------------------------------------------------------------------------
+Époque     Cadence      Pertes (Pol. / Valeur)   VP Moyen     Victoires    Algo       VRAM
+------------------------------------------------------------------------------
+  * [Parallel MCTS Engine] Initialized 11 CPU worker processes with dynamic GPU batching.
+[0001/10000] 22 st/s      P=+3.924 V=65.467         78.5 VP    18%          ALPHAZERO  151 MB
+[0002/10000] 28 st/s      P=+3.898 V=48.256         65.5 VP    18%          ALPHAZERO  150 MB
+[0003/10000] 25 st/s      P=+3.898 V=30.829         86.2 VP    45%          ALPHAZERO  151 MB
+[0004/10000] 25 st/s      P=+3.902 V=17.791         78.9 VP    36%          ALPHAZERO  151 MB
+[0005/10000] 22 st/s      P=+3.899 V=14.664         70.9 VP    27%          ALPHAZERO  150 MB
+[0006/10000] 24 st/s      P=+3.880 V=14.252         76.2 VP    36%          ALPHAZERO  151 MB
+[0007/10000] 24 st/s      P=+3.877 V=11.913         69.0 VP    9%           ALPHAZERO  151 MB
+[0008/10000] 24 st/s      P=+3.878 V=9.568          62.3 VP    0%           ALPHAZERO  150 MB
+[0009/10000] 25 st/s      P=+3.875 V=8.082          68.2 VP    9%           ALPHAZERO  151 MB
+[0010/10000] 24 st/s      P=+3.873 V=7.601          83.2 VP    18%          ALPHAZERO  151 MB
+[0011/10000] 27 st/s      P=+3.867 V=7.052          76.2 VP    0%           ALPHAZERO  150 MB
+[0012/10000] 24 st/s      P=+3.865 V=6.879          71.9 VP    9%           ALPHAZERO  151 MB
+[0013/10000] 24 st/s      P=+3.856 V=6.632          79.5 VP    27%          ALPHAZERO  151 MB
+[0014/10000] 25 st/s      P=+3.849 V=6.323          66.4 VP    9%           ALPHAZERO  150 MB
+[0015/10000] 26 st/s      P=+3.846 V=5.923          77.5 VP    36%          ALPHAZERO  151 MB
+[0016/10000] 25 st/s      P=+3.848 V=5.823          67.9 VP    27%          ALPHAZERO  151 MB
+[0017/10000] 24 st/s      P=+3.840 V=5.786          74.1 VP    9%           ALPHAZERO  150 MB
+[0018/10000] 25 st/s      P=+3.844 V=6.149          73.7 VP    9%           ALPHAZERO  151 MB
+[0019/10000] 27 st/s      P=+3.833 V=5.914          71.4 VP    0%           ALPHAZERO  151 MB
+[0020/10000] 22 st/s      P=+3.837 V=5.749          70.4 VP    9%           ALPHAZERO  150 MB
+[0021/10000] 23 st/s      P=+3.834 V=5.276          75.9 VP    27%          ALPHAZERO  151 MB
+[0022/10000] 25 st/s      P=+3.834 V=5.285          71.3 VP    9%           ALPHAZERO  151 MB
+[0023/10000] 25 st/s      P=+3.831 V=5.062          73.5 VP    9%           ALPHAZERO  150 MB
+[0024/10000] 25 st/s      P=+3.829 V=5.040          74.4 VP    36%          ALPHAZERO  151 MB
+[0025/10000] 22 st/s      P=+3.821 V=4.724          72.3 VP    27%          ALPHAZERO  151 MB
+[0026/10000] 24 st/s      P=+3.821 V=4.744          70.8 VP    27%          ALPHAZERO  150 MB
+[0027/10000] 24 st/s      P=+3.821 V=4.635          81.8 VP    36%          ALPHAZERO  151 MB
+[0028/10000] 24 st/s      P=+3.818 V=4.723          78.4 VP    18%          ALPHAZERO  151 MB
+[0029/10000] 26 st/s      P=+3.819 V=4.416          79.4 VP    45%          ALPHAZERO  150 MB
+[0030/10000] 27 st/s      P=+3.811 V=4.259          79.7 VP    18%          ALPHAZERO  151 MB
+[0031/10000] 25 st/s      P=+3.810 V=4.210          73.2 VP    27%          ALPHAZERO  151 MB
+[0032/10000] 25 st/s      P=+3.812 V=4.040          80.5 VP    9%           ALPHAZERO  150 MB
+[0033/10000] 24 st/s      P=+3.809 V=4.007          73.0 VP    9%           ALPHAZERO  151 MB
+[0034/10000] 27 st/s      P=+3.808 V=4.003          78.5 VP    36%          ALPHAZERO  151 MB
+[0035/10000] 27 st/s      P=+3.807 V=3.817          69.1 VP    9%           ALPHAZERO  150 MB
+[0036/10000] 23 st/s      P=+3.802 V=3.798          67.0 VP    9%           ALPHAZERO  151 MB
+[0037/10000] 25 st/s      P=+3.799 V=3.671          66.5 VP    9%           ALPHAZERO  151 MB
+[0038/10000] 23 st/s      P=+3.798 V=3.674          77.6 VP    18%          ALPHAZERO  150 MB
+[0039/10000] 27 st/s      P=+3.803 V=3.765          86.3 VP    36%          ALPHAZERO  151 MB
+[0040/10000] 26 st/s      P=+3.795 V=3.616          83.3 VP    45%          ALPHAZERO  151 MB
+[0041/10000] 26 st/s      P=+3.790 V=3.549          84.9 VP    36%          ALPHAZERO  150 MB
+[0042/10000] 23 st/s      P=+3.793 V=3.610          74.5 VP    9%           ALPHAZERO  151 MB
+[0043/10000] 27 st/s      P=+3.792 V=3.554          67.4 VP    18%          ALPHAZERO  151 MB
+[0044/10000] 27 st/s      P=+3.790 V=3.531          82.7 VP    27%          ALPHAZERO  150 MB
+[0045/10000] 25 st/s      P=+3.790 V=3.538          72.7 VP    27%          ALPHAZERO  151 MB
+[0046/10000] 25 st/s      P=+3.792 V=3.633          77.5 VP    27%          ALPHAZERO  151 MB
+[0047/10000] 23 st/s      P=+3.786 V=3.476          74.1 VP    18%          ALPHAZERO  150 MB
+[0048/10000] 24 st/s      P=+3.791 V=3.533          73.3 VP    9%           ALPHAZERO  151 MB
+[0049/10000] 24 st/s      P=+3.785 V=3.533          78.6 VP    18%          ALPHAZERO  151 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0050 (Current Elo: 1200.0)
+[0050/10000] 26 st/s      P=+3.787 V=3.369          80.5 VP    36%          ALPHAZERO  185 MB
+[0051/10000] 26 st/s      P=+3.785 V=3.453          84.3 VP    18%          ALPHAZERO  186 MB
+[0052/10000] 27 st/s      P=+3.781 V=3.384          77.1 VP    36%          ALPHAZERO  186 MB
+[0053/10000] 26 st/s      P=+3.784 V=3.352          80.5 VP    18%          ALPHAZERO  186 MB
+[0054/10000] 27 st/s      P=+3.782 V=3.348          82.4 VP    27%          ALPHAZERO  186 MB
+[0055/10000] 26 st/s      P=+3.777 V=3.323          77.5 VP    9%           ALPHAZERO  186 MB
+[0056/10000] 25 st/s      P=+3.780 V=3.315          74.7 VP    9%           ALPHAZERO  186 MB
+[0057/10000] 26 st/s      P=+3.778 V=3.281          81.5 VP    18%          ALPHAZERO  186 MB
+[0058/10000] 24 st/s      P=+3.775 V=3.194          84.7 VP    45%          ALPHAZERO  186 MB
+[0059/10000] 27 st/s      P=+3.771 V=3.170          65.8 VP    0%           ALPHAZERO  186 MB
+[0060/10000] 26 st/s      P=+3.769 V=3.168          77.6 VP    18%          ALPHAZERO  186 MB
+[0061/10000] 26 st/s      P=+3.771 V=3.138          85.0 VP    9%           ALPHAZERO  186 MB
+[0062/10000] 26 st/s      P=+3.770 V=3.191          60.4 VP    27%          ALPHAZERO  186 MB
+[0063/10000] 25 st/s      P=+3.769 V=3.130          79.8 VP    27%          ALPHAZERO  186 MB
+[0064/10000] 25 st/s      P=+3.770 V=3.020          77.3 VP    36%          ALPHAZERO  186 MB
+[0065/10000] 28 st/s      P=+3.765 V=3.159          77.4 VP    9%           ALPHAZERO  186 MB
+[0066/10000] 23 st/s      P=+3.761 V=3.139          80.5 VP    18%          ALPHAZERO  186 MB
+[0067/10000] 24 st/s      P=+3.762 V=3.138          69.7 VP    18%          ALPHAZERO  186 MB
+[0068/10000] 27 st/s      P=+3.763 V=3.139          69.5 VP    0%           ALPHAZERO  186 MB
+[0069/10000] 28 st/s      P=+3.761 V=3.115          76.2 VP    18%          ALPHAZERO  186 MB
+[0070/10000] 27 st/s      P=+3.759 V=3.086          81.1 VP    18%          ALPHAZERO  186 MB
+[0071/10000] 26 st/s      P=+3.758 V=3.024          79.8 VP    9%           ALPHAZERO  186 MB
+[0072/10000] 23 st/s      P=+3.754 V=2.995          69.4 VP    18%          ALPHAZERO  186 MB
+[0073/10000] 25 st/s      P=+3.750 V=3.134          83.3 VP    36%          ALPHAZERO  186 MB
+[0074/10000] 26 st/s      P=+3.745 V=3.119          79.9 VP    9%           ALPHAZERO  186 MB
+[0075/10000] 25 st/s      P=+3.750 V=3.113          76.9 VP    9%           ALPHAZERO  186 MB
+[0076/10000] 26 st/s      P=+3.747 V=3.155          89.5 VP    36%          ALPHAZERO  186 MB
+[0077/10000] 26 st/s      P=+3.745 V=3.151          58.0 VP    0%           ALPHAZERO  186 MB
+[0078/10000] 24 st/s      P=+3.742 V=3.208          61.8 VP    9%           ALPHAZERO  186 MB
+[0079/10000] 26 st/s      P=+3.739 V=3.124          95.6 VP    27%          ALPHAZERO  186 MB
+[0080/10000] 25 st/s      P=+3.742 V=3.110          73.9 VP    9%           ALPHAZERO  186 MB
+[0081/10000] 27 st/s      P=+3.734 V=3.115          81.5 VP    18%          ALPHAZERO  186 MB
+[0082/10000] 25 st/s      P=+3.734 V=3.127          82.4 VP    36%          ALPHAZERO  186 MB
+[0083/10000] 29 st/s      P=+3.730 V=3.085          81.0 VP    36%          ALPHAZERO  186 MB
+[0084/10000] 25 st/s      P=+3.724 V=3.088          72.8 VP    9%           ALPHAZERO  186 MB
+[0085/10000] 28 st/s      P=+3.727 V=3.059          80.9 VP    36%          ALPHAZERO  186 MB
+[0086/10000] 27 st/s      P=+3.725 V=3.097          79.5 VP    9%           ALPHAZERO  186 MB
+[0087/10000] 27 st/s      P=+3.722 V=3.019          87.5 VP    36%          ALPHAZERO  186 MB
+[0088/10000] 26 st/s      P=+3.720 V=3.082          93.9 VP    27%          ALPHAZERO  186 MB
+[0089/10000] 27 st/s      P=+3.718 V=3.067          70.3 VP    18%          ALPHAZERO  186 MB
+[0090/10000] 26 st/s      P=+3.713 V=3.189          75.9 VP    18%          ALPHAZERO  186 MB
+[0091/10000] 29 st/s      P=+3.718 V=3.152          87.1 VP    45%          ALPHAZERO  186 MB
+[0092/10000] 29 st/s      P=+3.715 V=3.214          78.6 VP    18%          ALPHAZERO  186 MB
+[0093/10000] 27 st/s      P=+3.715 V=3.145          78.2 VP    18%          ALPHAZERO  186 MB
+[0094/10000] 26 st/s      P=+3.709 V=3.108          76.5 VP    9%           ALPHAZERO  186 MB
+[0095/10000] 30 st/s      P=+3.707 V=3.161          70.8 VP    18%          ALPHAZERO  186 MB
+[0096/10000] 28 st/s      P=+3.703 V=3.088          84.0 VP    18%          ALPHAZERO  186 MB
+[0097/10000] 28 st/s      P=+3.702 V=3.129          88.1 VP    27%          ALPHAZERO  186 MB
+[0098/10000] 24 st/s      P=+3.695 V=3.083          85.9 VP    18%          ALPHAZERO  186 MB
+[0099/10000] 26 st/s      P=+3.700 V=3.076          82.1 VP    18%          ALPHAZERO  186 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0100 (Current Elo: 1200.0)
+[0100/10000] 29 st/s      P=+3.701 V=3.032          92.4 VP    45%          ALPHAZERO  220 MB
+[0101/10000] 28 st/s      P=+3.696 V=3.104          69.3 VP    0%           ALPHAZERO  219 MB
+[0102/10000] 25 st/s      P=+3.695 V=3.052          76.4 VP    27%          ALPHAZERO  219 MB
+[0103/10000] 26 st/s      P=+3.694 V=3.126          73.3 VP    9%           ALPHAZERO  219 MB
+[0104/10000] 29 st/s      P=+3.688 V=3.081          71.6 VP    27%          ALPHAZERO  219 MB
+[0105/10000] 26 st/s      P=+3.685 V=3.034          84.6 VP    36%          ALPHAZERO  219 MB
+[0106/10000] 27 st/s      P=+3.681 V=3.004          74.2 VP    27%          ALPHAZERO  219 MB
+[0107/10000] 28 st/s      P=+3.687 V=3.056          78.0 VP    27%          ALPHAZERO  219 MB
+[0108/10000] 29 st/s      P=+3.683 V=3.021          81.6 VP    18%          ALPHAZERO  219 MB
+[0109/10000] 27 st/s      P=+3.682 V=3.153          83.0 VP    27%          ALPHAZERO  219 MB
+[0110/10000] 27 st/s      P=+3.676 V=3.098          79.0 VP    36%          ALPHAZERO  219 MB
+[0111/10000] 27 st/s      P=+3.677 V=3.062          89.2 VP    27%          ALPHAZERO  219 MB
+[0112/10000] 28 st/s      P=+3.676 V=3.067          69.5 VP    0%           ALPHAZERO  219 MB
+[0113/10000] 24 st/s      P=+3.670 V=3.085          78.5 VP    0%           ALPHAZERO  219 MB
+[0114/10000] 27 st/s      P=+3.671 V=3.068          85.4 VP    27%          ALPHAZERO  219 MB
+[0115/10000] 28 st/s      P=+3.667 V=3.062          86.5 VP    36%          ALPHAZERO  219 MB
+[0116/10000] 25 st/s      P=+3.663 V=3.054          74.6 VP    27%          ALPHAZERO  219 MB
+[0117/10000] 26 st/s      P=+3.665 V=3.120          75.9 VP    9%           ALPHAZERO  219 MB
+[0118/10000] 29 st/s      P=+3.659 V=2.984          82.0 VP    18%          ALPHAZERO  219 MB
+[0119/10000] 28 st/s      P=+3.666 V=2.922          82.2 VP    9%           ALPHAZERO  219 MB
+[0120/10000] 25 st/s      P=+3.664 V=3.005          74.6 VP    0%           ALPHAZERO  219 MB
+[0121/10000] 28 st/s      P=+3.657 V=2.953          86.7 VP    45%          ALPHAZERO  219 MB
+[0122/10000] 30 st/s      P=+3.652 V=3.008          86.3 VP    64%          ALPHAZERO  219 MB
+[0123/10000] 29 st/s      P=+3.656 V=3.110          79.6 VP    27%          ALPHAZERO  219 MB
+[0124/10000] 28 st/s      P=+3.654 V=3.004          66.2 VP    18%          ALPHAZERO  219 MB
+[0125/10000] 27 st/s      P=+3.649 V=3.062          85.4 VP    36%          ALPHAZERO  219 MB
+[0126/10000] 29 st/s      P=+3.645 V=2.946          78.4 VP    18%          ALPHAZERO  219 MB
+[0127/10000] 26 st/s      P=+3.650 V=3.052          68.5 VP    0%           ALPHAZERO  219 MB
+[0128/10000] 25 st/s      P=+3.652 V=2.987          82.1 VP    27%          ALPHAZERO  219 MB
+[0129/10000] 28 st/s      P=+3.649 V=2.982          81.3 VP    27%          ALPHAZERO  219 MB
+[0130/10000] 28 st/s      P=+3.644 V=2.986          88.9 VP    18%          ALPHAZERO  219 MB
+[0131/10000] 30 st/s      P=+3.640 V=3.049          81.5 VP    18%          ALPHAZERO  219 MB
+[0132/10000] 28 st/s      P=+3.645 V=3.045          86.6 VP    18%          ALPHAZERO  219 MB
+[0133/10000] 27 st/s      P=+3.641 V=2.978          80.2 VP    9%           ALPHAZERO  219 MB
+[0134/10000] 28 st/s      P=+3.640 V=2.878          75.5 VP    27%          ALPHAZERO  219 MB
+[0135/10000] 26 st/s      P=+3.637 V=2.863          86.5 VP    45%          ALPHAZERO  219 MB
+[0136/10000] 26 st/s      P=+3.637 V=2.922          80.2 VP    18%          ALPHAZERO  219 MB
+[0137/10000] 26 st/s      P=+3.632 V=2.927          77.0 VP    9%           ALPHAZERO  219 MB
+[0138/10000] 29 st/s      P=+3.631 V=2.945          77.5 VP    9%           ALPHAZERO  219 MB
+[0139/10000] 28 st/s      P=+3.631 V=2.932          85.0 VP    27%          ALPHAZERO  219 MB
+[0140/10000] 25 st/s      P=+3.624 V=2.885          71.0 VP    18%          ALPHAZERO  219 MB
+[0141/10000] 29 st/s      P=+3.619 V=2.801          70.0 VP    9%           ALPHAZERO  219 MB
+[0142/10000] 27 st/s      P=+3.616 V=2.967          68.9 VP    9%           ALPHAZERO  219 MB
+[0143/10000] 24 st/s      P=+3.625 V=2.862          88.1 VP    27%          ALPHAZERO  219 MB
+[0144/10000] 25 st/s      P=+3.620 V=2.811          82.4 VP    9%           ALPHAZERO  219 MB
+[0145/10000] 28 st/s      P=+3.613 V=2.888          75.2 VP    27%          ALPHAZERO  219 MB
+[0146/10000] 30 st/s      P=+3.614 V=2.869          70.6 VP    0%           ALPHAZERO  219 MB
+[0147/10000] 28 st/s      P=+3.623 V=2.840          73.4 VP    27%          ALPHAZERO  219 MB
+[0148/10000] 28 st/s      P=+3.610 V=2.840          73.2 VP    9%           ALPHAZERO  219 MB
+[0149/10000] 28 st/s      P=+3.607 V=2.837          89.2 VP    27%          ALPHAZERO  219 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0150 (Current Elo: 1200.0)
+[0150/10000] 29 st/s      P=+3.607 V=2.871          86.0 VP    36%          ALPHAZERO  254 MB
+[0151/10000] 30 st/s      P=+3.608 V=2.894          84.5 VP    27%          ALPHAZERO  254 MB
+[0152/10000] 26 st/s      P=+3.603 V=2.804          90.1 VP    45%          ALPHAZERO  254 MB
+[0153/10000] 29 st/s      P=+3.605 V=2.847          78.4 VP    0%           ALPHAZERO  254 MB
+[0154/10000] 28 st/s      P=+3.599 V=2.788          80.5 VP    18%          ALPHAZERO  254 MB
+[0155/10000] 29 st/s      P=+3.596 V=2.857          97.0 VP    45%          ALPHAZERO  254 MB
+[0156/10000] 27 st/s      P=+3.602 V=2.897          82.4 VP    18%          ALPHAZERO  254 MB
+[0157/10000] 26 st/s      P=+3.601 V=2.877          83.4 VP    18%          ALPHAZERO  254 MB
+[0158/10000] 29 st/s      P=+3.591 V=2.878          80.9 VP    9%           ALPHAZERO  254 MB
+[0159/10000] 29 st/s      P=+3.592 V=2.907          85.0 VP    18%          ALPHAZERO  254 MB
+[0160/10000] 32 st/s      P=+3.587 V=2.856          77.1 VP    0%           ALPHAZERO  254 MB
+[0161/10000] 30 st/s      P=+3.589 V=2.886          74.3 VP    18%          ALPHAZERO  254 MB
+[0162/10000] 28 st/s      P=+3.591 V=2.851          73.0 VP    9%           ALPHAZERO  254 MB
+[0163/10000] 27 st/s      P=+3.579 V=2.839          93.0 VP    27%          ALPHAZERO  254 MB
+[0164/10000] 27 st/s      P=+3.581 V=2.870          89.6 VP    27%          ALPHAZERO  254 MB
+[0165/10000] 29 st/s      P=+3.584 V=2.773          81.3 VP    9%           ALPHAZERO  254 MB
+[0166/10000] 26 st/s      P=+3.585 V=2.771          86.1 VP    45%          ALPHAZERO  254 MB
+[0167/10000] 29 st/s      P=+3.571 V=2.774          79.2 VP    9%           ALPHAZERO  254 MB
+[0168/10000] 29 st/s      P=+3.583 V=2.817          81.8 VP    27%          ALPHAZERO  254 MB
+[0169/10000] 27 st/s      P=+3.578 V=2.826          76.0 VP    9%           ALPHAZERO  254 MB
+[0170/10000] 28 st/s      P=+3.575 V=2.894          80.0 VP    18%          ALPHAZERO  254 MB
+[0171/10000] 26 st/s      P=+3.574 V=2.950          78.3 VP    18%          ALPHAZERO  254 MB
+[0172/10000] 28 st/s      P=+3.573 V=2.914          81.0 VP    9%           ALPHAZERO  254 MB
+[0173/10000] 30 st/s      P=+3.570 V=2.980          84.3 VP    18%          ALPHAZERO  254 MB
+[0174/10000] 27 st/s      P=+3.561 V=2.905          80.5 VP    18%          ALPHAZERO  254 MB
+[0175/10000] 28 st/s      P=+3.565 V=2.908          86.2 VP    18%          ALPHAZERO  254 MB
+[0176/10000] 27 st/s      P=+3.565 V=2.963          80.2 VP    18%          ALPHAZERO  254 MB
+[0177/10000] 27 st/s      P=+3.563 V=2.865          75.9 VP    27%          ALPHAZERO  254 MB
+[0178/10000] 29 st/s      P=+3.563 V=2.979          86.9 VP    18%          ALPHAZERO  254 MB
+[0179/10000] 28 st/s      P=+3.559 V=2.934          80.3 VP    9%           ALPHAZERO  254 MB
+[0180/10000] 29 st/s      P=+3.564 V=3.006          87.4 VP    18%          ALPHAZERO  254 MB
+[0181/10000] 29 st/s      P=+3.566 V=2.952          85.3 VP    18%          ALPHAZERO  254 MB
+[0182/10000] 32 st/s      P=+3.564 V=2.897          73.5 VP    9%           ALPHAZERO  254 MB
+[0183/10000] 28 st/s      P=+3.561 V=2.848          79.9 VP    9%           ALPHAZERO  254 MB
+[0184/10000] 26 st/s      P=+3.557 V=2.894          78.2 VP    0%           ALPHAZERO  254 MB
+[0185/10000] 30 st/s      P=+3.558 V=2.980          87.6 VP    45%          ALPHAZERO  254 MB
+[0186/10000] 29 st/s      P=+3.558 V=2.875          82.5 VP    9%           ALPHAZERO  254 MB
+[0187/10000] 28 st/s      P=+3.543 V=2.888          83.0 VP    18%          ALPHAZERO  254 MB
+[0188/10000] 29 st/s      P=+3.536 V=2.833          82.5 VP    18%          ALPHAZERO  254 MB
+[0189/10000] 29 st/s      P=+3.547 V=2.848          83.5 VP    27%          ALPHAZERO  254 MB
+[0190/10000] 29 st/s      P=+3.539 V=2.901          78.7 VP    9%           ALPHAZERO  254 MB
+[0191/10000] 27 st/s      P=+3.539 V=2.946          77.9 VP    18%          ALPHAZERO  254 MB
+[0192/10000] 29 st/s      P=+3.537 V=2.859          84.1 VP    27%          ALPHAZERO  254 MB
+[0193/10000] 28 st/s      P=+3.533 V=2.841          88.0 VP    27%          ALPHAZERO  254 MB
+[0194/10000] 29 st/s      P=+3.539 V=2.830          77.5 VP    18%          ALPHAZERO  254 MB
+[0195/10000] 27 st/s      P=+3.533 V=2.834          76.0 VP    9%           ALPHAZERO  254 MB
+[0196/10000] 29 st/s      P=+3.533 V=2.800          80.3 VP    27%          ALPHAZERO  254 MB
+[0197/10000] 27 st/s      P=+3.524 V=2.823          84.5 VP    18%          ALPHAZERO  254 MB
+[0198/10000] 31 st/s      P=+3.531 V=2.800          79.9 VP    18%          ALPHAZERO  254 MB
+[0199/10000] 29 st/s      P=+3.528 V=2.813          75.6 VP    9%           ALPHAZERO  254 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0200 (Current Elo: 1200.0)
+[0200/10000] 25 st/s      P=+3.523 V=2.847          64.0 VP    9%           ALPHAZERO  288 MB
+[0201/10000] 29 st/s      P=+3.519 V=2.868          66.2 VP    9%           ALPHAZERO  288 MB
+[0202/10000] 27 st/s      P=+3.519 V=2.794          73.9 VP    18%          ALPHAZERO  288 MB
+[0203/10000] 27 st/s      P=+3.518 V=2.866          73.4 VP    9%           ALPHAZERO  288 MB
+[0204/10000] 29 st/s      P=+3.514 V=2.790          80.2 VP    18%          ALPHAZERO  288 MB
+[0205/10000] 30 st/s      P=+3.511 V=2.737          85.9 VP    27%          ALPHAZERO  288 MB
+[0206/10000] 30 st/s      P=+3.512 V=2.793          81.4 VP    18%          ALPHAZERO  288 MB
+[0207/10000] 28 st/s      P=+3.512 V=2.877          80.7 VP    0%           ALPHAZERO  288 MB
+[0208/10000] 31 st/s      P=+3.502 V=2.906          78.5 VP    18%          ALPHAZERO  288 MB
+[0209/10000] 29 st/s      P=+3.502 V=2.875          92.6 VP    27%          ALPHAZERO  288 MB
+[0210/10000] 30 st/s      P=+3.505 V=2.883          78.9 VP    0%           ALPHAZERO  288 MB
+[0211/10000] 27 st/s      P=+3.493 V=2.882          95.6 VP    18%          ALPHAZERO  288 MB
+[0212/10000] 32 st/s      P=+3.496 V=2.769          76.5 VP    0%           ALPHAZERO  288 MB
+[0213/10000] 27 st/s      P=+3.497 V=2.715          79.5 VP    9%           ALPHAZERO  288 MB
+[0214/10000] 31 st/s      P=+3.492 V=2.757          72.5 VP    18%          ALPHAZERO  288 MB
+[0215/10000] 29 st/s      P=+3.481 V=2.763          81.3 VP    27%          ALPHAZERO  288 MB
+[0216/10000] 27 st/s      P=+3.482 V=2.711          82.9 VP    9%           ALPHAZERO  288 MB
+[0217/10000] 24 st/s      P=+3.489 V=2.770          77.8 VP    18%          ALPHAZERO  288 MB
+[0218/10000] 29 st/s      P=+3.482 V=2.751          91.9 VP    18%          ALPHAZERO  288 MB
+[0219/10000] 29 st/s      P=+3.480 V=2.752          85.8 VP    27%          ALPHAZERO  288 MB
+[0220/10000] 31 st/s      P=+3.479 V=2.792          82.7 VP    36%          ALPHAZERO  288 MB
+[0221/10000] 30 st/s      P=+3.478 V=2.806          83.3 VP    18%          ALPHAZERO  288 MB
+[0222/10000] 32 st/s      P=+3.475 V=2.819          80.9 VP    18%          ALPHAZERO  288 MB
+[0223/10000] 29 st/s      P=+3.475 V=2.764          76.1 VP    9%           ALPHAZERO  288 MB
+[0224/10000] 31 st/s      P=+3.467 V=2.783          71.1 VP    9%           ALPHAZERO  288 MB
+[0225/10000] 28 st/s      P=+3.461 V=2.840          70.0 VP    9%           ALPHAZERO  288 MB
+[0226/10000] 32 st/s      P=+3.453 V=2.709          77.5 VP    18%          ALPHAZERO  288 MB
+[0227/10000] 32 st/s      P=+3.454 V=2.768          70.2 VP    9%           ALPHAZERO  288 MB
+[0228/10000] 30 st/s      P=+3.449 V=2.864          91.3 VP    27%          ALPHAZERO  288 MB
+[0229/10000] 28 st/s      P=+3.442 V=2.818          86.6 VP    18%          ALPHAZERO  288 MB
+[0230/10000] 24 st/s      P=+3.435 V=2.825          71.8 VP    9%           ALPHAZERO  288 MB
+[0231/10000] 31 st/s      P=+3.443 V=2.901          90.9 VP    36%          ALPHAZERO  288 MB
+[0232/10000] 29 st/s      P=+3.437 V=2.868          92.9 VP    27%          ALPHAZERO  288 MB
+[0233/10000] 28 st/s      P=+3.433 V=2.827          83.0 VP    18%          ALPHAZERO  288 MB
+[0234/10000] 32 st/s      P=+3.424 V=2.875          92.4 VP    27%          ALPHAZERO  288 MB
+[0235/10000] 29 st/s      P=+3.425 V=2.896          82.5 VP    27%          ALPHAZERO  288 MB
+[0236/10000] 27 st/s      P=+3.413 V=2.841          76.3 VP    0%           ALPHAZERO  288 MB
+[0237/10000] 31 st/s      P=+3.400 V=2.837          74.9 VP    0%           ALPHAZERO  288 MB
+[0238/10000] 28 st/s      P=+3.402 V=2.900          75.5 VP    9%           ALPHAZERO  288 MB
+[0239/10000] 29 st/s      P=+3.393 V=2.899          75.9 VP    9%           ALPHAZERO  288 MB
+[0240/10000] 31 st/s      P=+3.377 V=2.789          84.3 VP    27%          ALPHAZERO  288 MB
+[0241/10000] 29 st/s      P=+3.376 V=2.881          78.6 VP    18%          ALPHAZERO  288 MB
+[0242/10000] 34 st/s      P=+3.368 V=2.867          78.6 VP    9%           ALPHAZERO  288 MB
+[0243/10000] 29 st/s      P=+3.368 V=2.806          76.0 VP    9%           ALPHAZERO  288 MB
+[0244/10000] 32 st/s      P=+3.354 V=2.773          76.1 VP    27%          ALPHAZERO  288 MB
+[0245/10000] 32 st/s      P=+3.367 V=2.759          80.5 VP    18%          ALPHAZERO  288 MB
+[0246/10000] 31 st/s      P=+3.346 V=2.814          80.1 VP    18%          ALPHAZERO  288 MB
+[0247/10000] 33 st/s      P=+3.334 V=2.819          67.2 VP    9%           ALPHAZERO  288 MB
+[0248/10000] 31 st/s      P=+3.334 V=2.880          81.1 VP    9%           ALPHAZERO  288 MB
+[0249/10000] 26 st/s      P=+3.325 V=2.893          78.4 VP    18%          ALPHAZERO  288 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0250 (Current Elo: 1200.0)
+[0250/10000] 23 st/s      P=+3.316 V=2.821          70.4 VP    18%          ALPHAZERO  323 MB
+[0251/10000] 29 st/s      P=+3.306 V=2.944          81.4 VP    9%           ALPHAZERO  323 MB
+[0252/10000] 31 st/s      P=+3.301 V=2.808          83.3 VP    27%          ALPHAZERO  323 MB
+[0253/10000] 31 st/s      P=+3.290 V=2.830          81.5 VP    18%          ALPHAZERO  323 MB
+[0254/10000] 31 st/s      P=+3.289 V=2.864          81.8 VP    18%          ALPHAZERO  323 MB
+[0255/10000] 30 st/s      P=+3.278 V=2.670          88.1 VP    36%          ALPHAZERO  323 MB
+[0256/10000] 29 st/s      P=+3.273 V=2.754          79.7 VP    18%          ALPHAZERO  323 MB
+[0257/10000] 31 st/s      P=+3.272 V=2.733          90.0 VP    36%          ALPHAZERO  323 MB
+[0258/10000] 29 st/s      P=+3.270 V=2.790          77.1 VP    18%          ALPHAZERO  323 MB
+[0259/10000] 31 st/s      P=+3.248 V=2.837          82.5 VP    18%          ALPHAZERO  323 MB
+[0260/10000] 30 st/s      P=+3.245 V=2.813          79.5 VP    9%           ALPHAZERO  323 MB
+[0261/10000] 33 st/s      P=+3.234 V=2.815          86.3 VP    18%          ALPHAZERO  323 MB
+[0262/10000] 33 st/s      P=+3.232 V=2.823         100.6 VP    45%          ALPHAZERO  323 MB
+[0263/10000] 27 st/s      P=+3.220 V=2.868          85.5 VP    18%          ALPHAZERO  323 MB
+[0264/10000] 28 st/s      P=+3.184 V=2.996          86.2 VP    18%          ALPHAZERO  323 MB
+[0265/10000] 31 st/s      P=+3.170 V=2.860          92.9 VP    18%          ALPHAZERO  323 MB
+[0266/10000] 33 st/s      P=+3.159 V=2.761          73.5 VP    9%           ALPHAZERO  323 MB
+[0267/10000] 30 st/s      P=+3.139 V=2.756          78.8 VP    9%           ALPHAZERO  323 MB
+[0268/10000] 27 st/s      P=+3.143 V=2.760          86.6 VP    27%          ALPHAZERO  323 MB
+[0269/10000] 31 st/s      P=+3.115 V=2.816          76.1 VP    9%           ALPHAZERO  323 MB
+[0270/10000] 33 st/s      P=+3.110 V=2.893          81.6 VP    27%          ALPHAZERO  323 MB
+[0271/10000] 27 st/s      P=+3.096 V=2.838          93.4 VP    36%          ALPHAZERO  323 MB
+[0272/10000] 24 st/s      P=+3.089 V=2.790          89.6 VP    18%          ALPHAZERO  323 MB
+[0273/10000] 27 st/s      P=+3.057 V=2.864          81.1 VP    9%           ALPHAZERO  323 MB
+[0274/10000] 31 st/s      P=+3.058 V=2.732          78.2 VP    18%          ALPHAZERO  323 MB
+[0275/10000] 33 st/s      P=+3.049 V=2.777          78.1 VP    0%           ALPHAZERO  323 MB
+[0276/10000] 33 st/s      P=+3.020 V=2.803          84.3 VP    27%          ALPHAZERO  323 MB
+[0277/10000] 29 st/s      P=+3.006 V=2.724          76.9 VP    0%           ALPHAZERO  323 MB
+[0278/10000] 32 st/s      P=+2.998 V=2.826          90.5 VP    18%          ALPHAZERO  323 MB
+[0279/10000] 32 st/s      P=+2.967 V=2.851          79.0 VP    9%           ALPHAZERO  323 MB
+[0280/10000] 24 st/s      P=+2.939 V=2.894          70.5 VP    9%           ALPHAZERO  323 MB
+[0281/10000] 29 st/s      P=+2.931 V=2.776          83.1 VP    9%           ALPHAZERO  323 MB
+[0282/10000] 31 st/s      P=+2.895 V=2.704          80.5 VP    9%           ALPHAZERO  323 MB
+[0283/10000] 36 st/s      P=+2.878 V=2.707          79.8 VP    18%          ALPHAZERO  323 MB
+[0284/10000] 30 st/s      P=+2.844 V=2.626          73.7 VP    9%           ALPHAZERO  323 MB
+[0285/10000] 35 st/s      P=+2.814 V=2.565          71.9 VP    0%           ALPHAZERO  323 MB
+[0286/10000] 29 st/s      P=+2.782 V=2.540          87.7 VP    36%          ALPHAZERO  323 MB
+[0287/10000] 31 st/s      P=+2.756 V=2.655          78.9 VP    18%          ALPHAZERO  323 MB
+[0288/10000] 28 st/s      P=+2.741 V=2.590          82.0 VP    0%           ALPHAZERO  323 MB
+[0289/10000] 30 st/s      P=+2.727 V=2.646          88.1 VP    45%          ALPHAZERO  323 MB
+[0290/10000] 36 st/s      P=+2.680 V=2.638          86.5 VP    27%          ALPHAZERO  323 MB
+[0291/10000] 32 st/s      P=+2.642 V=2.597          74.0 VP    9%           ALPHAZERO  323 MB
+[0292/10000] 27 st/s      P=+2.616 V=2.581          96.6 VP    36%          ALPHAZERO  323 MB
+[0293/10000] 30 st/s      P=+2.558 V=2.629          83.6 VP    18%          ALPHAZERO  323 MB
+[0294/10000] 28 st/s      P=+2.544 V=2.767          87.4 VP    27%          ALPHAZERO  323 MB
+[0295/10000] 37 st/s      P=+2.506 V=2.596          78.2 VP    9%           ALPHAZERO  323 MB
+[0296/10000] 32 st/s      P=+2.457 V=2.680          86.5 VP    18%          ALPHAZERO  323 MB
+[0297/10000] 23 st/s      P=+2.439 V=2.673          84.4 VP    27%          ALPHAZERO  323 MB
+[0298/10000] 28 st/s      P=+2.383 V=2.964          75.9 VP    9%           ALPHAZERO  323 MB
+[0299/10000] 22 st/s      P=+2.360 V=2.783          75.0 VP    9%           ALPHAZERO  323 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0300 (Current Elo: 1200.0)
+[0300/10000] 34 st/s      P=+2.322 V=2.612         105.1 VP    36%          ALPHAZERO  359 MB
+[0301/10000] 29 st/s      P=+2.290 V=2.503          67.4 VP    9%           ALPHAZERO  359 MB
+[0302/10000] 29 st/s      P=+2.289 V=2.538          68.8 VP    0%           ALPHAZERO  359 MB
+[0303/10000] 27 st/s      P=+2.226 V=2.664          76.6 VP    0%           ALPHAZERO  359 MB
+[0304/10000] 24 st/s      P=+2.198 V=2.624          88.8 VP    27%          ALPHAZERO  359 MB
+[0305/10000] 36 st/s      P=+2.131 V=2.812          72.9 VP    18%          ALPHAZERO  359 MB
+[0306/10000] 42 st/s      P=+2.102 V=2.500          93.5 VP    18%          ALPHAZERO  359 MB
+[0307/10000] 34 st/s      P=+2.066 V=2.677          82.9 VP    36%          ALPHAZERO  359 MB
+[0308/10000] 31 st/s      P=+2.014 V=2.794          65.2 VP    18%          ALPHAZERO  359 MB
+[0309/10000] 34 st/s      P=+1.948 V=2.612          89.7 VP    36%          ALPHAZERO  359 MB
+[0310/10000] 28 st/s      P=+1.944 V=2.621          85.1 VP    18%          ALPHAZERO  359 MB
+[0311/10000] 32 st/s      P=+1.925 V=2.724          62.5 VP    9%           ALPHAZERO  359 MB
+[0312/10000] 35 st/s      P=+1.853 V=2.813          48.5 VP    0%           ALPHAZERO  359 MB
+[0313/10000] 42 st/s      P=+1.811 V=2.945          57.9 VP    0%           ALPHAZERO  359 MB
+[0314/10000] 37 st/s      P=+1.747 V=2.750          69.5 VP    18%          ALPHAZERO  359 MB
+[0315/10000] 44 st/s      P=+1.712 V=2.679          57.1 VP    0%           ALPHAZERO  359 MB
+[0316/10000] 35 st/s      P=+1.643 V=2.629          66.8 VP    27%          ALPHAZERO  359 MB
+[0317/10000] 45 st/s      P=+1.617 V=2.636          59.2 VP    0%           ALPHAZERO  359 MB
+[0318/10000] 45 st/s      P=+1.577 V=2.701          58.2 VP    0%           ALPHAZERO  359 MB
+[0319/10000] 50 st/s      P=+1.517 V=2.658          54.8 VP    18%          ALPHAZERO  359 MB
+[0320/10000] 42 st/s      P=+1.485 V=2.527          65.9 VP    18%          ALPHAZERO  359 MB
+[0321/10000] 30 st/s      P=+1.462 V=2.275          58.9 VP    0%           ALPHAZERO  359 MB
+[0322/10000] 36 st/s      P=+1.436 V=2.442          74.8 VP    18%          ALPHAZERO  359 MB
+[0323/10000] 48 st/s      P=+1.401 V=2.127          68.6 VP    36%          ALPHAZERO  359 MB
+[0324/10000] 40 st/s      P=+1.386 V=1.960          79.0 VP    18%          ALPHAZERO  359 MB
+[0325/10000] 49 st/s      P=+1.386 V=1.974          52.8 VP    0%           ALPHAZERO  359 MB
+[0326/10000] 53 st/s      P=+1.336 V=2.216          26.2 VP    0%           ALPHAZERO  359 MB
+[0327/10000] 45 st/s      P=+1.319 V=2.141          47.2 VP    0%           ALPHAZERO  359 MB
+[0328/10000] 36 st/s      P=+1.327 V=2.006          77.1 VP    36%          ALPHAZERO  359 MB
+[0329/10000] 45 st/s      P=+1.320 V=1.758          41.7 VP    9%           ALPHAZERO  359 MB
+[0330/10000] 45 st/s      P=+1.325 V=1.944          61.7 VP    9%           ALPHAZERO  359 MB
+[0331/10000] 57 st/s      P=+1.313 V=2.071          45.6 VP    0%           ALPHAZERO  359 MB
+[0332/10000] 42 st/s      P=+1.270 V=1.802          55.4 VP    27%          ALPHAZERO  359 MB
+[0333/10000] 54 st/s      P=+1.255 V=1.839          31.1 VP    0%           ALPHAZERO  359 MB
+[0334/10000] 40 st/s      P=+1.227 V=1.793          49.4 VP    18%          ALPHAZERO  359 MB
+[0335/10000] 46 st/s      P=+1.211 V=1.610          47.3 VP    9%           ALPHAZERO  359 MB
+[0336/10000] 56 st/s      P=+1.216 V=1.581          42.9 VP    18%          ALPHAZERO  359 MB
+[0337/10000] 51 st/s      P=+1.219 V=1.852          38.0 VP    0%           ALPHAZERO  359 MB
+[0338/10000] 51 st/s      P=+1.195 V=1.536          34.4 VP    0%           ALPHAZERO  359 MB
+[0339/10000] 52 st/s      P=+1.161 V=1.433          31.0 VP    9%           ALPHAZERO  359 MB
+[0340/10000] 41 st/s      P=+1.155 V=1.525          50.4 VP    9%           ALPHAZERO  359 MB
+[0341/10000] 43 st/s      P=+1.146 V=1.407          35.1 VP    18%          ALPHAZERO  359 MB
+[0342/10000] 60 st/s      P=+1.146 V=1.464          51.0 VP    9%           ALPHAZERO  359 MB
+[0343/10000] 45 st/s      P=+1.136 V=1.277          20.0 VP    0%           ALPHAZERO  359 MB
+[0344/10000] 52 st/s      P=+1.128 V=1.285          46.3 VP    9%           ALPHAZERO  359 MB
+[0345/10000] 67 st/s      P=+1.123 V=1.424          34.5 VP    18%          ALPHAZERO  359 MB
+[0346/10000] 43 st/s      P=+1.137 V=1.402          47.8 VP    0%           ALPHAZERO  359 MB
+[0347/10000] 55 st/s      P=+1.147 V=1.689          46.8 VP    18%          ALPHAZERO  359 MB
+[0348/10000] 52 st/s      P=+1.156 V=1.755          45.8 VP    0%           ALPHAZERO  359 MB
+[0349/10000] 44 st/s      P=+1.137 V=1.235          24.6 VP    0%           ALPHAZERO  359 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0350 (Current Elo: 1200.0)
+[0350/10000] 52 st/s      P=+1.125 V=1.326          24.0 VP    0%           ALPHAZERO  394 MB
+[0351/10000] 55 st/s      P=+1.112 V=1.189          26.5 VP    9%           ALPHAZERO  395 MB
+[0352/10000] 55 st/s      P=+1.128 V=1.183          32.7 VP    9%           ALPHAZERO  395 MB
+[0353/10000] 59 st/s      P=+1.110 V=1.352          30.8 VP    9%           ALPHAZERO  395 MB
+[0354/10000] 60 st/s      P=+1.089 V=1.174          22.6 VP    9%           ALPHAZERO  395 MB
+[0355/10000] 56 st/s      P=+1.093 V=1.862          39.7 VP    18%          ALPHAZERO  395 MB
+[0356/10000] 43 st/s      P=+1.087 V=1.588          38.3 VP    9%           ALPHAZERO  395 MB
+[0357/10000] 50 st/s      P=+1.084 V=1.163          26.7 VP    0%           ALPHAZERO  395 MB
+[0358/10000] 50 st/s      P=+1.077 V=1.201          25.4 VP    9%           ALPHAZERO  395 MB
+[0359/10000] 55 st/s      P=+1.077 V=1.365          26.3 VP    0%           ALPHAZERO  395 MB
+[0360/10000] 60 st/s      P=+1.086 V=1.420          40.8 VP    18%          ALPHAZERO  395 MB
+[0361/10000] 59 st/s      P=+1.085 V=0.997          24.9 VP    9%           ALPHAZERO  395 MB
+[0362/10000] 44 st/s      P=+1.082 V=1.306          31.7 VP    0%           ALPHAZERO  395 MB
+[0363/10000] 36 st/s      P=+1.108 V=1.089          35.5 VP    9%           ALPHAZERO  395 MB
+[0364/10000] 50 st/s      P=+1.091 V=0.959          23.6 VP    9%           ALPHAZERO  395 MB
+[0365/10000] 64 st/s      P=+1.072 V=0.874          13.6 VP    0%           ALPHAZERO  395 MB
+[0366/10000] 43 st/s      P=+1.063 V=0.932          28.8 VP    0%           ALPHAZERO  395 MB
+[0367/10000] 46 st/s      P=+1.074 V=0.919          40.5 VP    9%           ALPHAZERO  395 MB
+[0368/10000] 48 st/s      P=+1.077 V=1.025          32.4 VP    9%           ALPHAZERO  395 MB
+[0369/10000] 47 st/s      P=+1.071 V=1.896          29.5 VP    0%           ALPHAZERO  394 MB
+[0370/10000] 53 st/s      P=+1.081 V=1.107          46.3 VP    9%           ALPHAZERO  395 MB
+[0371/10000] 56 st/s      P=+1.082 V=1.048          25.2 VP    0%           ALPHAZERO  395 MB
+[0372/10000] 53 st/s      P=+1.074 V=0.894          14.4 VP    0%           ALPHAZERO  395 MB
+[0373/10000] 50 st/s      P=+1.077 V=1.121          31.5 VP    18%          ALPHAZERO  395 MB
+[0374/10000] 46 st/s      P=+1.075 V=0.909          22.6 VP    0%           ALPHAZERO  395 MB
+[0375/10000] 48 st/s      P=+1.072 V=0.872          32.9 VP    18%          ALPHAZERO  395 MB
+[0376/10000] 56 st/s      P=+1.070 V=0.915          26.7 VP    9%           ALPHAZERO  395 MB
+[0377/10000] 51 st/s      P=+1.071 V=0.921          23.0 VP    18%          ALPHAZERO  395 MB
+[0378/10000] 53 st/s      P=+1.052 V=0.793          25.4 VP    0%           ALPHAZERO  395 MB
+[0379/10000] 54 st/s      P=+1.056 V=0.796          26.6 VP    9%           ALPHAZERO  395 MB
+[0380/10000] 44 st/s      P=+1.033 V=1.024          12.5 VP    0%           ALPHAZERO  395 MB
+[0381/10000] 61 st/s      P=+1.026 V=0.854          26.9 VP    0%           ALPHAZERO  395 MB
+[0382/10000] 55 st/s      P=+1.033 V=1.100          31.3 VP    9%           ALPHAZERO  395 MB
+[0383/10000] 47 st/s      P=+1.048 V=0.838          38.5 VP    9%           ALPHAZERO  395 MB
+[0384/10000] 61 st/s      P=+1.039 V=0.741          16.8 VP    9%           ALPHAZERO  395 MB
+[0385/10000] 56 st/s      P=+1.042 V=0.688          25.1 VP    0%           ALPHAZERO  395 MB
+[0386/10000] 49 st/s      P=+1.051 V=0.841          28.9 VP    9%           ALPHAZERO  395 MB
+[0387/10000] 74 st/s      P=+1.044 V=0.800          21.7 VP    9%           ALPHAZERO  395 MB
+[0388/10000] 49 st/s      P=+1.059 V=0.924          28.2 VP    9%           ALPHAZERO  395 MB
+[0389/10000] 36 st/s      P=+1.068 V=0.778          30.8 VP    9%           ALPHAZERO  395 MB
+[0390/10000] 57 st/s      P=+1.072 V=1.211          25.2 VP    9%           ALPHAZERO  395 MB
+[0391/10000] 50 st/s      P=+1.065 V=0.836          35.1 VP    9%           ALPHAZERO  395 MB
+[0392/10000] 44 st/s      P=+1.082 V=0.687          28.5 VP    9%           ALPHAZERO  395 MB
+[0393/10000] 50 st/s      P=+1.107 V=1.341          36.2 VP    0%           ALPHAZERO  395 MB
+[0394/10000] 47 st/s      P=+1.098 V=0.945          34.5 VP    18%          ALPHAZERO  395 MB
+[0395/10000] 50 st/s      P=+1.103 V=1.056          30.4 VP    0%           ALPHAZERO  395 MB
+[0396/10000] 56 st/s      P=+1.125 V=0.894          29.0 VP    9%           ALPHAZERO  395 MB
+[0397/10000] 47 st/s      P=+1.122 V=0.855          39.9 VP    18%          ALPHAZERO  395 MB
+[0398/10000] 49 st/s      P=+1.124 V=0.881          39.4 VP    27%          ALPHAZERO  395 MB
+[0399/10000] 40 st/s      P=+1.120 V=0.808          29.9 VP    9%           ALPHAZERO  395 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0400 (Current Elo: 1200.0)
+[0400/10000] 44 st/s      P=+1.133 V=0.939          54.4 VP    45%          ALPHAZERO  429 MB
+[0401/10000] 36 st/s      P=+1.141 V=1.091          42.9 VP    9%           ALPHAZERO  428 MB
+[0402/10000] 57 st/s      P=+1.144 V=0.964          28.5 VP    0%           ALPHAZERO  428 MB
+[0403/10000] 45 st/s      P=+1.133 V=1.228          28.3 VP    0%           ALPHAZERO  428 MB
+[0404/10000] 54 st/s      P=+1.131 V=0.922          30.5 VP    9%           ALPHAZERO  428 MB
+[0405/10000] 55 st/s      P=+1.130 V=1.352          34.3 VP    0%           ALPHAZERO  428 MB
+[0406/10000] 44 st/s      P=+1.112 V=1.022          33.1 VP    9%           ALPHAZERO  428 MB
+[0407/10000] 59 st/s      P=+1.104 V=0.805          22.9 VP    9%           ALPHAZERO  428 MB
+[0408/10000] 44 st/s      P=+1.101 V=0.897          21.0 VP    0%           ALPHAZERO  428 MB
+[0409/10000] 46 st/s      P=+1.096 V=0.811          33.3 VP    0%           ALPHAZERO  428 MB
+[0410/10000] 42 st/s      P=+1.091 V=0.955          31.9 VP    18%          ALPHAZERO  428 MB
+[0411/10000] 56 st/s      P=+1.097 V=0.981          36.0 VP    18%          ALPHAZERO  428 MB
+[0412/10000] 53 st/s      P=+1.082 V=0.897          26.9 VP    0%           ALPHAZERO  428 MB
+[0413/10000] 54 st/s      P=+1.076 V=0.803          18.9 VP    9%           ALPHAZERO  428 MB
+[0414/10000] 46 st/s      P=+1.092 V=0.978          35.7 VP    9%           ALPHAZERO  428 MB
+[0415/10000] 54 st/s      P=+1.098 V=0.823          26.0 VP    0%           ALPHAZERO  428 MB
+[0416/10000] 55 st/s      P=+1.103 V=1.323          31.3 VP    9%           ALPHAZERO  428 MB
+[0417/10000] 47 st/s      P=+1.101 V=0.825          20.8 VP    0%           ALPHAZERO  428 MB
+[0418/10000] 66 st/s      P=+1.081 V=0.709          24.3 VP    0%           ALPHAZERO  428 MB
+[0419/10000] 41 st/s      P=+1.087 V=1.047          55.1 VP    27%          ALPHAZERO  428 MB
+[0420/10000] 39 st/s      P=+1.100 V=0.895          27.5 VP    0%           ALPHAZERO  428 MB
+[0421/10000] 45 st/s      P=+1.125 V=0.893          51.1 VP    18%          ALPHAZERO  428 MB
+[0422/10000] 68 st/s      P=+1.108 V=0.918          22.1 VP    0%           ALPHAZERO  428 MB
+[0423/10000] 48 st/s      P=+1.118 V=0.986          46.7 VP    18%          ALPHAZERO  428 MB
+[0424/10000] 56 st/s      P=+1.113 V=1.097          20.6 VP    0%           ALPHAZERO  428 MB
+[0425/10000] 50 st/s      P=+1.094 V=0.832          19.7 VP    0%           ALPHAZERO  428 MB
+[0426/10000] 43 st/s      P=+1.130 V=0.841          42.5 VP    9%           ALPHAZERO  428 MB
+[0427/10000] 57 st/s      P=+1.126 V=0.768          38.5 VP    9%           ALPHAZERO  428 MB
+[0428/10000] 43 st/s      P=+1.165 V=1.302          48.3 VP    18%          ALPHAZERO  428 MB
+[0429/10000] 42 st/s      P=+1.142 V=0.859          32.5 VP    0%           ALPHAZERO  428 MB
+[0430/10000] 51 st/s      P=+1.135 V=0.891          26.0 VP    0%           ALPHAZERO  428 MB
+[0431/10000] 34 st/s      P=+1.162 V=0.818          54.8 VP    18%          ALPHAZERO  428 MB
+[0432/10000] 40 st/s      P=+1.175 V=0.884          45.3 VP    18%          ALPHAZERO  428 MB
+[0433/10000] 31 st/s      P=+1.188 V=0.826          56.5 VP    18%          ALPHAZERO  428 MB
+[0434/10000] 51 st/s      P=+1.190 V=0.971          39.4 VP    9%           ALPHAZERO  428 MB
+[0435/10000] 47 st/s      P=+1.213 V=1.093          38.7 VP    9%           ALPHAZERO  428 MB
+[0436/10000] 45 st/s      P=+1.208 V=0.980          26.0 VP    0%           ALPHAZERO  428 MB
+[0437/10000] 52 st/s      P=+1.179 V=0.984          34.9 VP    18%          ALPHAZERO  428 MB
+[0438/10000] 51 st/s      P=+1.194 V=0.947          40.4 VP    9%           ALPHAZERO  428 MB
+[0439/10000] 42 st/s      P=+1.205 V=1.112          56.9 VP    18%          ALPHAZERO  428 MB
+[0440/10000] 41 st/s      P=+1.220 V=1.015          45.0 VP    9%           ALPHAZERO  428 MB
+[0441/10000] 48 st/s      P=+1.216 V=0.922          26.7 VP    0%           ALPHAZERO  428 MB
+[0442/10000] 49 st/s      P=+1.166 V=0.889          34.4 VP    9%           ALPHAZERO  428 MB
+[0443/10000] 33 st/s      P=+1.169 V=0.904          36.8 VP    9%           ALPHAZERO  428 MB
+[0444/10000] 38 st/s      P=+1.151 V=0.885          24.6 VP    9%           ALPHAZERO  428 MB
+[0445/10000] 35 st/s      P=+1.161 V=0.966          45.8 VP    9%           ALPHAZERO  428 MB
+[0446/10000] 44 st/s      P=+1.159 V=1.226          27.8 VP    0%           ALPHAZERO  428 MB
+[0447/10000] 39 st/s      P=+1.167 V=0.954          32.5 VP    9%           ALPHAZERO  428 MB
+[0448/10000] 34 st/s      P=+1.170 V=0.927          46.1 VP    9%           ALPHAZERO  428 MB
+[0449/10000] 62 st/s      P=+1.137 V=0.846          28.1 VP    9%           ALPHAZERO  428 MB
+[LeagueManager] Snapshot saved: Snapshot_Epoch_0450 (Current Elo: 1200.0)
+[0450/10000] 49 st/s      P=+1.136 V=0.872          32.8 VP    9%           ALPHAZERO  463 MB
+[0451/10000] 46 st/s      P=+1.133 V=1.148          50.1 VP    27%          ALPHAZERO  463 MB
+[0452/10000] 36 st/s      P=+1.136 V=0.953          46.2 VP    27%          ALPHAZERO  463 MB
+[0453/10000] 46 st/s      P=+1.156 V=1.146          42.3 VP    0%           ALPHAZERO  463 MB
+[0454/10000] 38 st/s      P=+1.170 V=0.837          41.5 VP    9%           ALPHAZERO  463 MB
+[0455/10000] 50 st/s      P=+1.156 V=0.906          36.5 VP    9%           ALPHAZERO  463 MB
+[0456/10000] 40 st/s      P=+1.186 V=0.877          53.5 VP    27%          ALPHAZERO  463 MB
+[0457/10000] 36 st/s      P=+1.200 V=0.972          43.7 VP    9%           ALPHAZERO  463 MB
+[0458/10000] 39 st/s      P=+1.214 V=0.937          52.7 VP    18%          ALPHAZERO  463 MB
+[0459/10000] 38 st/s      P=+1.196 V=1.053          46.9 VP    0%           ALPHAZERO  463 MB
+[0460/10000] 28 st/s      P=+1.241 V=1.282          64.2 VP    36%          ALPHAZERO  463 MB
+[0461/10000] 50 st/s      P=+1.245 V=1.302          36.6 VP    0%           ALPHAZERO  463 MB
+[0462/10000] 43 st/s      P=+1.234 V=1.092          53.4 VP    27%          ALPHAZERO  463 MB
+[0463/10000] 47 st/s      P=+1.236 V=1.277          46.3 VP    9%           ALPHAZERO  463 MB
+[0464/10000] 54 st/s      P=+1.249 V=1.045          34.7 VP    18%          ALPHAZERO  463 MB
+[0465/10000] 44 st/s      P=+1.252 V=1.274          54.8 VP    27%          ALPHAZERO  463 MB
+[0466/10000] 43 st/s      P=+1.258 V=1.220          34.4 VP    0%           ALPHAZERO  463 MB
+[0467/10000] 52 st/s      P=+1.251 V=1.416          44.8 VP    27%          ALPHAZERO  463 MB
+[0468/10000] 27 st/s      P=+1.257 V=1.260          52.8 VP    9%           ALPHAZERO  463 MB
+[0469/10000] 43 st/s      P=+1.238 V=1.218          39.3 VP    18%          ALPHAZERO  463 MB
+[0470/10000] 53 st/s      P=+1.232 V=1.260          39.9 VP    0%           ALPHAZERO  463 MB
+[0471/10000] 50 st/s      P=+1.236 V=1.276          49.4 VP    0%           ALPHAZERO  463 MB
+[0472/10000] 46 st/s      P=+1.236 V=1.219          46.4 VP    0%           ALPHAZERO  463 MB
+[0473/10000] 56 st/s      P=+1.249 V=1.155          45.6 VP    9%           ALPHAZERO  463 MB
+[0474/10000] 52 st/s      P=+1.237 V=1.120          28.4 VP    0%           ALPHAZERO  463 MB
+[0475/10000] 52 st/s      P=+1.229 V=1.062          44.4 VP    9%           ALPHAZERO  463 MB
+
