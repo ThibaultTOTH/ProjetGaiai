@@ -37,9 +37,18 @@ BASE_FACTIONS = [
 ]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("dataset_builder")
+def normalize_faction(f_name: str) -> str:
+    f = f_name.lower().strip().replace("-", "_").replace(" ", "_")
+    if f in ("baltaks", "bal-taks"):
+        return "bal_taks"
+    if f in ("hadschhallas", "hadsch-hallas"):
+        return "hadsch_hallas"
+    return f
 
 FACTION_TO_ID = {f: idx for idx, f in enumerate(BASE_FACTIONS)}
+FACTION_TO_ID["hadsch-hallas"] = FACTION_TO_ID["hadsch_hallas"]
+FACTION_TO_ID["baltaks"] = FACTION_TO_ID["bal_taks"]
+FACTION_TO_ID["hadschhallas"] = FACTION_TO_ID["hadsch_hallas"]
 
 # BGS 19 hex relative offsets matching sector.rs SECTOR_OFFSETS
 SECTOR_OFFSETS = {
@@ -273,10 +282,12 @@ def build_authentic_dataset(
         seat_to_faction: Dict[int, int] = {}
 
         for seat, p in enumerate(players):
-            f_name = p.get("faction", "").lower()
+            raw_f = p.get("faction", "").lower()
+            f_name = normalize_faction(raw_f)
             if f_name:
                 scores_by_faction[f_name] = float(p.get("score", 0))
                 faction_to_seat[f_name] = seat
+                faction_to_seat[raw_f] = seat
                 f_id = FACTION_TO_ID.get(f_name, seat % 14)
                 seat_to_faction[seat] = f_id
 
@@ -316,7 +327,7 @@ def build_authentic_dataset(
             parts = [p.strip() for p in clean.split('.') if p.strip()]
 
             # Determine acting faction from prefix
-            actor_token = parts[0].split()[0].lower() if parts and parts[0].split() else ""
+            actor_token = normalize_faction(parts[0].split()[0].lower()) if parts and parts[0].split() else ""
             acting_seat = faction_to_seat.get(actor_token)
 
             for part in parts:
@@ -325,7 +336,7 @@ def build_authentic_dataset(
                 p_lower = part.lower()
 
                 # Check if this subpart mentions a specific faction
-                first_token = p_lower.split()[0] if p_lower.split() else ""
+                first_token = normalize_faction(p_lower.split()[0]) if p_lower.split() else ""
                 if first_token in faction_to_seat:
                     acting_seat = faction_to_seat[first_token]
 
