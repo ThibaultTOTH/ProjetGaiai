@@ -27,7 +27,7 @@ from scraper.rebuild_expert_dataset import (
 )
 
 # Test first 5 games
-raw_files = sorted(list((SCRAPER_DIR / "data" / "raw").glob("bgs_game_*.json")))[:5]
+raw_files = sorted(list((Path(SCRAPER_DIR) / "data" / "raw").glob("bgs_game_*.json")))[:5]
 
 total_actions = 0
 legal_actions = 0
