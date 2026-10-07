@@ -37,6 +37,7 @@ BASE_FACTIONS = [
 ]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("dataset_builder")
 def normalize_faction(f_name: str) -> str:
     f = f_name.lower().strip().replace("-", "_").replace(" ", "_")
     if f in ("baltaks", "bal-taks"):
