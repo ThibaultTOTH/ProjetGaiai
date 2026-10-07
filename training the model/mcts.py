@@ -637,6 +637,11 @@ class MultiPlayerMCTS:
             selected_action = int(active_set[0])
 
         total_visits = sum(c.visit_count for c in root.children.values())
+        child_qs = {int(a): float(c.get_q(root_actor)) for a, c in root.children.items() if c.visit_count > 0}
+        best_child_q = max(child_qs.values()) if child_qs else 0.0
+        chosen_child_q = child_qs.get(selected_action, best_child_q)
+        action_regret = max(0.0, best_child_q - chosen_child_q)
+
         meta = {
             "algorithm": "gumbel_gaz",
             "root_visits": int(total_visits),
@@ -647,6 +652,7 @@ class MultiPlayerMCTS:
             "candidate_actions": candidates,
             "completed_scores": q_scores.tolist(),
             "selected_action": selected_action,
+            "regret": float(action_regret),
             "root_entropy": float(root_entropy),
             "entropy_gated": bool(is_entropy_gated),
             "epistemic_uncertainty": {

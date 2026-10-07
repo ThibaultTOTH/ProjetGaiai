@@ -273,9 +273,9 @@ class AlphaZeroConfig:
     replay_buffer_size: int = 100_000
     batch_size: int = 256
     value_loss_coef: float = 1.0
-    temperature_threshold_move: int = 30
-    temperature_high: float = 1.0
-    temperature_low: float = 0.1
+    temperature_threshold_move: int = 4
+    temperature_high: float = 0.8
+    temperature_low: float = 0.05
     dirichlet_alpha: float = 0.3
     dirichlet_eps: float = 0.25
     optimism_power: float = 1.0  # Échantillonnage priorisé optimiste des parties à haut score VP
@@ -374,18 +374,19 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     if preset in ("finetune", "phase2", "grandmaster", "gm"):
         # 👑 PHASE 2 : Fine-Tuning Grand Maître (Cible 220 - 240+ VP)
         cfg.alphazero.enabled = True
-        cfg.alphazero.num_simulations = 64
-        cfg.alphazero.gumbel_candidates = 10
+        cfg.alphazero.num_simulations = 32
+        cfg.alphazero.gumbel_candidates = 8
         cfg.alphazero.games_per_epoch = 4
         cfg.alphazero.training_steps_per_epoch = 100
+        cfg.alphazero.temperature_threshold_move = 4
         cfg.alphazero.temperature_high = 0.8
-        cfg.alphazero.temperature_low = 0.1
+        cfg.alphazero.temperature_low = 0.05
         cfg.alphazero.dirichlet_eps = 0.25
 
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 64
-        cfg.mcts.gumbel_candidates = 10
+        cfg.mcts.num_simulations = 32
+        cfg.mcts.gumbel_candidates = 8
         cfg.mcts.use_epistemic_uncertainty = False
         cfg.mcts.adaptive_budget_enabled = False
         cfg.mcts.dirichlet_alpha = 0.30
@@ -401,8 +402,6 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.model.policy_weight_decay = 1e-4
         cfg.model.score_weight_decay = 1e-4
         cfg.model.use_gnn_map = False
-        cfg.model.gnn_layers = 3
-        cfg.model.gnn_hidden_dim = 64
         cfg.model.finetune_mode = False
 
         cfg.model.policy_lr = 2.5e-4
@@ -410,11 +409,8 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.training.batch_size = 256
         cfg.training.total_episodes = 10000
 
-        # Puzzles de crise tactiques
-        cfg.training.rgsc_enabled = True
-        cfg.training.rgsc_regret_threshold = 0.30
-        cfg.training.rgsc_buffer_capacity = 200
-        cfg.training.rgsc_reset_prob = 0.25
+        # Puzzles de crise tactiques désactivés au début pour stabilisation
+        cfg.training.rgsc_enabled = False
 
         # Self-Play en Ligue PBT
         cfg.league.enabled = True
@@ -423,20 +419,53 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.league.snapshot_interval_epochs = 50
         cfg.league.max_snapshots = 15
 
-        # Pas de bruit parasite
+        # Pas de bruit parasite ni béquilles
         cfg.training.shaping_enabled = False
         cfg.training.rnd_enabled = False
         cfg.training.rnad_enabled = False
         cfg.training.use_opponent_modeling = False
-
-        # Micro-Dispatch déterministe
-        cfg.micro_dispatch.enabled = True
-        cfg.micro_dispatch.num_candidates = 4
-        cfg.micro_dispatch.temperature = 0.0
+        cfg.micro_dispatch.enabled = False
 
         # Hardware RTX
         cfg.hardware.use_mixed_precision = True
         cfg.hardware.enable_tf32 = True
+
+    elif preset in ("cpu_fast", "cpu", "laptop"):
+        # 💻 Profil CPU Ultra-Rapide (pour laptop ou entraînement rapide sans GPU dédié)
+        cfg.training.total_episodes = 2000
+        cfg.training.batch_size = 64
+        cfg.alphazero.enabled = True
+        cfg.alphazero.num_simulations = 8
+        cfg.alphazero.gumbel_candidates = 6
+        cfg.alphazero.games_per_epoch = 2
+        cfg.alphazero.training_steps_per_epoch = 20
+        cfg.alphazero.temperature_threshold_move = 4
+        cfg.alphazero.temperature_high = 0.8
+        cfg.alphazero.temperature_low = 0.05
+        cfg.alphazero.value_loss_coef = 1.0
+
+        cfg.mcts.enabled = True
+        cfg.mcts.num_simulations = 8
+        cfg.mcts.gumbel_candidates = 6
+        cfg.mcts.use_epistemic_uncertainty = False
+        cfg.mcts.adaptive_budget_enabled = False
+
+        cfg.model.policy_hidden_layers = [256, 128]
+        cfg.model.score_hidden_layers = [256, 128]
+        cfg.model.block_type = "pre_ln"
+        cfg.model.use_gnn_map = False
+        cfg.model.policy_dropout = 0.0
+        cfg.model.score_dropout = 0.0
+        cfg.model.policy_lr = 1e-3
+        cfg.model.score_lr = 1e-3
+
+        cfg.training.shaping_enabled = False
+        cfg.training.rnd_enabled = False
+        cfg.training.rnad_enabled = False
+        cfg.training.rgsc_enabled = False
+        cfg.league.enabled = False
+        cfg.micro_dispatch.enabled = False
+        cfg.hardware.device_override = "cpu"
 
     elif preset in ("fast", "debug", "test"):
         # Helper rapide pour les tests unitaires

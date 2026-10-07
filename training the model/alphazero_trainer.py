@@ -241,17 +241,9 @@ class AlphaZeroTrainer:
             # Regret tracking for RGSC (Jeu sur problème / Crisis Puzzle Caching)
             if p_name == "CurrentPolicy" and env_before_step is not None and not env.terminated:
                 try:
-                    q_vals = search_meta.get("root_q_values", [])
-                    v_before = float(q_vals[current_player]) if len(q_vals) > current_player else 0.0
-                    next_obs = env._get_obs() if hasattr(env, '_get_obs') else env.observe().values
-                    next_obs_t = torch.from_numpy(next_obs).float().to(self.device).unsqueeze(0)
-                    with torch.no_grad():
-                        v_after = float(self.agent.score_net(next_obs_t).view(-1)[0].item())
-                    
-                    regret = max(0.0, v_before - v_after)
+                    regret = float(search_meta.get("regret", 0.0))
                     thresh = getattr(self.config.training, "rgsc_regret_threshold", 0.30)
-                    thresh_vp = thresh * 25.0 if thresh < 1.0 else thresh
-                    if regret >= thresh_vp:
+                    if regret >= thresh:
                         self.state_buffer.add(env_before_step, regret=regret, round_num=getattr(env_before_step, "round", 2))
                 except Exception:
                     pass

@@ -24,7 +24,7 @@ from torch.distributions import Categorical
 
 from buffer import RolloutBuffer
 from config import AppConfig
-from environment import make_gaia_env
+from environment import make_gaia_env, compute_competitive_value
 from league import LeagueManager, LeagueMember
 from models import DualGaiaAgent
 from rnd import RNDModel
@@ -299,7 +299,10 @@ class RLTrainer:
                     obs_tensor, mask_tensor, deterministic=False
                 )
 
-                step_res = self.dispatcher.step(env, action)
+                if getattr(self.config.micro_dispatch, "enabled", False):
+                    step_res = self.dispatcher.step(env, action)
+                else:
+                    step_res = env.step(action)
                 reward = float(step_res.reward)
 
                 # Regret tracking for RGSC (Go-Exploit)
@@ -390,11 +393,6 @@ class RLTrainer:
 
             if step_res.done:
                 episodes += 1
-                # Mark last seat 0 transition as done to prevent cross-game advantage bleeding
-                if last_p0_idx >= 0 and self.buffer.size() > 0:
-                    self.buffer.dones[last_p0_idx] = True
-                    last_p0_idx = -1
-
                 vps = step_res.info.get(
                     "player_vp",
                     [p["vp"] for p in getattr(env, "players_state", [{"vp": 0}, {"vp": 0}])]
@@ -402,6 +400,13 @@ class RLTrainer:
                 if len(vps) >= 2 and vps[0] > max(vps[1:]):
                     p0_wins += 1
                 final_scores.extend(vps)
+
+                # Mark last seat 0 transition as done and award terminal outcome reward
+                if last_p0_idx >= 0 and self.buffer.size() > 0:
+                    term_val = compute_competitive_value(vps, 0)
+                    self.buffer.rewards[last_p0_idx] += float(term_val)
+                    self.buffer.dones[last_p0_idx] = True
+                    last_p0_idx = -1
 
                 if self.config.league.enabled:
                     self.league_manager.update_match_results(participants, vps)

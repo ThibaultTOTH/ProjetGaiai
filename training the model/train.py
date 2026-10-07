@@ -281,6 +281,9 @@ def main():
         cfg.alphazero.num_simulations = args.sims
         print(f"  🌲 [MCTS Override] Simulations per move explicitly set to: {args.sims}")
 
+    if hasattr(args, "rgsc_epoch"):
+        cfg.training.rgsc_start_epoch = args.rgsc_epoch
+
     if algo == "alphazero":
         if args.actors > 1:
             from alphazero_parallel import ParallelAlphaZeroTrainer
@@ -307,8 +310,6 @@ def main():
             auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_latest.pt")
             if not os.path.exists(auto_path):
                 auto_path = os.path.join(cfg.training.checkpoint_dir, "az_checkpoint_500.pt")
-            if not os.path.exists(auto_path):
-                auto_path = os.path.join(cfg.training.checkpoint_dir, "gaia_supervised_pretrained.pt")
             if os.path.exists(auto_path):
                 resume_target = auto_path
             else:
@@ -423,8 +424,7 @@ def main():
             except Exception as e:
                 print(f"  [!] Report generation notice: {e}")
         print("=" * 78)
-    cfg.training.rgsc_start_epoch = args.rgsc_epoch
-    # Assure-toi que rgsc_enabled reste True pour que le buffer soit bien alloué au démarrage
+
 
 if __name__ == "__main__":
     main()
