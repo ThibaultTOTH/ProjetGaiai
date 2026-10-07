@@ -149,15 +149,17 @@ class AdvancedNASOptimizer:
     def format_arch_name(params: Dict[str, Any], mode: str = "alphazero") -> str:
         """Returns a clean concise string describing the architecture and components."""
         block = params.get("block_type", "swiglu").replace("_", "").upper()
-        layers = params.get("hidden_layers", [512, 512, 256])
+        layers = params.get("hidden_layers", [1024, 1024, 512, 256])
         layers_str = "x".join(str(x) for x in layers)
         act = params.get("activation", "silu").upper()
-        gnn = f"+GNN{params.get('gnn_layers', 3)}" if params.get("use_gnn_map", True) else ""
-        sims = params.get("az_num_simulations", 16)
+        gnn = f"+GNN{params.get('gnn_layers', 3)}(d={params.get('gnn_hidden_dim', 64)})" if params.get("use_gnn_map", True) else ""
+        sims = params.get("az_num_simulations", 32)
+        batch = params.get("az_batch_size", 512)
+        steps = params.get("az_training_steps", 25)
         lr = params.get("az_policy_lr", 2.5e-4)
         c_puct = params.get("az_c_puct", 1.414)
         v_coef = params.get("az_value_loss_coef", 1.0)
-        return f"{block} {layers_str} ({act}){gnn} [AZ: sims={sims}, c_puct={c_puct:.2f}, lr={lr:.1e}, v_coef={v_coef:.1f}]"
+        return f"{block} {layers_str} ({act}){gnn} [AZ: b={batch}, st={steps}, sims={sims}, c_puct={c_puct:.2f}, lr={lr:.1e}, v_coef={v_coef:.1f}]"
 
     @staticmethod
     def extract_params_from_config(cfg: AppConfig, mode: str = "alphazero") -> Dict[str, Any]:
@@ -165,7 +167,7 @@ class AdvancedNASOptimizer:
         return {
             # Architecture
             "block_type": getattr(cfg.model, "block_type", "swiglu"),
-            "hidden_layers": list(getattr(cfg.model, "policy_hidden_layers", [512, 512, 256])),
+            "hidden_layers": list(getattr(cfg.model, "policy_hidden_layers", [1024, 1024, 512, 256])),
             "activation": getattr(cfg.model, "policy_activation", "silu"),
             "dropout": float(getattr(cfg.model, "policy_dropout", 0.03)),
             "use_input_norm": bool(getattr(cfg.model, "use_input_norm", True)),
@@ -176,8 +178,9 @@ class AdvancedNASOptimizer:
             # AlphaZero Parameters
             "az_policy_lr": float(getattr(cfg.model, "policy_lr", 2.5e-4)),
             "az_value_loss_coef": float(getattr(cfg.alphazero, "value_loss_coef", 1.0)),
-            "az_batch_size": int(getattr(cfg.alphazero, "batch_size", 256)),
-            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 16)),
+            "az_batch_size": int(getattr(cfg.alphazero, "batch_size", 512)),
+            "az_training_steps": int(getattr(cfg.alphazero, "training_steps_per_epoch", 25)),
+            "az_num_simulations": int(getattr(cfg.alphazero, "num_simulations", 32)),
             "az_gumbel_candidates": int(getattr(cfg.alphazero, "gumbel_candidates", 8)),
             "az_c_puct": float(getattr(cfg.mcts, "c_puct", 1.414)),
             "az_optimism_power": float(getattr(cfg.alphazero, "optimism_power", 1.0)),
@@ -196,11 +199,12 @@ class AdvancedNASOptimizer:
         dropouts_candidates = [0.0, 0.03, 0.05]
 
         layers_candidates = [
-            [512, 512, 256],            # Fast Baseline (~6M params)
-            [768, 768, 384, 256],       # Balanced 4-layer (~10M params)
-            [1024, 1024, 512, 256],     # Grandmaster Standard (~12M params)
-            [1024, 1024, 1024, 512],    # Deep Heavy SOTA (~20M params)
-            [1536, 1024, 512, 256],     # Wide Front-End (~22M params)
+            [768, 768, 384, 256],          # Balanced 4-layer (~10M params)
+            [1024, 1024, 512, 256],        # Grandmaster Standard (~12M params)
+            [1024, 1024, 1024, 512],       # Deep Heavy SOTA (~20M params)
+            [1536, 1024, 512, 256],        # Wide Front-End (~22M params)
+            [1536, 1536, 768, 384],        # Titan High-Capacity (~35M params)
+            [2048, 1024, 1024, 512],       # Ultra Deep Heavy (~42M params)
         ]
 
         if elite_pool and len(elite_pool) >= 1 and random.random() < 0.75:
@@ -215,15 +219,16 @@ class AdvancedNASOptimizer:
             "dropout": random.choice(dropouts_candidates),
             "use_input_norm": True,
             "use_gnn_map": random.choice([True, True, False]),
-            "gnn_layers": random.choice([2, 3]),
-            "gnn_hidden_dim": random.choice([48, 64]),
+            "gnn_layers": random.choice([2, 3, 4]),
+            "gnn_hidden_dim": random.choice([64, 96, 128]),
             "policy_weight_decay": float(random.choice([1e-5, 1e-4, 5e-4])),
             # AlphaZero Optimization
-            "az_policy_lr": float(random.choice([1.5e-4, 2.5e-4, 3.5e-4, 5.0e-4])),
+            "az_policy_lr": float(random.choice([1.0e-4, 2.0e-4, 3.0e-4, 5.0e-4])),
             "az_value_loss_coef": float(random.choice([0.50, 1.0, 1.5, 2.0])),
-            "az_batch_size": int(random.choice([128, 256])),
-            "az_num_simulations": int(random.choice([16, 24, 32])),
-            "az_gumbel_candidates": int(random.choice([4, 8, 12])),
+            "az_batch_size": int(random.choice([256, 512, 1024, 2048])),
+            "az_training_steps": int(random.choice([15, 25, 40])),
+            "az_num_simulations": int(random.choice([24, 32, 48, 64])),
+            "az_gumbel_candidates": int(random.choice([8, 12, 16])),
             "az_c_puct": float(random.choice([1.25, 1.414, 1.75, 2.0])),
             "az_optimism_power": float(random.choice([0.5, 1.0, 1.5])),
             "az_temp_threshold": int(random.choice([2, 4, 6])),
@@ -240,21 +245,22 @@ class AdvancedNASOptimizer:
         all_genes = [
             "block_type", "hidden_layers", "activation", "dropout",
             "gnn", "az_policy_lr", "az_value_loss_coef", "az_sims",
-            "az_c_puct", "az_optimism_power", "shaping_scale"
+            "az_c_puct", "az_optimism_power", "shaping_scale",
+            "az_batch_size", "az_training_steps"
         ]
         mutations = random.sample(all_genes, k=random.choice([1, 2]))
 
         if "block_type" in mutations:
             child["block_type"] = random.choice(["swiglu", "pre_ln", "bottleneck"])
         if "hidden_layers" in mutations:
-            layers = list(child.get("hidden_layers", [512, 512, 256]))
+            layers = list(child.get("hidden_layers", [1024, 1024, 512, 256]))
             action = random.choice(["widen", "narrow", "tweak"])
             if action == "widen":
                 layers = [min(2048, int(x * 1.25)) for x in layers]
             elif action == "narrow":
-                layers = [max(128, int(x * 0.8)) for x in layers]
+                layers = [max(256, int(x * 0.8)) for x in layers]
             else:
-                layers[-1] = random.choice([128, 256, 384])
+                layers[-1] = random.choice([256, 384, 512])
             child["hidden_layers"] = layers
         if "activation" in mutations:
             child["activation"] = random.choice(["silu", "gelu", "mish"])
@@ -262,21 +268,26 @@ class AdvancedNASOptimizer:
             child["dropout"] = float(random.choice([0.0, 0.03, 0.05]))
         if "gnn" in mutations:
             child["use_gnn_map"] = not child.get("use_gnn_map", True)
-            child["gnn_hidden_dim"] = random.choice([48, 64])
+            child["gnn_hidden_dim"] = random.choice([64, 96, 128])
+            child["gnn_layers"] = random.choice([2, 3, 4])
         if "az_policy_lr" in mutations:
             scale = random.uniform(0.8, 1.25)
             child["az_policy_lr"] = float(np.clip(child.get("az_policy_lr", 2.5e-4) * scale, 1.0e-4, 6.0e-4))
         if "az_value_loss_coef" in mutations:
             child["az_value_loss_coef"] = float(random.choice([0.5, 1.0, 1.5, 2.0]))
         if "az_sims" in mutations:
-            child["az_num_simulations"] = int(random.choice([16, 24, 32]))
-            child["az_gumbel_candidates"] = int(random.choice([4, 8, 12]))
+            child["az_num_simulations"] = int(random.choice([24, 32, 48, 64]))
+            child["az_gumbel_candidates"] = int(random.choice([8, 12, 16]))
         if "az_c_puct" in mutations:
-            child["az_c_puct"] = float(random.choice([1.2, 1.414, 1.75, 2.0]))
+            child["az_c_puct"] = float(random.choice([1.25, 1.414, 1.75, 2.0]))
         if "az_optimism_power" in mutations:
             child["az_optimism_power"] = float(random.choice([0.5, 1.0, 1.5]))
         if "shaping_scale" in mutations:
             child["initial_shaping_scale"] = float(random.choice([40.0, 50.0, 60.0]))
+        if "az_batch_size" in mutations:
+            child["az_batch_size"] = int(random.choice([256, 512, 1024, 2048]))
+        if "az_training_steps" in mutations:
+            child["az_training_steps"] = int(random.choice([15, 25, 40]))
 
         return child
 
@@ -316,14 +327,14 @@ class AdvancedNASOptimizer:
 
         # AlphaZero hyperparameters
         cfg.alphazero.enabled = True
-        cfg.alphazero.batch_size = int(p.get("az_batch_size", 256))
+        cfg.alphazero.batch_size = int(p.get("az_batch_size", 512))
+        cfg.alphazero.training_steps_per_epoch = int(p.get("az_training_steps", 25))
         cfg.alphazero.value_loss_coef = float(p.get("az_value_loss_coef", 1.0))
-        cfg.alphazero.num_simulations = int(p.get("az_num_simulations", 16))
+        cfg.alphazero.num_simulations = int(p.get("az_num_simulations", 32))
         cfg.alphazero.gumbel_candidates = int(p.get("az_gumbel_candidates", 8))
         cfg.alphazero.optimism_power = float(p.get("az_optimism_power", 1.0))
         cfg.alphazero.temperature_threshold_move = int(p.get("az_temp_threshold", 4))
         cfg.alphazero.games_per_epoch = 1
-        cfg.alphazero.training_steps_per_epoch = 15
 
         cfg.mcts.c_puct = float(p.get("az_c_puct", 1.414))
         cfg.mcts.milestone_shaping_weight = float(p.get("az_milestone_weight", 0.25))
@@ -628,6 +639,9 @@ def apply_params_to_config(cfg: AppConfig, params: Dict[str, Any], mode: str = "
         cfg.alphazero.optimism_power = float(params["az_optimism_power"])
     if "az_batch_size" in params:
         cfg.alphazero.batch_size = int(params["az_batch_size"])
+        cfg.training.batch_size = int(params["az_batch_size"])
+    if "az_training_steps" in params:
+        cfg.alphazero.training_steps_per_epoch = int(params["az_training_steps"])
     if "az_temp_threshold" in params:
         cfg.alphazero.temperature_threshold_move = int(params["az_temp_threshold"])
     if "az_milestone_weight" in params:
