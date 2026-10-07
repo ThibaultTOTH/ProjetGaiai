@@ -232,6 +232,8 @@ class NativeGaiaEnv:
             dll.gaiapi_reset.argtypes = [ctypes.c_void_p, ctypes.c_uint64]
 
             dll.gaiapi_set_player_faction.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32]
+            if hasattr(dll, "gaiapi_set_current_player"):
+                dll.gaiapi_set_current_player.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
 
             dll.gaiapi_get_obs_dim.argtypes = [ctypes.c_void_p]
             dll.gaiapi_get_obs_dim.restype = ctypes.c_uint32
@@ -365,6 +367,12 @@ class NativeGaiaEnv:
     def set_player_faction(self, seat: int, faction_id: int):
         self._faction_ids[seat] = float(faction_id)
         self.dll.gaiapi_set_player_faction(self.env_ptr, seat, faction_id)
+
+    def set_current_player(self, seat: int):
+        """Overrides the active player seat (0..players-1) in the native C-ABI kernel."""
+        if hasattr(self.dll, "gaiapi_set_current_player"):
+            self.dll.gaiapi_set_current_player(self.env_ptr, ctypes.c_uint32(int(seat)))
+            self.current_player = int(seat)
 
     def reset(self, seed: Optional[int] = None, egocentric: Optional[bool] = None) -> Tuple[np.ndarray, np.ndarray]:
         actual_seed = seed if seed is not None else int(np.random.randint(0, 1000000))
