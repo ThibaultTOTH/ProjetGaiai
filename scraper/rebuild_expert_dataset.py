@@ -28,7 +28,13 @@ if str(TRAINING_DIR) not in sys.path:
     sys.path.insert(0, str(TRAINING_DIR))
 
 from environment import NativeGaiaEnv
-from scraper.config import RAW_GAMES_DIR, DATASET_DIR, BASE_FACTIONS, BASE_FACTIONS_SET
+
+RAW_GAMES_DIR = PROJECT_ROOT / "scraper" / "data" / "raw_games"
+DATASET_DIR = PROJECT_ROOT / "scraper" / "data" / "dataset"
+BASE_FACTIONS = [
+    "terrans", "lantids", "hadsch_hallas", "ivits", "geodens", "bal_taks",
+    "xenos", "gleens", "taklons", "ambas", "firaks", "bescods", "nevlas", "itars",
+]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("dataset_builder")
