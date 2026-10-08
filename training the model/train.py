@@ -315,16 +315,12 @@ def main():
                     ckpt_layers = getattr(m_c, "policy_hidden_layers", None)
 
                 target_layers = getattr(cfg.model, "policy_hidden_layers", None)
-                if ckpt_layers and target_layers and list(ckpt_layers) != list(target_layers):
-                    print(f"  ⚠️ [Resume Safeguard] Checkpoint '{os.path.basename(resume_target)}' has layers {ckpt_layers}, differing from configured {target_layers}.")
-                    # Check if pre-trained supervised model is available as a better match
-                    supervised_path = os.path.join(cfg.training.checkpoint_dir, "gaia_supervised_pretrained.pt")
-                    if os.path.exists(supervised_path) and resume_target != supervised_path:
-                        print(f"     -> Basculement automatique sur le modèle pré-entraîné supervisé: {os.path.basename(supervised_path)}")
-                        resume_target = supervised_path
-                    else:
-                        print(f"     Preserving requested architecture -> Starting fresh training! (Pass --resume <path> to force load).")
-                        resume_target = None
+                target_gnn = getattr(cfg.model, "use_gnn_map", False)
+                ckpt_gnn = getattr(m_c, "use_gnn_map", False) if ckpt_cfg else False
+                if (ckpt_layers and target_layers and list(ckpt_layers) != list(target_layers)) or (ckpt_gnn != target_gnn):
+                    print(f"  ⚠️ [Resume Safeguard] Checkpoint '{os.path.basename(resume_target)}' architecture differs from configured (layers: {ckpt_layers} vs {target_layers}, GNN: {ckpt_gnn} vs {target_gnn}).")
+                    print(f"     -> Preserving requested architecture: Starting fresh training with configured SOTA architecture!")
+                    resume_target = None
             except Exception:
                 pass
 
