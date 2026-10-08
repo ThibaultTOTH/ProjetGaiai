@@ -374,12 +374,14 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     cfg = AppConfig()
 
     if preset in ("finetune", "phase2", "grandmaster", "gm"):
-        # 👑 PHASE 2 : Fine-Tuning Grand Maître (Cible 220 - 240+ VP)
+        # 👑 PHASE 2 : Fine-Tuning Grand Maître Top Monde (Calibré sur Champion Trial #067)
         cfg.alphazero.enabled = True
-        cfg.alphazero.num_simulations = 32
+        cfg.alphazero.num_simulations = 64
         cfg.alphazero.gumbel_candidates = 8
         cfg.alphazero.games_per_epoch = 4
-        cfg.alphazero.training_steps_per_epoch = 100
+        cfg.alphazero.training_steps_per_epoch = 40
+        cfg.alphazero.batch_size = 512
+        cfg.alphazero.value_loss_coef = 2.0
         cfg.alphazero.temperature_threshold_move = 4
         cfg.alphazero.temperature_high = 0.8
         cfg.alphazero.temperature_low = 0.05
@@ -387,29 +389,36 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
 
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 32
+        cfg.mcts.num_simulations = 64
         cfg.mcts.gumbel_candidates = 8
+        cfg.mcts.c_puct = 1.25
         cfg.mcts.use_epistemic_uncertainty = False
         cfg.mcts.adaptive_budget_enabled = False
         cfg.mcts.dirichlet_alpha = 0.30
         cfg.mcts.dirichlet_eps = 0.25
+        cfg.mcts.milestone_shaping_weight = 0.50
+        cfg.mcts.optimism_weight = 0.25
+        cfg.mcts.shaping_anneal_epochs = 500
+        cfg.mcts.initial_shaping_scale = 50.0
 
         cfg.model.block_type = "swiglu"
         cfg.model.policy_activation = "silu"
         cfg.model.score_activation = "silu"
         cfg.model.policy_dropout = 0.03
         cfg.model.score_dropout = 0.03
-        cfg.model.policy_hidden_layers = [1024, 1024, 512, 256]
-        cfg.model.score_hidden_layers = [1024, 1024, 512, 256]
+        cfg.model.policy_hidden_layers = [1024, 1024, 1024, 512]
+        cfg.model.score_hidden_layers = [1024, 1024, 1024, 512]
         cfg.model.policy_weight_decay = 1e-4
         cfg.model.score_weight_decay = 1e-4
-        cfg.model.use_gnn_map = False
+        cfg.model.use_gnn_map = True
+        cfg.model.gnn_layers = 2
+        cfg.model.gnn_hidden_dim = 96
         cfg.model.finetune_mode = False
 
-        cfg.model.policy_lr = 2.5e-4
-        cfg.model.score_lr = 3.0e-4
-        cfg.training.batch_size = 256
-        cfg.training.total_episodes = 10000
+        cfg.model.policy_lr = 5.0e-4
+        cfg.model.score_lr = 5.0e-4
+        cfg.training.batch_size = 512
+        cfg.training.total_episodes = 2000
 
         # Puzzles de crise tactiques désactivés au début pour stabilisation
         cfg.training.rgsc_enabled = False
