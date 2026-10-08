@@ -519,19 +519,17 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
             total_entropy = 0.0
             total_pred_score = 0.0
 
-            # Démarre l'entraînement uniquement quand le buffer est bien rempli (Warmup)
-            if len(self.replay_buffer) >= 10000:
-                # Ratio de rejeu ciblé (ex: 4 = chaque transition est vue ~4 fois)
-                replay_ratio = 4.0
-                # epoch_moves contient le nombre de coups générés à cette époque
-                steps = max(1, int((epoch_moves * replay_ratio) / self.az_config.batch_size))
+            # Démarre l'entraînement dès que le buffer contient au moins 64 transitions
+            if len(self.replay_buffer) >= 64:
+                steps = self.az_config.training_steps_per_epoch
             else:
                 steps = 0
             for _ in range(steps):
                 if self._stop_event.is_set():
                     break
+                sample_size = min(len(self.replay_buffer), self.az_config.batch_size)
                 batch = self.replay_buffer.sample(
-                    self.az_config.batch_size,
+                    sample_size,
                     optimism_power=getattr(self.az_config, "optimism_power", 1.0),
                 )
                 p_loss, v_loss, ent, pred_val = self.train_on_batch(batch)
