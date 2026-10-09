@@ -410,6 +410,11 @@ pub unsafe extern "C" fn gaiapi_set_hex_building(
         if let Some(idx) = env.map.coords[..env.map.count].iter().position(|c| c.q == q && c.r == r && c.s == s) {
             let hex = &mut env.map.hexes[idx];
             if building_type == 0 {
+                if let (Some(b), Some(p)) = (hex.building, hex.player) {
+                    if let Some(pl) = env.players.get_mut(p as usize) {
+                        pl.buildings[b as usize] = pl.buildings[b as usize].saturating_sub(1);
+                    }
+                }
                 hex.building = None;
                 hex.player = None;
             } else {
@@ -423,9 +428,35 @@ pub unsafe extern "C" fn gaiapi_set_hex_building(
                     7 => crate::rules::Building::GaiaFormer,
                     _ => crate::rules::Building::SpaceStation,
                 };
+                if let (Some(old_b), Some(old_p)) = (hex.building, hex.player) {
+                    if let Some(pl) = env.players.get_mut(old_p as usize) {
+                        pl.buildings[old_b as usize] = pl.buildings[old_b as usize].saturating_sub(1);
+                    }
+                }
                 hex.building = Some(bldg);
-                hex.player = Some(player_seat.min(3));
+                let seat = (player_seat as usize).min(env.players.len().saturating_sub(1));
+                hex.player = Some(seat as u8);
+                if let Some(pl) = env.players.get_mut(seat) {
+                    pl.buildings[bldg as usize] += 1;
+                }
             }
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gaiapi_set_player_booster(
+    env: *mut GaiaEnv,
+    seat: u32,
+    booster_id: u8,
+) {
+    if let Some(env) = unsafe { env.as_mut() } {
+        if let Some(p) = env.players.get_mut(seat as usize) {
+            p.current_booster = if booster_id == 0 {
+                None
+            } else {
+                Some(booster_id)
+            };
         }
     }
 }

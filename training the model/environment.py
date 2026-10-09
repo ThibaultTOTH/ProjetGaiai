@@ -318,6 +318,58 @@ class NativeGaiaEnv:
                 ]
                 dll.gaiapi_get_hex_index.restype = ctypes.c_int32
 
+            if hasattr(dll, "gaiapi_set_current_player"):
+                dll.gaiapi_set_current_player.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+                dll.gaiapi_set_current_player.restype = None
+
+            if hasattr(dll, "gaiapi_set_round"):
+                dll.gaiapi_set_round.argtypes = [ctypes.c_void_p, ctypes.c_uint8]
+                dll.gaiapi_set_round.restype = None
+
+            if hasattr(dll, "gaiapi_set_player_resources"):
+                dll.gaiapi_set_player_resources.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_uint32,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_uint8,
+                    ctypes.c_uint8,
+                    ctypes.c_uint8,
+                ]
+                dll.gaiapi_set_player_resources.restype = None
+
+            if hasattr(dll, "gaiapi_set_hex_building"):
+                dll.gaiapi_set_hex_building.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_uint8,
+                    ctypes.c_uint8,
+                ]
+                dll.gaiapi_set_hex_building.restype = None
+
+            if hasattr(dll, "gaiapi_set_hex_planet"):
+                dll.gaiapi_set_hex_planet.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_int16,
+                    ctypes.c_uint8,
+                ]
+                dll.gaiapi_set_hex_planet.restype = None
+
+            if hasattr(dll, "gaiapi_set_player_booster"):
+                dll.gaiapi_set_player_booster.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_uint32,
+                    ctypes.c_uint8,
+                ]
+                dll.gaiapi_set_player_booster.restype = None
+
             cls._dll_instance = dll
         return cls._dll_instance
 
@@ -631,6 +683,62 @@ class NativeGaiaEnv:
         if hasattr(self.dll, "gaiapi_get_hex_index"):
             return int(self.dll.gaiapi_get_hex_index(self.env_ptr, ctypes.c_int16(q), ctypes.c_int16(r), ctypes.c_int16(s)))
         return -1
+
+    def set_current_player(self, seat: int) -> None:
+        """Forces the current active player seat."""
+        if hasattr(self.dll, "gaiapi_set_current_player"):
+            self.dll.gaiapi_set_current_player(self.env_ptr, ctypes.c_uint32(seat))
+            self.current_player = seat
+
+    def set_round(self, round_num: int) -> None:
+        """Sets the current round (1..6)."""
+        if hasattr(self.dll, "gaiapi_set_round"):
+            self.dll.gaiapi_set_round(self.env_ptr, ctypes.c_uint8(round_num))
+            self.round = round_num
+
+    def set_hex_building(self, q: int, r: int, s: int, building_type: int, player_seat: int) -> None:
+        """Directly sets a building on a hex (used for initial setup replay)."""
+        if hasattr(self.dll, "gaiapi_set_hex_building"):
+            self.dll.gaiapi_set_hex_building(
+                self.env_ptr,
+                ctypes.c_int16(q),
+                ctypes.c_int16(r),
+                ctypes.c_int16(s),
+                ctypes.c_uint8(building_type),
+                ctypes.c_uint8(player_seat),
+            )
+
+    def set_player_resources(
+        self,
+        seat: int,
+        credits: int,
+        ore: int,
+        knowledge: int,
+        qic: int,
+        vp: int = 10,
+        p1: int = 2,
+        p2: int = 4,
+        p3: int = 0,
+    ) -> None:
+        """Sets resources for a given player seat."""
+        if hasattr(self.dll, "gaiapi_set_player_resources"):
+            self.dll.gaiapi_set_player_resources(
+                self.env_ptr,
+                ctypes.c_uint32(seat),
+                ctypes.c_int16(credits),
+                ctypes.c_int16(ore),
+                ctypes.c_int16(knowledge),
+                ctypes.c_int16(qic),
+                ctypes.c_int16(vp),
+                ctypes.c_uint8(p1),
+                ctypes.c_uint8(p2),
+                ctypes.c_uint8(p3),
+            )
+
+    def set_player_booster(self, seat: int, booster_id: int) -> None:
+        """Sets the current booster for a player seat (1..10)."""
+        if hasattr(self.dll, "gaiapi_set_player_booster"):
+            self.dll.gaiapi_set_player_booster(self.env_ptr, ctypes.c_uint32(seat), ctypes.c_uint8(booster_id))
 
 
 def build_canonical_hex_adjacency() -> np.ndarray:
