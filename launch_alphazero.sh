@@ -15,7 +15,7 @@ fi
 
 # Reset current_status.txt and archive games.log for clean audit
 mkdir -p runs
-echo "Initialisation de l'entraînement SOTA (128 sims, k=64, 8 parties/époque, Ligue bootstrap)..." > runs/current_status.txt
+echo "Initialisation de l'entraînement SOTA (128 sims, k=12, 8 parties/époque, Ligue bootstrap)..." > runs/current_status.txt
 if [ -f "runs/games.log" ]; then
     mv runs/games.log "runs/games_archive_$(date +%Y%m%d_%H%M%S).log"
 fi
@@ -27,7 +27,7 @@ if [ ! -f "league_checkpoints/Snapshot_Epoch_0000_Bootstrap.pt" ]; then
 fi
 
 echo "[Launcher] Resuming clean from bootstrap: $RESUME_CKPT"
-echo "[Launcher] Hyperparameters: N=128 simulations, k=64 candidates, 8 games/epoch, 8 workers"
+echo "[Launcher] Hyperparameters: N=128 simulations, k=12 candidates, 8 games/epoch, 8 workers"
 echo "[Launcher] League Pool: 1 initial snapshot (Snapshot_Epoch_0000_Bootstrap @ 128 sims)"
 
 /home/thibaulttoth/anaconda3/bin/python -u "training the model/train.py" \
