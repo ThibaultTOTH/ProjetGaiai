@@ -895,17 +895,18 @@ def format_flat_action(action_id: int) -> str:
 def compute_competitive_value(raw_vps: Any, player_idx: int, epoch: Optional[int] = None) -> float:
     """Computes bounded competitive value Z_p in [-1.0, +1.0] for player p in a 4-player game.
 
-    Curriculum (Epoch 0 -> 1500):
-    1. Dynamic score ambition curriculum (80% weight):
-       - Benchmark target VP starts at 80.0 VP (Epoch 0) and anneals linearly to 180.0 VP (Epoch 1500):
-         target_vp = 80.0 + 100.0 * min(1.0, max(0.0, ep / 1500.0))
-       - score_term = math.tanh((p_vp - target_vp) / 35.0) in [-1.0, 1.0]
-    2. Competitive win/loss margin vs highest rival score (20% weight):
+    Grandmaster Ambition Exponent Curriculum:
+    1. Competitive win/loss margin vs highest rival score (50% weight):
        - diff = p_vp - max_opp_vp
-       - win_term = math.tanh(diff / 20.0) in [-1.0, 1.0]
+       - win_term = math.tanh(diff / 25.0) in [-1.0, 1.0]
+    2. Grandmaster Ambition Exponent Curriculum (50% weight):
+       - alpha(epoch) smoothly scales from 2.0 (Epoch 0, neutral 155.6 VP) to 3.0 (Epoch 200+, neutral 174.6 VP):
+         alpha = 2.0 + 1.0 * min(1.0, max(0.0, ep / 200.0))
+       - x = clip(p_vp / 220.0, 0.0, 1.2)
+       - score_term = 2.0 * math.pow(x, alpha) - 1.0 in [-1.0, 1.0]
 
     Combined:
-       Z = 0.80 * score_term + 0.20 * win_term, clipped to [-1.0, 1.0]
+       Z = 0.50 * win_term + 0.50 * score_term, clipped to [-1.0, 1.0]
     """
     vps = [float(v) for v in raw_vps]
     if not vps or player_idx >= len(vps):
@@ -914,19 +915,20 @@ def compute_competitive_value(raw_vps: Any, player_idx: int, epoch: Optional[int
     other_vps = [v for i, v in enumerate(vps) if i != player_idx]
     max_opp_vp = max(other_vps) if other_vps else 50.0
 
-    # 1. Competitive win/loss margin vs highest rival (20% weight)
+    # 1. Competitive win/loss margin vs highest rival (50% weight)
     diff = p_vp - max_opp_vp
-    win_term = math.tanh(diff / 20.0)
+    win_term = math.tanh(diff / 25.0)
 
-    # 2. Dynamic score ambition curriculum (80% weight): 80 VP @ Ep 0 -> 180 VP @ Ep 1500
+    # 2. Grandmaster Ambition Exponent Curriculum:
+    # alpha = 2.0 (Ep 0, neutral 155.6 VP) -> 3.0 (Ep 200+, neutral 174.6 VP)
     ep = float(epoch) if (epoch is not None and epoch >= 0) else 0.0
-    target_vp = 80.0 + 100.0 * min(1.0, max(0.0, ep / 1500.0))
-    score_term = math.tanh((p_vp - target_vp) / 35.0)
+    alpha = 2.0 + 1.0 * min(1.0, max(0.0, ep / 200.0))
 
-    z = 0.80 * score_term + 0.20 * win_term
+    x = float(np.clip(p_vp / 220.0, 0.0, 1.2))
+    score_term = 2.0 * math.pow(x, alpha) - 1.0
+
+    z = 0.50 * win_term + 0.50 * score_term
     return float(np.clip(z, -1.0, 1.0))
-
-
 
 
 def make_gaia_env(

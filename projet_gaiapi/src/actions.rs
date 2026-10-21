@@ -2800,7 +2800,7 @@ pub fn legal_commands(
     if player.qic >= 1 {
         cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::QicToOre });
     }
-    if player.ore >= 1 {
+    if is_final_round && player.ore >= 1 {
         cmds.push(GameCommand::FreeAction { action: crate::rules::FreeAction::OreToToken });
     }
 

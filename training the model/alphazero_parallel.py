@@ -875,7 +875,7 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
             avg_winner_vp = float(np.mean(epoch_winner_scores)) if epoch_winner_scores else avg_real_vp
             max_vp = float(np.max(epoch_winner_scores)) if epoch_winner_scores else avg_real_vp
             elite_count = len(getattr(self.replay_buffer, "elite_buffer", []))
-            alpha_sched = 2.0 + 1.0 * min(1.0, max(0.0, float(epoch) / 100.0))
+            alpha_sched = 2.0 + 1.0 * min(1.0, max(0.0, float(epoch) / 200.0))
 
             # VRAM tracking
             if self.device.type == "cuda":
