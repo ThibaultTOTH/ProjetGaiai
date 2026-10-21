@@ -19,13 +19,15 @@
   "az_value_loss_coef": 2.0,
   "az_batch_size": 512,
   "az_training_steps": 40,
-  "az_num_simulations": 64,
-  "az_gumbel_candidates": 8,
+  "az_num_simulations": 128,
+  "az_gumbel_candidates": 16,
   "az_c_puct": 1.25,
   "az_optimism_power": 1.0,
-  "az_temp_threshold": 4,
-  "az_milestone_weight": 0.5,
+  "az_temp_threshold": 30,
+  "az_milestone_weight": 0.0,
   "az_optimism_weight": 0.25,
-  "shaping_anneal_epochs": 500,
-  "initial_shaping_scale": 50.0
+  "shaping_anneal_epochs": 150,
+  "initial_shaping_scale": 2.0,
+  "shaping_cutoff_vp": 120.0,
+  "az_replay_buffer_size": 50000
 }

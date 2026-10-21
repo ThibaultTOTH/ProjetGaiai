@@ -27,6 +27,7 @@ class LeagueMember:
 
     name: str
     policy_net: Optional[ActionOptimizerNet] = None
+    agent: Optional[DualGaiaAgent] = None
     elo: float = 1200.0
     games: int = 0
     wins: int = 0
@@ -78,6 +79,12 @@ class LeagueManager:
         if snapshot_name in self.members:
             return snapshot_name
 
+        try:
+            cloned_agent = agent.clone_agent().to(self.device)
+            cloned_agent.eval()
+        except Exception:
+            cloned_agent = None
+
         cloned_policy = agent.clone_policy_net().to(self.device)
         cloned_policy.eval()
 
@@ -88,6 +95,7 @@ class LeagueManager:
         try:
             torch.save(
                 {
+                    "agent_state_dict": cloned_agent.state_dict() if cloned_agent is not None else None,
                     "action_net_state": cloned_policy.state_dict(),
                     "model_config": getattr(agent, "config", None),
                     "epoch": epoch,
@@ -103,6 +111,7 @@ class LeagueManager:
         member = LeagueMember(
             name=snapshot_name,
             policy_net=cloned_policy,
+            agent=cloned_agent,
             elo=current_elo,
             epoch=epoch,
             filepath=filepath,
@@ -214,6 +223,43 @@ class LeagueManager:
 
         return opponents
 
+    def sample_opponent_names(self, num_opponents: int = 1) -> List[str]:
+        """Samples opponent participant names for parallel league matchmaking.
+
+        Returns list of member names (e.g. ['Snapshot_Epoch_0010', 'CurrentPolicy']).
+        """
+        opponents = []
+        has_history = len(self.historical_names) > 0
+
+        for _ in range(num_opponents):
+            r = np.random.rand()
+            if r < self.config.self_play_prob or not has_history:
+                opponents.append("CurrentPolicy")
+            elif r < self.config.self_play_prob + self.config.historical_prob:
+                matchmaking = getattr(self.config, "matchmaking_type", "gaussian").lower()
+                if matchmaking == "gaussian" and len(self.historical_names) > 1:
+                    curr_elo = self.members.get(
+                        "CurrentPolicy",
+                        LeagueMember(name="CurrentPolicy", policy_net=None, elo=1200.0),
+                    ).elo
+                    elo_window = max(10.0, getattr(self.config, "matchmaking_elo_window", 150.0))
+                    hist_elos = np.array([self.members[name].elo for name in self.historical_names], dtype=np.float64)
+                    diffs = hist_elos - curr_elo
+                    weights = np.exp(-0.5 * (diffs / elo_window) ** 2)
+                    weight_sum = weights.sum()
+                    if weight_sum > 1e-8:
+                        probs = weights / weight_sum
+                        hist_name = str(np.random.choice(self.historical_names, p=probs))
+                    else:
+                        hist_name = str(np.random.choice(self.historical_names))
+                else:
+                    hist_name = str(np.random.choice(self.historical_names))
+                opponents.append(hist_name)
+            else:
+                opponents.append("RandomBaseline")
+
+        return opponents
+
     def update_match_results(
         self,
         participants: List[str],
@@ -227,11 +273,17 @@ class LeagueManager:
 
         # Find match winner(s)
         max_vp = max(vps)
-        for i, name in enumerate(participants):
+        is_unique_winner = (vps.count(max_vp) == 1)
+        winner_seat = int(np.argmax(vps)) if is_unique_winner else -1
+        winner_name = participants[winner_seat] if winner_seat >= 0 else None
+
+        # Each unique participant in the game only gets 1 game and at most 1 win recorded
+        unique_participants = list(set(participants))
+        for name in unique_participants:
             if name in self.members:
                 m = self.members[name]
                 m.games += 1
-                if vps[i] == max_vp and vps.count(max_vp) == 1:
+                if name == winner_name:
                     m.wins += 1
 
         # Pairwise Elo updates across all participant pairs
@@ -240,6 +292,8 @@ class LeagueManager:
             for j in range(i + 1, n):
                 p_i = participants[i]
                 p_j = participants[j]
+                if p_i == p_j:
+                    continue  # Self-play pairs do not alter Elo!
 
                 elo_i = self.members[p_i].elo if p_i in self.members else 1200.0
                 elo_j = self.members[p_j].elo if p_j in self.members else 1200.0
@@ -260,9 +314,14 @@ class LeagueManager:
                 elo_deltas[i] += pair_k * (s_i - e_i)
                 elo_deltas[j] += pair_k * (s_j - e_j)
 
-        for i, name in enumerate(participants):
+        # Apply Elo delta averaged over the seats owned by each unique member
+        # (prevents multi-seat amplification when an entity has multiple seats)
+        for name in unique_participants:
             if name in self.members:
-                self.members[name].elo = max(100.0, self.members[name].elo + elo_deltas[i])
+                seats = [i for i, p in enumerate(participants) if p == name]
+                if seats:
+                    avg_delta = sum(elo_deltas[s] for s in seats) / len(seats)
+                    self.members[name].elo = max(100.0, self.members[name].elo + avg_delta)
 
     def get_leaderboard(self) -> List[Dict[str, Any]]:
         """Returns sorted list of league members by Elo rating."""
@@ -331,12 +390,24 @@ class LeagueManager:
                 policy.load_state_dict(state_dict, strict=False)
                 policy.eval()
 
+                agent_instance = None
+                if "agent_state_dict" in ckpt and ckpt["agent_state_dict"] is not None:
+                    try:
+                        agent_instance = DualGaiaAgent(cfg_obj or ModelConfig()).to(self.device)
+                        agent_instance.load_state_dict(ckpt["agent_state_dict"], strict=False)
+                        agent_instance.eval()
+                        for p in agent_instance.parameters():
+                            p.requires_grad = False
+                    except Exception:
+                        agent_instance = None
+
                 name = ckpt.get("name", os.path.splitext(os.path.basename(fpath))[0])
                 epoch = int(ckpt.get("epoch", 0))
 
                 member = LeagueMember(
                     name=name,
                     policy_net=policy,
+                    agent=agent_instance,
                     elo=1200.0,
                     epoch=epoch,
                     filepath=fpath,

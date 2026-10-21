@@ -2,10 +2,33 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+*.dll
+*.dylib
 
 # PyTorch checkpoints & binary datasets
 *.pt
 *.pth
+checkpoints/
+league_checkpoints/
+**/checkpoints/
+**/league_checkpoints/
+
+# Logs & status files
+*.log
+runs/*.log
+runs/*.txt
+runs/*.pdf
+runs/archive_ep*/
+archive_clutter/
+archive/
+archive_run_*/
+archive*/
+
+# Scraper data files
+scraper/data/
+scraper/data/raw_games/
+scraper/data/raw_bga_games/
 
 # Rust build artifacts
 target/
@@ -21,4 +44,4 @@ Cargo.lock
 .vscode/
 .vs/
 scratch/
-checkpoints/gaia_latest.pt
+training.pid

@@ -19,13 +19,39 @@ from league import LeagueManager, LeagueMember
 from buffer import PrioritizedStateBuffer
 
 class AlphaZeroReplayBuffer:
-    """Stores (observation, action_mask, mcts_policy, mcts_value) tuples from self-play."""
-    def __init__(self, capacity: int = 100_000):
+    """Stores (observation, action_mask, mcts_policy, mcts_value) tuples from self-play.
+
+    Features:
+    1. Sliding Buffer: Standard rolling FIFO buffer for recent transitions (capacity: 50,000+).
+    2. Elite Reservoir Replay: Dedicated permanent pool of decisive moves from the top 0.1%
+       highest-scoring winning games (capacity: 25,000).
+    3. Hybrid Balanced Sampling: Blends fresh self-play exploration (75%) with permanent
+       mastery of breakthrough high-VP winning trajectories (25%).
+    """
+    def __init__(self, capacity: int = 50_000, elite_capacity: int = 25_000):
         self.capacity = capacity
+        self.elite_capacity = elite_capacity
         self.buffer = []
         self.position = 0
+        self.elite_buffer: List[Tuple[np.ndarray, np.ndarray, np.ndarray, float, float]] = []
+        self.winning_vps: List[float] = []
+
+    def get_elite_threshold(self) -> float:
+        """Computes dynamic top 0.01% (99.99th percentile) winning VP threshold.
+        
+        Requires a strict minimum bar of 100.0 VP so mediocre games (<100 VP)
+        never enter the Elite Reservoir and pollute training data.
+        """
+        MIN_ELITE_BAR = 100.0
+        if not self.winning_vps:
+            return MIN_ELITE_BAR
+        if len(self.winning_vps) < 20:
+            return max(MIN_ELITE_BAR, float(np.max(self.winning_vps)))
+        p_elite = float(np.percentile(self.winning_vps, 99.99))
+        return max(MIN_ELITE_BAR, p_elite)
 
     def add(self, obs: np.ndarray, action_mask: np.ndarray, mcts_policy: np.ndarray, value_target: np.ndarray):
+        """Appends a single transition to the sliding FIFO buffer."""
         data = (obs, action_mask, mcts_policy, value_target)
         if len(self.buffer) < self.capacity:
             self.buffer.append(data)
@@ -33,33 +59,119 @@ class AlphaZeroReplayBuffer:
             self.buffer[self.position] = data
         self.position = (self.position + 1) % self.capacity
 
-    def sample(self, batch_size: int, optimism_power: float = 1.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        if len(self.buffer) < batch_size:
-            indices = np.random.choice(len(self.buffer), size=batch_size, replace=True)
-            batch = [self.buffer[i] for i in indices]
-        else:
-            vps = np.array([float(x[3]) if not hasattr(x[3], '__iter__') else float(np.max(x[3])) for x in self.buffer], dtype=np.float32)
-            v_min = float(np.min(vps))
-            v_max = float(np.max(vps))
-            if v_max > v_min and optimism_power > 0.0:
-                normalized = (vps - v_min) / (v_max - v_min)
-                weights = (0.2 + 0.8 * normalized) ** optimism_power
-                probs = weights / weights.sum()
-                indices = np.random.choice(len(self.buffer), size=batch_size, replace=False, p=probs)
-                batch = [self.buffer[i] for i in indices]
+    def add_game(
+        self,
+        history: List[Any],
+        raw_vps: List[float],
+        participants: List[str],
+    ) -> None:
+        """Ingests all transitions of a completed game, and preserves decisive moves of top 0.1% winners."""
+        if not history:
+            return
+
+        winner_seat = int(np.argmax(raw_vps)) if raw_vps else 0
+        winner_vp = float(raw_vps[winner_seat]) if raw_vps else 0.0
+        self.winning_vps.append(winner_vp)
+        if len(self.winning_vps) > 5000:
+            self.winning_vps.pop(0)
+
+        threshold = self.get_elite_threshold()
+        is_elite_game = (
+            winner_vp >= threshold
+            and winner_seat < len(participants)
+            and participants[winner_seat] == "CurrentPolicy"
+        )
+
+        n_elite_added = 0
+        for step_data in history:
+            obs = step_data[0]
+            mask = step_data[1]
+            probs = step_data[2]
+            z_val = step_data[3]
+            seat = step_data[4] if len(step_data) > 4 else None
+
+            # 1. Add to sliding FIFO buffer
+            self.add(obs, mask, probs, z_val)
+
+            # 2. If game is top 0.1% winner, preserve decisive moves of the winner in Elite Reservoir!
+            if is_elite_game and seat == winner_seat:
+                elite_entry = (obs, mask, probs, z_val, winner_vp)
+                if len(self.elite_buffer) < self.elite_capacity:
+                    self.elite_buffer.append(elite_entry)
+                else:
+                    min_idx = int(np.argmin([x[4] for x in self.elite_buffer]))
+                    if winner_vp > self.elite_buffer[min_idx][4]:
+                        self.elite_buffer[min_idx] = elite_entry
+                n_elite_added += 1
+
+        if is_elite_game and n_elite_added > 0:
+            print(
+                f"  * [Elite Reservoir] Stored {n_elite_added} decisive moves of top 0.01% winner "
+                f"({winner_vp:.1f} VP >= {threshold:.1f} VP threshold). Total elite pool: {len(self.elite_buffer)}",
+                flush=True,
+            )
+
+    def sample(
+        self,
+        batch_size: int,
+        optimism_power: float = 1.0,
+        elite_ratio: float = 0.25,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if len(self.buffer) == 0 and len(self.elite_buffer) == 0:
+            raise ValueError("Cannot sample from empty replay buffer")
+
+        # Determine split between elite reservoir and recent sliding buffer
+        n_elite = int(batch_size * elite_ratio) if len(self.elite_buffer) >= 32 else 0
+        n_recent = batch_size - n_elite
+
+        batch = []
+
+        # 1. Sample from Elite Reservoir (permanent decisive moves of highest-VP games)
+        if n_elite > 0:
+            if len(self.elite_buffer) < n_elite:
+                elite_indices = np.random.choice(len(self.elite_buffer), size=n_elite, replace=True)
             else:
-                batch = random.sample(self.buffer, batch_size)
+                elite_indices = np.random.choice(len(self.elite_buffer), size=n_elite, replace=False)
+            for idx in elite_indices:
+                x = self.elite_buffer[idx]
+                batch.append((x[0], x[1], x[2], x[3]))
+
+        # 2. Sample from Sliding Buffer (with optimistic weighting)
+        if n_recent > 0 and len(self.buffer) > 0:
+            if len(self.buffer) < n_recent:
+                indices = np.random.choice(len(self.buffer), size=n_recent, replace=True)
+                batch.extend([self.buffer[i] for i in indices])
+            else:
+                vps = np.array(
+                    [float(x[3]) if not hasattr(x[3], '__iter__') else float(np.max(x[3])) for x in self.buffer],
+                    dtype=np.float32,
+                )
+                v_min = float(np.min(vps))
+                v_max = float(np.max(vps))
+                if v_max > v_min and optimism_power > 0.0:
+                    normalized = (vps - v_min) / (v_max - v_min)
+                    weights = (0.2 + 0.8 * normalized) ** optimism_power
+                    probs = weights / weights.sum()
+                    indices = np.random.choice(len(self.buffer), size=n_recent, replace=False, p=probs)
+                    batch.extend([self.buffer[i] for i in indices])
+                else:
+                    batch.extend(random.sample(self.buffer, n_recent))
+        elif n_recent > 0 and len(self.elite_buffer) > 0:
+            extra_idx = np.random.choice(len(self.elite_buffer), size=n_recent, replace=True)
+            for idx in extra_idx:
+                x = self.elite_buffer[idx]
+                batch.append((x[0], x[1], x[2], x[3]))
 
         obs, action_mask, mcts_policy, value_target = zip(*batch)
         return (
             np.stack(obs),
             np.stack(action_mask),
             np.stack(mcts_policy),
-            np.array(value_target, dtype=np.float32)
+            np.array(value_target, dtype=np.float32),
         )
 
     def __len__(self):
-        return len(self.buffer)
+        return len(self.buffer) + len(self.elite_buffer)
 
 @dataclass
 class EpochMetrics:
@@ -75,6 +187,11 @@ class EpochMetrics:
     league_elo: float = 1200.0
     league_size: int = 2
     rgsc_puzzles: int = 0
+    avg_winner_score: float = 0.0
+    max_score: float = 0.0
+    elite_size: int = 0
+    target_ambition: float = 80.0
+
 
 class AlphaZeroTrainer:
     def __init__(self, config: AppConfig, agent: DualGaiaAgent = None):
@@ -318,7 +435,7 @@ class AlphaZeroTrainer:
 
         # Store bounded competitive value Z_p in [-1, +1]
         final_history = [
-            (obs, mask, probs, compute_competitive_value(raw_vps, p))
+            (obs, mask, probs, compute_competitive_value(raw_vps, p, epoch=getattr(self, "current_epoch", 0)))
             for p, obs, mask, probs in history
         ]
         return final_history, p0_vp, p0_won, move_count
@@ -483,7 +600,7 @@ class AlphaZeroTrainer:
 
     def save_checkpoint(self, path: str):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        torch.save({
+        save_dict = {
             'epoch': self.current_epoch,
             'agent_state_dict': self.agent.state_dict(),
             'score_net_state': self.agent.score_net.state_dict(),
@@ -492,7 +609,11 @@ class AlphaZeroTrainer:
             'scaler_state_dict': self.scaler.state_dict() if hasattr(self, 'scaler') and self.scaler else None,
             'config': self.config,
             'meta': {'epoch': self.current_epoch, 'algorithm': 'AlphaZero'}
-        }, path)
+        }
+        if hasattr(self, 'replay_buffer') and self.replay_buffer is not None:
+            save_dict['winning_vps'] = getattr(self.replay_buffer, 'winning_vps', [])
+            save_dict['elite_buffer'] = getattr(self.replay_buffer, 'elite_buffer', [])
+        torch.save(save_dict, path)
 
     def save_current_checkpoint(self, path: Optional[str] = None, is_milestone: bool = False, **kwargs) -> str:
         ckpt_dir = self.config.training.checkpoint_dir
@@ -536,6 +657,14 @@ class AlphaZeroTrainer:
                 self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
             except Exception:
                 pass
+        if isinstance(checkpoint, dict) and hasattr(self, 'replay_buffer') and self.replay_buffer is not None:
+            if 'winning_vps' in checkpoint and checkpoint['winning_vps']:
+                self.replay_buffer.winning_vps = [float(v) for v in checkpoint['winning_vps']]
+            if 'elite_buffer' in checkpoint and checkpoint['elite_buffer']:
+                # Filter out any entries < 100 VP to ensure elite pool purity
+                self.replay_buffer.elite_buffer = [
+                    e for e in checkpoint['elite_buffer'] if len(e) > 4 and e[4] >= 100.0
+                ]
             
         epoch = 0
         if isinstance(meta, dict) and 'epoch' in meta:

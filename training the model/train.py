@@ -353,22 +353,24 @@ def main():
     env = make_gaia_env(players=cfg.model.num_players)
     start_time = time.time()
 
-    print(f"{'Époque':<10} {'Cadence':<12} {'Pertes (Pol. / Valeur)':<24} {'VP Moyen':<12} {'Victoires':<12} {'Algo':<10} {'VRAM'}")
-    print("-" * 78)
+    print(f"{'Époque':<10} {'Cadence':<10} {'Pertes (Pol. / Val.)':<24} {'Vainqueur VP (Max)':<20} {'Moyen VP':<10} {'Cible VP':<10} {'Élite':<7} {'VRAM'}")
+    print("-" * 99)
 
-    def _format_metric_row(ep, speed, p_loss, v_loss, avg_vp, win_r, vram):
+    def _format_metric_row(ep, speed, p_loss, v_loss, avg_vp, win_r, vram, win_vp=0.0, max_vp=0.0, target_vp=80.0, elite_sz=0):
         p_loss_str = f"P={p_loss:+.3f}"
         v_loss_str = f"V={v_loss:.3f}"
         losses_str = f"{p_loss_str} {v_loss_str}"
-        wr_str = f"{win_r * 100.0:.0f}%"
         speed_str = f"{speed:.0f} st/s"
+        win_col = f"{win_vp:>5.1f} VP ({max_vp:>5.1f})" if win_vp > 0 else f"{avg_vp:>5.1f} VP"
+        target_str = f"{target_vp:>5.1f} VP"
         print(
             f"[{ep:04d}/{target_epochs}] "
-            f"{speed_str:<12} "
+            f"{speed_str:<10} "
             f"{losses_str:<24} "
-            f"{avg_vp:>5.1f} VP    "
-            f"{wr_str:<12} "
-            f"{algo.upper():<10} "
+            f"{win_col:<20} "
+            f"{avg_vp:>5.1f} VP   "
+            f"{target_str:<10} "
+            f"{elite_sz:<7} "
             f"{vram}"
         )
 
@@ -376,12 +378,19 @@ def main():
         if algo in ("alphazero", "muzero"):
             def _az_callback(m):
                 vram = f"{torch.cuda.memory_allocated() / (1024**2):.0f} MB" if device.type == "cuda" else "CPU"
-                _format_metric_row(m.epoch, m.steps_per_sec, m.policy_loss, m.value_loss, m.avg_real_score, m.win_rate, vram)
+                win_vp = getattr(m, 'avg_winner_score', 0.0)
+                max_vp = getattr(m, 'max_score', 0.0)
+                target_vp = getattr(m, 'target_ambition', 80.0)
+                elite_sz = getattr(m, 'elite_size', 0)
+                _format_metric_row(m.epoch, m.steps_per_sec, m.policy_loss, m.value_loss, m.avg_real_score, m.win_rate, vram,
+                                   win_vp=win_vp, max_vp=max_vp, target_vp=target_vp, elite_sz=elite_sz)
             trainer.run_training_loop(env, max_epochs=target_epochs, callback=_az_callback)
         else:
             while trainer.current_epoch < target_epochs and not stop_requested[0]:
-                m: TrainingMetrics = trainer.train_step(env)
-                vram = f"{m.vram_allocated_mb:.0f} MB" if device.type == "cuda" else "CPU"
+                if not hasattr(trainer, "train_step"):
+                    raise NotImplementedError(f"Trainer for algorithm '{algo}' does not implement train_step.")
+                m = trainer.train_step(env)
+                vram = f"{getattr(m, 'vram_allocated_mb', 0):.0f} MB" if device.type == "cuda" else "CPU"
                 _format_metric_row(m.epoch, m.steps_per_sec, m.policy_loss, m.value_loss, m.avg_real_score, m.win_rate, vram)
                 if m.epoch % cfg.training.save_checkpoint_interval == 0:
                     saved = trainer.save_current_checkpoint(is_milestone=True)

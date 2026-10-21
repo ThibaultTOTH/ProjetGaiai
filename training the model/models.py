@@ -1015,6 +1015,15 @@ class DualGaiaAgent(nn.Module):
             p.requires_grad = False
         return cloned
 
+    def clone_agent(self) -> "DualGaiaAgent":
+        """Creates an independent frozen copy of the full agent (policy + score + backbone) for league MCTS play."""
+        import copy
+        cloned = copy.deepcopy(self)
+        cloned.eval()
+        for p in cloned.parameters():
+            p.requires_grad = False
+        return cloned
+
     def save_checkpoint(self, path: str, extra_meta: Optional[dict] = None) -> None:
         """Saves weights and metadata to file."""
         import os

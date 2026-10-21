@@ -68,18 +68,19 @@ class HardwareConfig:
                 info["mixed_precision"] = self.use_mixed_precision
 
                 if self.enable_tf32:
-                    # Modern PyTorch 2.9+ syntax with backward compatibility
+                    # Modern PyTorch 2.0+ TF32 Tensor Core activation for Ampere/Ada/Blackwell (RTX 5070)
                     try:
-                        torch.backends.cuda.matmul.fp32_precision = "tf32"
+                        torch.set_float32_matmul_precision("high")
                     except Exception:
+                        pass
+                    try:
                         torch.backends.cuda.matmul.allow_tf32 = True
-                    try:
-                        torch.backends.cudnn.conv.fp32_precision = "tf32"
                     except Exception:
-                        try:
-                            torch.backends.cudnn.allow_tf32 = True
-                        except Exception:
-                            pass
+                        pass
+                    try:
+                        torch.backends.cudnn.allow_tf32 = True
+                    except Exception:
+                        pass
                     info["tf32_active"] = True
 
                 if self.enable_cudnn_benchmark:
@@ -151,9 +152,9 @@ class TrainingConfig:
     # Learning rate schedule parameters
     lr_schedule_type: str = "cosine"  # 'cosine', 'exponential', 'linear', 'constant'
     warmup_ratio: float = 0.05  # Ratio of total epochs for linear warmup
-    lr_final_factor: float = 0.1  # Ratio of initial LR at final epoch
+    lr_final_factor: float = 0.20  # Ratio of initial LR at final epoch (preserves plasticity against local optima)
     exp_decay_rate: float = 0.98  # Per-epoch multiplier for exponential decay
-    min_lr: float = 1e-5
+    min_lr: float = 2e-5
 
     # Entropy decay schedule parameters
     entropy_schedule_type: str = "cosine"
@@ -237,7 +238,15 @@ class MCTSConfig:
     optimism_weight: float = 0.25  # Pousse le modèle vers l'optimisme (recherche de branches à fort VP)
     milestone_shaping_weight: float = 0.50  # Bonus de jalon tactique pour actions structurantes (fédérations, labos, mines)
     shaping_anneal_epochs: int = 500  # Durée de décroissance quadratique violente de l'incitation tactique (>= 500 époques)
-    initial_shaping_scale: float = 50.0  # Force initiale de shaping anti-pass prématuré (atteint exactement 0.0 à 500 époques)
+    initial_shaping_scale: float = 50.0  # Force initiale de shaping anti-pass
+
+    # Asynchronous Batched MCTS & Tree Parallelism
+    mcts_batch_size: int = 64  # GPU batch size for batched leaf inference
+    virtual_loss: float = 3.0  # Virtual loss penalty subtracted during tree descent
+    virtual_visits: int = 1  # Virtual visit count added to discourage duplicate paths
+    num_search_threads: int = 4  # Concurrency level for tree-parallel MCTS
+    max_batch_wait_ms: float = 0.5  # Max latency window (ms) to collect batch before GPU eval
+    use_async_batcher: bool = True  # Enable background GPU batching queue
 
 
 @dataclass
@@ -268,16 +277,16 @@ class MicroDispatchConfig:
 @dataclass
 class AlphaZeroConfig:
     enabled: bool = False
-    num_simulations: int = 50
+    num_simulations: int = 128
     gumbel_candidates: int = 8
     games_per_epoch: int = 10
     training_steps_per_epoch: int = 100
     replay_buffer_size: int = 100_000
     batch_size: int = 256
     value_loss_coef: float = 1.0
-    temperature_threshold_move: int = 4
+    temperature_threshold_move: int = 12
     temperature_high: float = 0.8
-    temperature_low: float = 0.05
+    temperature_low: float = 0.10
     dirichlet_alpha: float = 0.3
     dirichlet_eps: float = 0.25
     optimism_power: float = 1.0  # Échantillonnage priorisé optimiste des parties à haut score VP
@@ -376,20 +385,20 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
     if preset in ("finetune", "phase2", "grandmaster", "gm"):
         # 👑 PHASE 2 : Fine-Tuning Grand Maître Top Monde (Calibré sur Champion Trial #067)
         cfg.alphazero.enabled = True
-        cfg.alphazero.num_simulations = 64
+        cfg.alphazero.num_simulations = 128
         cfg.alphazero.gumbel_candidates = 8
         cfg.alphazero.games_per_epoch = 4
         cfg.alphazero.training_steps_per_epoch = 40
         cfg.alphazero.batch_size = 512
         cfg.alphazero.value_loss_coef = 2.0
-        cfg.alphazero.temperature_threshold_move = 4
+        cfg.alphazero.temperature_threshold_move = 12  # Strict setup only (8 mines + 4 boosters)
         cfg.alphazero.temperature_high = 0.8
-        cfg.alphazero.temperature_low = 0.05
+        cfg.alphazero.temperature_low = 0.10
         cfg.alphazero.dirichlet_eps = 0.25
 
         cfg.mcts.enabled = True
         cfg.mcts.algorithm = "gumbel"
-        cfg.mcts.num_simulations = 64
+        cfg.mcts.num_simulations = 128
         cfg.mcts.gumbel_candidates = 8
         cfg.mcts.c_puct = 1.25
         cfg.mcts.use_epistemic_uncertainty = False
@@ -399,7 +408,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.mcts.milestone_shaping_weight = 0.50
         cfg.mcts.optimism_weight = 0.25
         cfg.mcts.shaping_anneal_epochs = 500
-        cfg.mcts.initial_shaping_scale = 50.0
+        cfg.mcts.initial_shaping_scale = 2.5
 
         cfg.model.block_type = "swiglu"
         cfg.model.policy_activation = "silu"
@@ -427,7 +436,7 @@ def get_training_preset(name: str = "pretrain") -> AppConfig:
         cfg.league.enabled = True
         cfg.league.matchmaking_type = "gaussian"
         cfg.league.matchmaking_elo_window = 120.0
-        cfg.league.snapshot_interval_epochs = 50
+        cfg.league.snapshot_interval_epochs = 5
         cfg.league.max_snapshots = 15
 
         # Pas de bruit parasite ni béquilles

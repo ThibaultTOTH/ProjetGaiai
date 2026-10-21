@@ -14,6 +14,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import argparse
 import sys
 import tkinter as tk
+import torch
 
 from config import AppConfig
 from environment import make_gaia_env

@@ -642,7 +642,17 @@ def apply_params_to_config(cfg: AppConfig, params: Dict[str, Any], mode: str = "
         cfg.training.batch_size = int(params["az_batch_size"])
     if "az_training_steps" in params:
         cfg.alphazero.training_steps_per_epoch = int(params["az_training_steps"])
-    if "az_temp_threshold" in params:
+    if "az_algorithm" in params:
+        cfg.mcts.algorithm = str(params["az_algorithm"])
+    if "az_virtual_loss" in params:
+        cfg.mcts.virtual_loss = float(params["az_virtual_loss"])
+    if "az_mcts_batch_size" in params:
+        cfg.mcts.mcts_batch_size = int(params["az_mcts_batch_size"])
+    if "az_num_search_threads" in params:
+        cfg.mcts.num_search_threads = int(params["az_num_search_threads"])
+    if "az_temperature_threshold_move" in params:
+        cfg.alphazero.temperature_threshold_move = int(params["az_temperature_threshold_move"])
+    elif "az_temp_threshold" in params:
         cfg.alphazero.temperature_threshold_move = int(params["az_temp_threshold"])
     if "az_milestone_weight" in params:
         cfg.mcts.milestone_shaping_weight = float(params["az_milestone_weight"])

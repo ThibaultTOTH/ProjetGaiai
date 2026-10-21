@@ -55,11 +55,7 @@ TECH_TILE_MAP = {
 # Offsets matching action_space.rs
 A_BUILD_MINE_OFFSET = 0
 A_START_GAIA_OFFSET = 200
-A_UPGRADE_TS_OFFSET = 400
-A_UPGRADE_LAB_OFFSET = 600
-A_UPGRADE_PI_OFFSET = 800
-A_UPGRADE_AC1_OFFSET = 1000
-A_UPGRADE_AC2_OFFSET = 1200
+A_UPGRADE_OFFSET = 400  # Upgrades: 400 + hex * 5 + to (0: TS, 1: Lab, 2: PI, 3: AC1, 4: AC2)
 A_FEDERATION_OFFSET = 1400
 A_ADVANCE_RESEARCH_OFFSET = 1406
 A_PASS_OFFSET = 1412
@@ -208,23 +204,23 @@ def parse_action_index(move_str: str) -> Optional[int]:
     if "build ts" in m:
         coord_m = re.search(r'build ts\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
         hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
-        return A_UPGRADE_TS_OFFSET + (hex_idx if hex_idx is not None else 0)
+        return A_UPGRADE_OFFSET + (hex_idx if hex_idx is not None else 0) * 5 + 0
     if "build lab" in m:
         coord_m = re.search(r'build lab\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
         hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
-        return A_UPGRADE_LAB_OFFSET + (hex_idx if hex_idx is not None else 0)
+        return A_UPGRADE_OFFSET + (hex_idx if hex_idx is not None else 0) * 5 + 1
     if "build PI" in m or "build pi" in m:
         coord_m = re.search(r'build [Pp][Ii]\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
         hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
-        return A_UPGRADE_PI_OFFSET + (hex_idx if hex_idx is not None else 0)
+        return A_UPGRADE_OFFSET + (hex_idx if hex_idx is not None else 0) * 5 + 2
     if "build ac1" in m:
         coord_m = re.search(r'build ac1\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
         hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
-        return A_UPGRADE_AC1_OFFSET + (hex_idx if hex_idx is not None else 0)
+        return A_UPGRADE_OFFSET + (hex_idx if hex_idx is not None else 0) * 5 + 3
     if "build ac2" in m:
         coord_m = re.search(r'build ac2\s+([0-9]{1,2}[A-Za-z][0-9]{1,2})', m)
         hex_idx = parse_hex_coord(coord_m.group(1)) if coord_m else None
-        return A_UPGRADE_AC2_OFFSET + (hex_idx if hex_idx is not None else 0)
+        return A_UPGRADE_OFFSET + (hex_idx if hex_idx is not None else 0) * 5 + 4
 
     # 9. Build Mine: "build m <coord>"
     if "build m" in m:

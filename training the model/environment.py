@@ -442,7 +442,7 @@ class NativeGaiaEnv:
             self.dll.gaiapi_get_observation_egocentric(self.env_ptr, self._obs_buf, self.obs_dim)
         else:
             self.dll.gaiapi_get_observation(self.env_ptr, self._obs_buf, self.obs_dim)
-        return np.array(self._obs_buf, dtype=np.float32)
+        return np.frombuffer(self._obs_buf, dtype=np.float32).copy()
 
     def get_observation(self, egocentric: Optional[bool] = None) -> np.ndarray:
         """Public helper to retrieve the current observation tensor (standard or egocentric)."""
@@ -452,8 +452,7 @@ class NativeGaiaEnv:
         if self._mask_buf is None:
             self._mask_buf = (ctypes.c_uint8 * self.action_dim)()
         self.dll.gaiapi_get_action_mask(self.env_ptr, self._mask_buf, self.action_dim)
-        mask = np.array(self._mask_buf, dtype=bool)
-        return mask
+        return np.frombuffer(self._mask_buf, dtype=bool).copy()
 
     def get_all_vps(self) -> np.ndarray:
         """High-speed vector extraction of all players' VPs without allocating Python dicts."""
@@ -512,14 +511,14 @@ class NativeGaiaEnv:
                 flat_action = target
             elif action == 4:  # StartGaiaProject
                 flat_action = 200 + target
-            elif action == 5:  # UpgradeTradingStation
-                flat_action = 400 + target
-            elif action == 6:  # UpgradeResearchLab
-                flat_action = 600 + target
-            elif action == 7:  # UpgradePlanetaryInstitute
-                flat_action = 800 + target
-            elif action == 8:  # UpgradeAcademy
-                flat_action = 1000 + target
+            elif action == 5:  # UpgradeTradingStation (Rust: 400 + hex * 5 + 0)
+                flat_action = 400 + target * 5 + 0
+            elif action == 6:  # UpgradeResearchLab (Rust: 400 + hex * 5 + 1)
+                flat_action = 400 + target * 5 + 1
+            elif action == 7:  # UpgradePlanetaryInstitute (Rust: 400 + hex * 5 + 2)
+                flat_action = 400 + target * 5 + 2
+            elif action == 8:  # UpgradeAcademy (Rust: 400 + hex * 5 + 3)
+                flat_action = 400 + target * 5 + 3
             elif action == 9:  # FormFederation
                 flat_action = 1400 + target
             elif action == 10:  # AdvanceResearch
@@ -849,9 +848,9 @@ def format_flat_action(action_id: int) -> str:
     elif 200 <= action_id < 400:
         return f"StartGaiaProject(Hex {action_id - 200})"
     elif 400 <= action_id < 1400:
-        b_idx = (action_id - 400) // 200
-        h_idx = (action_id - 400) % 200
-        b_names = ["TradingStation", "ResearchLab", "PlanetaryInst", "Academy", "LostFleetDeepSpace"]
+        h_idx = (action_id - 400) // 5
+        b_idx = (action_id - 400) % 5
+        b_names = ["TradingStation", "ResearchLab", "PlanetaryInst", "Academy1", "Academy2"]
         b_name = b_names[b_idx] if b_idx < len(b_names) else f"Bldg_{b_idx}"
         return f"Upgrade{b_name}(Hex {h_idx})"
     elif 1400 <= action_id < 1406:
@@ -893,12 +892,20 @@ def format_flat_action(action_id: int) -> str:
     return f"Action_{action_id}"
 
 
-def compute_competitive_value(raw_vps: Any, player_idx: int) -> float:
+def compute_competitive_value(raw_vps: Any, player_idx: int, epoch: Optional[int] = None) -> float:
     """Computes bounded competitive value Z_p in [-1.0, +1.0] for player p in a 4-player game.
 
-    Combines:
-    1. Competitive win/loss margin vs the highest rival score (80% weight).
-    2. Absolute score ambition benchmarked against 120 VP (20% weight).
+    Curriculum (Epoch 0 -> 1500):
+    1. Dynamic score ambition curriculum (80% weight):
+       - Benchmark target VP starts at 80.0 VP (Epoch 0) and anneals linearly to 180.0 VP (Epoch 1500):
+         target_vp = 80.0 + 100.0 * min(1.0, max(0.0, ep / 1500.0))
+       - score_term = math.tanh((p_vp - target_vp) / 35.0) in [-1.0, 1.0]
+    2. Competitive win/loss margin vs highest rival score (20% weight):
+       - diff = p_vp - max_opp_vp
+       - win_term = math.tanh(diff / 20.0) in [-1.0, 1.0]
+
+    Combined:
+       Z = 0.80 * score_term + 0.20 * win_term, clipped to [-1.0, 1.0]
     """
     vps = [float(v) for v in raw_vps]
     if not vps or player_idx >= len(vps):
@@ -907,11 +914,19 @@ def compute_competitive_value(raw_vps: Any, player_idx: int) -> float:
     other_vps = [v for i, v in enumerate(vps) if i != player_idx]
     max_opp_vp = max(other_vps) if other_vps else 50.0
 
-    margin = (p_vp - max_opp_vp) / 25.0
-    ambition = (p_vp - 120.0) / 40.0
+    # 1. Competitive win/loss margin vs highest rival (20% weight)
+    diff = p_vp - max_opp_vp
+    win_term = math.tanh(diff / 20.0)
 
-    z = 0.80 * math.tanh(margin) + 0.20 * math.tanh(ambition)
+    # 2. Dynamic score ambition curriculum (80% weight): 80 VP @ Ep 0 -> 180 VP @ Ep 1500
+    ep = float(epoch) if (epoch is not None and epoch >= 0) else 0.0
+    target_vp = 80.0 + 100.0 * min(1.0, max(0.0, ep / 1500.0))
+    score_term = math.tanh((p_vp - target_vp) / 35.0)
+
+    z = 0.80 * score_term + 0.20 * win_term
     return float(np.clip(z, -1.0, 1.0))
+
+
 
 
 def make_gaia_env(

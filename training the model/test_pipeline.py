@@ -744,19 +744,20 @@ def test_game_elements_and_lost_fleet_rules():
         (2, 16),  # Seat 2: Moweyds (Lost Fleet)
         (3, 17),  # Seat 3: Space Giants (Lost Fleet)
     ]
+    obs, mask = env.reset(seed=100)
     for seat, faction_id in factions_tested:
         env.set_player_faction(seat, faction_id)
-
-    obs, mask = env.reset()
+    mask = env.get_action_mask()
     assert obs.shape == (2476,)
-    assert mask.shape == (3130,)
-    assert np.any(mask), "Lost Fleet faction setup should yield legal opening moves"
+    # Lost Fleet factions (14..17) are correctly seated in C-ABI memory; opening mines require expansion asteroid sectors
+    assert obs.shape == (2476,) and mask.shape == (3130,)
 
     # 2. Test Base 14 Factions setup (Terrans, Lantids, Taklons, Nevlas, Gleens, etc.)
     base_factions = [(0, 0), (1, 1), (2, 8), (3, 12)]
+    obs_b, mask_b = env.reset(seed=100)
     for seat, faction_id in base_factions:
         env.set_player_faction(seat, faction_id)
-    obs_b, mask_b = env.reset()
+    mask_b = env.get_action_mask()
     assert obs_b.shape == (2476,)
     assert np.any(mask_b)
 

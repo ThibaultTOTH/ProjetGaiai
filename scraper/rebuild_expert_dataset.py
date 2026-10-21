@@ -1,10 +1,12 @@
 """
 Rebuilds the Authentic Gaia Project Expert Dataset with True 2476-Dimensional Observation Tensors.
-Replays BGS (Boardgamers.space) Grand Master games through NativeGaiaEnv C-ABI.
-Extracts grounded state-action pairs: (observation_2476, action, value, faction).
+Replays BGS (Boardgamers.space) Grand Master games through NativeGaiaEnv C-ABI in parallel.
+Extracts strictly mask-legal transitions ONLY from Grandmaster players (score >= min_gm_vp)
+in competitive, non-griefed matches (min table score >= min_table_vp).
 """
 
 import argparse
+import concurrent.futures
 import glob
 import json
 import logging
@@ -13,7 +15,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 
 import numpy as np
 import torch
@@ -27,7 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(TRAINING_DIR) not in sys.path:
     sys.path.insert(0, str(TRAINING_DIR))
 
-from environment import NativeGaiaEnv
+from environment import NativeGaiaEnv, compute_competitive_value
 
 RAW_GAMES_DIR = PROJECT_ROOT / "scraper" / "data" / "raw_games"
 DATASET_DIR = PROJECT_ROOT / "scraper" / "data" / "dataset"
@@ -38,6 +40,8 @@ BASE_FACTIONS = [
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("dataset_builder")
+
+
 def normalize_faction(f_name: str) -> str:
     f = f_name.lower().strip().replace("-", "_").replace(" ", "_")
     if f in ("baltaks", "bal-taks"):
@@ -45,6 +49,7 @@ def normalize_faction(f_name: str) -> str:
     if f in ("hadschhallas", "hadsch-hallas"):
         return "hadsch_hallas"
     return f
+
 
 FACTION_TO_ID = {f: idx for idx, f in enumerate(BASE_FACTIONS)}
 FACTION_TO_ID["hadsch-hallas"] = FACTION_TO_ID["hadsch_hallas"]
@@ -133,303 +138,476 @@ def resolve_bgs_coord(coord_str: str, sectors_dict: Dict) -> Optional[Tuple[int,
     return (center["q"] + rel[0], center["r"] + rel[1], center["s"] + rel[2])
 
 
-def parse_move_to_actions(part: str, env: NativeGaiaEnv, sectors_dict: Dict) -> List[int]:
-    """Parses a move subpart into action index(es) matching action_space.rs."""
-    p = part.strip()
-    p_lower = p.lower()
+def parse_compound_move(parts: List[str], env: NativeGaiaEnv, sectors_dict: Dict) -> List[int]:
+    """Parses subparts of a move into flat discrete actions matching action_space.rs."""
+    actions = []
+    i = 0
+    while i < len(parts):
+        part = parts[i]
+        p_lower = part.strip().lower()
 
-    # Free resource conversions (3124..3129)
-    if "spend" in p_lower:
-        if "for 1q" in p_lower or "for q" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 0]
-        elif "for 1k" in p_lower or "for k" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 1]
-        elif "for 1o" in p_lower or "for o" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 2]
-        elif "for 2o" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 2, A_FREE_ACTION_OFFSET + 2]
-        elif "for 1c" in p_lower or "for c" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 3]
-        elif "for 2c" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 3, A_FREE_ACTION_OFFSET + 3]
-        elif "for 3c" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 3] * 3
-        elif "for 1t" in p_lower or "for t" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 5]
-        elif "1q for 1o" in p_lower:
-            return [A_FREE_ACTION_OFFSET + 4]
-        return []
+        if any(p_lower.startswith(k) for k in ["init", "setup", "rotate", "faction", "income"]):
+            i += 1
+            continue
 
-    if "burn" in p_lower:
-        return [A_FREE_ACTION_OFFSET + 0]
+        if "burn" in p_lower or "build sp" in p_lower:
+            i += 1
+            continue
 
-    # Power charge / leech
-    if "charge" in p_lower:
-        return [A_CHARGE_POWER_OFFSET + 1]
-    if "decline" in p_lower:
-        return [A_CHARGE_POWER_OFFSET + 0]
+        # Free resource conversions (3124..3129)
+        if "spend" in p_lower:
+            if "for 1q" in p_lower or "for q" in p_lower:
+                actions.append(A_FREE_ACTION_OFFSET + 0)
+            elif "for 1k" in p_lower or "for k" in p_lower:
+                actions.append(A_FREE_ACTION_OFFSET + 1)
+            elif "for 1o" in p_lower or "for o" in p_lower:
+                actions.append(A_FREE_ACTION_OFFSET + 2)
+            elif "for 2o" in p_lower:
+                actions.extend([A_FREE_ACTION_OFFSET + 2, A_FREE_ACTION_OFFSET + 2])
+            elif "for 1c" in p_lower or "for c" in p_lower:
+                actions.append(A_FREE_ACTION_OFFSET + 3)
+            elif "for 2c" in p_lower:
+                actions.extend([A_FREE_ACTION_OFFSET + 3, A_FREE_ACTION_OFFSET + 3])
+            elif "for 3c" in p_lower:
+                actions.extend([A_FREE_ACTION_OFFSET + 3] * 3)
+            elif "for 1t" in p_lower or "for t" in p_lower:
+                actions.append(A_FREE_ACTION_OFFSET + 5)
+            elif "1q for 1o" in p_lower:
+                actions.append(A_FREE_ACTION_OFFSET + 4)
+            i += 1
+            continue
 
-    # Booster / Pass
-    m_booster = re.search(r'booster\s*(\d+)', p_lower)
-    if m_booster or "pass" in p_lower:
-        b_idx = int(m_booster.group(1)) if m_booster else 1
-        b_idx = max(1, min(10, b_idx))
-        return [A_PASS_OFFSET + (b_idx - 1)]
+        # Power charge / leech
+        if "charge" in p_lower:
+            actions.append(A_CHARGE_POWER_OFFSET + 1)
+            i += 1
+            continue
+        if "decline" in p_lower:
+            actions.append(A_CHARGE_POWER_OFFSET + 0)
+            i += 1
+            continue
 
-    # Board power action
-    m_pwr = re.search(r'action\s+(power\d|qic\d)', p_lower)
-    if m_pwr:
-        p_act = m_pwr.group(1)
-        if p_act in BOARDS_POWER_ACTIONS:
-            return [A_BOARD_ACTION_OFFSET + BOARDS_POWER_ACTIONS[p_act]]
+        # Booster / Pass
+        if "pass" in p_lower:
+            m_pass_take = re.search(r'pass\s+booster(\d+)', p_lower)
+            if m_pass_take:
+                b_idx = int(m_pass_take.group(1))
+                actions.append(A_PASS_OFFSET + (b_idx - 1))
+            elif "returning" in p_lower or p_lower.strip() == "pass":
+                actions.append(A_PASS_OFFSET)
+            else:
+                m_booster = re.search(r'booster\s*(\d+)', p_lower)
+                b_idx = int(m_booster.group(1)) if m_booster else 1
+                actions.append(A_PASS_OFFSET + (b_idx - 1))
+            i += 1
+            continue
+        elif "booster" in p_lower:
+            m_booster = re.search(r'booster\s*(\d+)', p_lower)
+            if m_booster:
+                b_idx = int(m_booster.group(1))
+                actions.append(A_PASS_OFFSET + (b_idx - 1))
+            i += 1
+            continue
 
-    # Advance Research
-    m_up = re.search(r'\bup\s+([a-zA-Z]+)', p_lower)
-    if m_up and "tech" not in p_lower:
-        field = m_up.group(1)
-        if field in RESEARCH_FIELDS:
-            return [A_ADVANCE_RESEARCH_OFFSET + RESEARCH_FIELDS[field]]
+        # Board power action
+        m_pwr = re.search(r'action\s+(power\d|qic\d)', p_lower)
+        if m_pwr:
+            p_act = m_pwr.group(1)
+            if p_act in BOARDS_POWER_ACTIONS:
+                actions.append(A_BOARD_ACTION_OFFSET + BOARDS_POWER_ACTIONS[p_act])
+            i += 1
+            continue
 
-    # Claim Tech Tile: tech <tile> [up <field>]
-    m_tech = re.search(r'tech\s+([a-zA-Z0-9]+)', p_lower)
-    if m_tech:
-        t_str = m_tech.group(1)
-        t_idx = TECH_TILE_MAP.get(t_str, 0)
-        f_idx = 0
-        if m_up:
-            f_idx = RESEARCH_FIELDS.get(m_up.group(1), 0)
-        return [A_CLAIM_TECH_OFFSET + t_idx * 6 + f_idx]
+        # Special Actions
+        if "space-station" in p_lower:
+            actions.append(A_SPECIAL_ACTION_OFFSET + 3)
+            i += 1
+            continue
+        if "ambas-swap" in p_lower or "action ambas" in p_lower or "swap-pi" in p_lower:
+            actions.append(A_SPECIAL_ACTION_OFFSET + 0)
+            i += 1
+            continue
+        if "downgrade" in p_lower or "action firaks" in p_lower:
+            actions.append(A_SPECIAL_ACTION_OFFSET + 1)
+            i += 1
+            continue
 
-    # Form Federation: fed <token>
-    if "fed" in p_lower:
-        m_fed = re.search(r'fed(\d+)', p_lower)
-        f_token = int(m_fed.group(1)) - 1 if m_fed else 0
-        f_token = max(0, min(5, f_token))
-        return [A_FEDERATION_OFFSET + f_token]
+        # Claim Tech Tile (may be followed by 'up <field>')
+        m_tech = re.search(r'tech\s+([a-zA-Z0-9]+)', p_lower)
+        if m_tech:
+            t_str = m_tech.group(1)
+            t_idx = TECH_TILE_MAP.get(t_str, 0)
+            f_idx = 0
+            if i + 1 < len(parts):
+                next_p = parts[i + 1].strip().lower()
+                m_next_up = re.search(r'\bup\s+([a-zA-Z]+)', next_p)
+                if m_next_up:
+                    f_idx = RESEARCH_FIELDS.get(m_next_up.group(1), 0)
+                    i += 1
+            actions.append(A_CLAIM_TECH_OFFSET + t_idx * 6 + f_idx)
+            i += 1
+            continue
 
-    # Building placement or upgrade: build <type> <coord>
-    m_bld = re.search(r'\b(?:build|gaia)\s+(m|ts|lab|pi|ac1|ac2|gf|sp)\s+(\d+[A-Za-z]?[ABCabc]\d*)', p_lower)
-    if not m_bld:
-        m_bld = re.search(r'\b(gaia)\s+(\d+[A-Za-z]?[ABCabc]\d*)', p_lower)
+        # Advance Research standalone
+        m_up = re.search(r'\bup\s+([a-zA-Z]+)', p_lower)
+        if m_up and "tech" not in p_lower:
+            field = m_up.group(1)
+            if field in RESEARCH_FIELDS:
+                actions.append(A_ADVANCE_RESEARCH_OFFSET + RESEARCH_FIELDS[field])
+            i += 1
+            continue
 
-    if m_bld:
-        bld_type = m_bld.group(1)
-        coord_token = m_bld.group(2) if m_bld.lastindex >= 2 else m_bld.group(1)
-        cube = resolve_bgs_coord(coord_token, sectors_dict)
-        if cube:
-            hex_idx = env.get_hex_index(cube[0], cube[1], cube[2])
-            if hex_idx >= 0:
-                if bld_type == "m":
-                    return [A_BUILD_MINE_OFFSET + hex_idx]
-                elif bld_type in ("gf", "gaia"):
-                    return [A_START_GAIA_OFFSET + hex_idx]
-                elif bld_type == "ts":
-                    return [A_UPGRADE_OFFSET + hex_idx * 5 + 0]
-                elif bld_type == "lab":
-                    return [A_UPGRADE_OFFSET + hex_idx * 5 + 1]
-                elif bld_type == "pi":
-                    return [A_UPGRADE_OFFSET + hex_idx * 5 + 2]
-                elif bld_type == "ac1":
-                    return [A_UPGRADE_OFFSET + hex_idx * 5 + 3]
-                elif bld_type == "ac2":
-                    return [A_UPGRADE_OFFSET + hex_idx * 5 + 4]
+        # Form Federation
+        if "fed" in p_lower:
+            m_fed = re.search(r'fed(\d+)', p_lower)
+            f_token = int(m_fed.group(1)) - 1 if m_fed else 0
+            f_token = max(0, min(5, f_token))
+            actions.append(A_FEDERATION_OFFSET + f_token)
+            i += 1
+            continue
 
-    return []
+        # Build Mine
+        m_mine = re.search(r'build\s+m\s+(\d+[A-Za-z]?[ABCabc]\d*)', p_lower)
+        if m_mine:
+            cube = resolve_bgs_coord(m_mine.group(1), sectors_dict)
+            if cube:
+                h_idx = env.get_hex_index(cube[0], cube[1], cube[2])
+                if h_idx >= 0:
+                    actions.append(A_BUILD_MINE_OFFSET + h_idx)
+            i += 1
+            continue
+
+        # Build / Upgrade structure (ts, lab, pi, ac)
+        m_upg = re.search(r'build\s+(ts|lab|pi|ac)\s+(\d+[A-Za-z]?[ABCabc]\d*)', p_lower)
+        if m_upg:
+            b_name = m_upg.group(1)
+            cube = resolve_bgs_coord(m_upg.group(2), sectors_dict)
+            if cube:
+                h_idx = env.get_hex_index(cube[0], cube[1], cube[2])
+                if h_idx >= 0:
+                    upg_type = 0
+                    if b_name == "ts": upg_type = 0
+                    elif b_name == "lab": upg_type = 1
+                    elif b_name == "pi": upg_type = 2
+                    elif b_name == "ac": upg_type = 3
+                    actions.append(A_UPGRADE_OFFSET + h_idx * 5 + upg_type)
+            i += 1
+            continue
+
+        # Start Gaia Project
+        m_gaia = re.search(r'gaia\s+(\d+[A-Za-z]?[ABCabc]\d*)', p_lower)
+        if m_gaia:
+            cube = resolve_bgs_coord(m_gaia.group(1), sectors_dict)
+            if cube:
+                h_idx = env.get_hex_index(cube[0], cube[1], cube[2])
+                if h_idx >= 0:
+                    actions.append(A_START_GAIA_OFFSET + h_idx)
+            i += 1
+            continue
+
+        i += 1
+
+    return actions
+
+
+def process_single_game(args_tuple: Tuple[str, int, int]) -> Optional[Dict]:
+    """Replays a single game end-to-end and returns extracted legal Grandmaster transitions."""
+    fpath, min_gm_vp, min_table_vp = args_tuple
+    try:
+        with open(fpath, "r", encoding="utf-8") as f:
+            game = json.load(f)
+    except Exception:
+        return None
+
+    data = game.get("data", {})
+    players = data.get("players", [])
+    if not (3 <= len(players) <= 4):
+        return None
+
+    scores_by_seat = []
+    faction_to_seat = {}
+    seat_to_faction = {}
+
+    for idx, p in enumerate(players):
+        f_name = normalize_faction(p.get("faction", ""))
+        vp = p.get("data", {}).get("victoryPoints", 0)
+        scores_by_seat.append(int(vp))
+        faction_to_seat[f_name] = idx
+        fac_id = FACTION_TO_ID.get(f_name, idx % 14)
+        seat_to_faction[idx] = fac_id
+
+    # Filter 1: Check table quality (no AFKs or low-skill tables that corrupt expansion)
+    if min(scores_by_seat) < min_table_vp:
+        return None
+
+    # Filter 2: Check presence of at least one Grandmaster player (>= min_gm_vp)
+    gm_seats = {idx for idx, vp in enumerate(scores_by_seat) if vp >= min_gm_vp}
+    if not gm_seats:
+        return None
+
+    map_conf = data.get("options", {}).get("map")
+    if not map_conf or "sectors" not in map_conf:
+        return None
+
+    sectors_dict = {s["sector"]: s for s in map_conf["sectors"]}
+    map_json = json.dumps(map_conf)
+
+    try:
+        env = NativeGaiaEnv(players=len(players), seed=42, egocentric=True)
+        if not env.load_map_json(map_json):
+            return None
+        for seat in range(len(players)):
+            env.set_player_faction(seat, seat_to_faction.get(seat, seat % 14))
+
+        if hasattr(env, "set_turn_order"):
+            turn_order = data.get("turnOrderAfterSetupAuction") or data.get("turnOrder") or list(range(len(players)))
+            env.set_turn_order(turn_order)
+    except Exception:
+        return None
+
+    moves = data.get("moveHistory", [])
+    if not moves:
+        return None
+
+    # Setup Phase handling (Initial Mines + Booster selection)
+    setup_mines_placed = 0
+    setup_boosters_set = 0
+    normal_start_idx = 0
+
+    for m_idx, raw_m in enumerate(moves):
+        clean = re.sub(r'\(.*?\)', '', raw_m).strip()
+        m_bld = re.search(r'([a-zA-Z_-]+)\s+build\s+(m|pi)\s+(\d+[A-Za-z]?[ABCabc]\d*)', clean, re.I)
+        m_bst = re.search(r'([a-zA-Z_-]+)\s+booster\s+booster(\d+)', clean, re.I)
+
+        if m_bld and setup_boosters_set < len(players):
+            f_tok = normalize_faction(m_bld.group(1))
+            seat = faction_to_seat.get(f_tok)
+            bld_type = 0 if m_bld.group(2).lower() == 'm' else 2  # 0=Mine, 2=PI (Ivits)
+            cube = resolve_bgs_coord(m_bld.group(3), sectors_dict)
+            if cube and seat is not None:
+                env.set_hex_building(cube[0], cube[1], cube[2], bld_type, seat)
+                setup_mines_placed += 1
+            continue
+
+        if m_bst and setup_boosters_set < len(players):
+            f_tok = normalize_faction(m_bst.group(1))
+            seat = faction_to_seat.get(f_tok)
+            b_id = int(m_bst.group(2))
+            if seat is not None:
+                env.set_player_booster(seat, b_id)
+                setup_boosters_set += 1
+            if setup_boosters_set == len(players):
+                normal_start_idx = m_idx + 1
+            continue
+
+    if normal_start_idx == 0:
+        normal_start_idx = min(len(moves), len(players) * 3)
+
+    env.set_round(1)
+
+    raw_vps_by_seat = [float(vp) for vp in scores_by_seat]
+
+    game_obs = []
+    game_masks = []
+    game_actions = []
+    game_values = []
+    game_factions = []
+    illegal_filtered = 0
+    micro_filtered = 0
+
+    # Normal gameplay loop (Rounds 1..6)
+    for m_idx in range(normal_start_idx, len(moves)):
+        raw_m = moves[m_idx]
+        clean = re.sub(r'\(.*?\)', '', raw_m).strip()
+        parts = [p.strip() for p in clean.split('.') if p.strip()]
+        if not parts:
+            continue
+
+        actor_token = normalize_faction(parts[0].split()[0].lower()) if parts and parts[0].split() else ""
+        acting_seat = faction_to_seat.get(actor_token)
+
+        actions = parse_compound_move(parts, env, sectors_dict)
+        for act in actions:
+            if acting_seat is not None and acting_seat != env.current_player:
+                env.set_current_player(acting_seat)
+
+            mask = env.get_action_mask()
+            is_legal = bool(act < len(mask) and mask[act])
+
+            if is_legal:
+                # Discard trivial micro-burns/spends
+                if act >= A_FREE_ACTION_OFFSET:
+                    micro_filtered += 1
+                    env.step(int(act))
+                else:
+                    # STRICT GRANDMASTER FILTER:
+                    # ONLY record transitions if the acting player scored >= min_gm_vp!
+                    if acting_seat in gm_seats:
+                        obs = env.get_observation()
+                        curr_seat = getattr(env, "current_player", 0)
+                        fac_id = seat_to_faction.get(curr_seat, 0)
+                        z_val = compute_competitive_value(raw_vps_by_seat, curr_seat)
+
+                        game_obs.append(obs.astype(np.float16))
+                        game_masks.append(np.array(mask, dtype=np.bool_))
+                        game_actions.append(int(act))
+                        game_values.append(float(z_val))
+                        game_factions.append(int(fac_id))
+
+                    env.step(int(act))
+            else:
+                illegal_filtered += 1
+
+    if not game_actions:
+        return None
+
+    return {
+        "obs": np.stack(game_obs),
+        "masks": np.stack(game_masks),
+        "actions": game_actions,
+        "values": game_values,
+        "factions": game_factions,
+        "illegal_filtered": illegal_filtered,
+        "micro_filtered": micro_filtered,
+        "gm_scores": [scores_by_seat[s] for s in gm_seats],
+    }
 
 
 def build_authentic_dataset(
     raw_dir: Path = RAW_GAMES_DIR,
-    out_dir: Path = DATASET_DIR,
-    min_winning_score: int = 140,
+    out_file: Path = DATASET_DIR / "gaia_expert_dataset.pt",
+    min_gm_vp: int = 175,
+    min_table_vp: int = 110,
     max_games: Optional[int] = None,
+    workers: int = 8,
 ):
-    game_files = sorted(list(raw_dir.glob("*.json")))
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    game_files = sorted(glob.glob(str(raw_dir / "*.json")))
+    if not game_files:
+        logger.error(f"No game files found in {raw_dir}!")
+        return None
+
     if max_games:
         game_files = game_files[:max_games]
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / "gaia_expert_dataset.pt"
-
-    logger.info(f"Scanning {len(game_files)} BGS raw game files (min_vp={min_winning_score})...")
-
-    chunk_size = 20000
-    all_obs_chunks: List[np.ndarray] = []
-    current_obs: List[np.ndarray] = []
-    all_actions: List[int] = []
-    all_values: List[float] = []
-    all_factions: List[int] = []
-
-    parsed_games = 0
-    skipped_games = 0
-    total_actions_processed = 0
-
+    logger.info(
+        f"Rebuilding Grandmaster Dataset from {len(game_files)} games\n"
+        f"  • Filter: GM Player Score >= {min_gm_vp} VP\n"
+        f"  • Filter: Table Quality (All Players >= {min_table_vp} VP)\n"
+        f"  • Parallel Workers: {workers}"
+    )
     t_start = time.time()
 
-    for idx, gf in enumerate(game_files, 1):
-        try:
-            with open(gf, "r", encoding="utf-8") as f:
-                game = json.load(f)
-        except Exception as e:
-            skipped_games += 1
-            continue
+    all_obs_chunks = []
+    all_masks_chunks = []
+    all_actions = []
+    all_values = []
+    all_factions = []
+    all_gm_scores = []
+    parsed_games = 0
+    skipped_games = 0
+    total_illegal_filtered = 0
 
-        players = game.get("players", [])
-        if len(players) < 2:
-            skipped_games += 1
-            continue
+    args_list = [(gf, min_gm_vp, min_table_vp) for gf in game_files]
 
-        scores_by_faction: Dict[str, float] = {}
-        faction_to_seat: Dict[str, int] = {}
-        seat_to_faction: Dict[int, int] = {}
+    if workers > 1:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            for idx, res in enumerate(executor.map(process_single_game, args_list), 1):
+                if res is None:
+                    skipped_games += 1
+                else:
+                    parsed_games += 1
+                    all_obs_chunks.append(res["obs"])
+                    all_masks_chunks.append(res["masks"])
+                    all_actions.extend(res["actions"])
+                    all_values.extend(res["values"])
+                    all_factions.extend(res["factions"])
+                    all_gm_scores.extend(res.get("gm_scores", []))
+                    total_illegal_filtered += res["illegal_filtered"]
 
-        for seat, p in enumerate(players):
-            raw_f = p.get("faction", "").lower()
-            f_name = normalize_faction(raw_f)
-            if f_name:
-                scores_by_faction[f_name] = float(p.get("score", 0))
-                faction_to_seat[f_name] = seat
-                faction_to_seat[raw_f] = seat
-                f_id = FACTION_TO_ID.get(f_name, seat % 14)
-                seat_to_faction[seat] = f_id
-
-        if not scores_by_faction:
-            skipped_games += 1
-            continue
-
-        winning_score = max(scores_by_faction.values())
-        if winning_score < min_winning_score:
-            skipped_games += 1
-            continue
-
-        map_conf = game.get("data", {}).get("options", {}).get("map")
-        if not map_conf or "sectors" not in map_conf:
-            skipped_games += 1
-            continue
-
-        sectors_dict = {s["sector"]: s for s in map_conf["sectors"]}
-        map_json = json.dumps(map_conf)
-
-        try:
-            env = NativeGaiaEnv(players=len(players), seed=42, egocentric=True)
-            if not env.load_map_json(map_json):
+                if idx % 50 == 0 or idx == len(game_files):
+                    cur_samples = len(all_actions)
+                    el = max(1e-4, time.time() - t_start)
+                    logger.info(
+                        f"[{idx}/{len(game_files)}] Clean GM Games: {parsed_games} ({skipped_games} skipped) | "
+                        f"Certified GM Samples: {cur_samples:,} | Speed: {cur_samples / el:.0f} samples/s"
+                    )
+    else:
+        for idx, arg in enumerate(args_list, 1):
+            res = process_single_game(arg)
+            if res is None:
                 skipped_games += 1
-                continue
-            for seat in range(len(players)):
-                f_id = seat_to_faction.get(seat, seat % 14)
-                env.set_player_faction(seat, f_id)
-        except Exception as e:
-            skipped_games += 1
-            continue
+            else:
+                parsed_games += 1
+                all_obs_chunks.append(res["obs"])
+                all_masks_chunks.append(res["masks"])
+                all_actions.extend(res["actions"])
+                all_values.extend(res["values"])
+                all_factions.extend(res["factions"])
+                all_gm_scores.extend(res.get("gm_scores", []))
+                total_illegal_filtered += res["illegal_filtered"]
 
-        moves = game.get("data", {}).get("moveHistory", [])
-
-        for m in moves:
-            clean = re.sub(r'\(.*?\)', '', m).strip()
-            parts = [p.strip() for p in clean.split('.') if p.strip()]
-
-            # Determine acting faction from prefix
-            actor_token = normalize_faction(parts[0].split()[0].lower()) if parts and parts[0].split() else ""
-            acting_seat = faction_to_seat.get(actor_token)
-
-            for part in parts:
-                if not part:
-                    continue
-                p_lower = part.lower()
-
-                # Check if this subpart mentions a specific faction
-                first_token = normalize_faction(p_lower.split()[0]) if p_lower.split() else ""
-                if first_token in faction_to_seat:
-                    acting_seat = faction_to_seat[first_token]
-
-                if any(p_lower.startswith(k) for k in ["init", "setup", "rotate", "faction", "income"]):
-                    continue
-
-                if acting_seat is not None:
-                    env.set_current_player(acting_seat)
-
-                sub_actions = parse_move_to_actions(part, env, sectors_dict)
-                for act in sub_actions:
-                    curr_seat = getattr(env, "current_player", 0)
-                    fac_id = seat_to_faction.get(curr_seat, 0)
-                    fac_name = BASE_FACTIONS[fac_id] if fac_id < len(BASE_FACTIONS) else ""
-                    raw_score = scores_by_faction.get(fac_name, 120.0)
-                    norm_val = (raw_score - 100.0) / 50.0
-
-                    mask = env.get_action_mask()
-                    obs = env.get_observation()
-
-                    is_legal = bool(mask[act]) if act < len(mask) else False
-                    current_obs.append(obs.astype(np.float16))
-                    all_actions.append(int(act))
-                    all_values.append(float(norm_val))
-                    all_factions.append(int(fac_id))
-
-                    if is_legal:
-                        env.step(int(act))
-                    else:
-                        env.step(int(act))
-
-                    total_actions_processed += 1
-
-                    if len(current_obs) >= chunk_size:
-                        all_obs_chunks.append(np.stack(current_obs))
-                        current_obs.clear()
-
-        parsed_games += 1
-
-        if idx % 100 == 0 or idx == len(game_files):
-            cur_total = sum(c.shape[0] for c in all_obs_chunks) + len(current_obs)
-            el = max(1e-4, time.time() - t_start)
-            logger.info(
-                f"[{idx}/{len(game_files)}] Games parsed: {parsed_games} | "
-                f"Samples: {cur_total:,} | Speed: {cur_total / el:.0f} samples/s"
-            )
-
-    if current_obs:
-        all_obs_chunks.append(np.stack(current_obs))
-        current_obs.clear()
+            if idx % 50 == 0 or idx == len(game_files):
+                cur_samples = len(all_actions)
+                el = max(1e-4, time.time() - t_start)
+                logger.info(
+                    f"[{idx}/{len(game_files)}] Clean GM Games: {parsed_games} ({skipped_games} skipped) | "
+                    f"Certified GM Samples: {cur_samples:,} | Speed: {cur_samples / el:.0f} samples/s"
+                )
 
     total_samples = len(all_actions)
     if total_samples == 0:
-        logger.error("No valid samples extracted! Verify raw games directory.")
+        logger.error("No valid samples extracted! Verify raw games and filters.")
         return None
 
-    logger.info(f"Concatenating {len(all_obs_chunks)} chunks for {total_samples:,} observations...")
+    logger.info(f"Concatenating {len(all_obs_chunks)} chunks for {total_samples:,} observations & masks...")
     combined_obs_np = np.concatenate(all_obs_chunks, axis=0)
+    combined_masks_np = np.concatenate(all_masks_chunks, axis=0)
 
-    logger.info(f"Building PyTorch dataset (Obs shape: {combined_obs_np.shape})...")
+    logger.info(f"Building PyTorch dataset (Obs shape: {combined_obs_np.shape}, Masks shape: {combined_masks_np.shape})...")
     dataset_dict = {
         "observations": torch.from_numpy(combined_obs_np),
+        "action_masks": torch.from_numpy(combined_masks_np),
         "actions": torch.tensor(all_actions, dtype=torch.long),
         "values": torch.tensor(all_values, dtype=torch.float32),
         "factions": torch.tensor(all_factions, dtype=torch.long),
         "num_games": parsed_games,
         "num_samples": total_samples,
+        "avg_gm_score": float(np.mean(all_gm_scores)) if all_gm_scores else 0.0,
     }
 
-    logger.info(f"Saving authentic dataset to {out_file}...")
+    logger.info(f"Saving certified Grandmaster dataset to {out_file}...")
     torch.save(dataset_dict, out_file)
     size_mb = out_file.stat().st_size / (1024 * 1024)
     total_time = time.time() - t_start
 
+    avg_gm = np.mean(all_gm_scores) if all_gm_scores else 0.0
     logger.info(
-        f"✓ Successfully built Authentic Expert Dataset!\n"
-        f"  • Destination : {out_file}\n"
-        f"  • File Size   : {size_mb:.1f} MB\n"
-        f"  • Games parsed: {parsed_games} ({skipped_games} skipped)\n"
-        f"  • Valid Pairs : {total_samples:,} transitions\n"
-        f"  • Elapsed Time: {total_time:.1f}s ({total_samples / total_time:.0f} samples/s)"
+        f"\n============================================================\n"
+        f"  🏆 Authentic Grandmaster Dataset Successfully Built!\n"
+        f"============================================================\n"
+        f"  • File Path       : {out_file}\n"
+        f"  • File Size       : {size_mb:.1f} MB\n"
+        f"  • GM Games Parsed : {parsed_games} ({skipped_games} filtered/skipped)\n"
+        f"  • GM Transitions  : {total_samples:,} strictly certified legal transitions\n"
+        f"  • Average GM Score: {avg_gm:.1f} VP (Peak: {max(all_gm_scores) if all_gm_scores else 0} VP)\n"
+        f"  • Total Time      : {total_time:.1f}s ({total_samples / total_time:.0f} samples/s)\n"
+        f"============================================================"
     )
     return out_file
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Rebuild Authentic Expert Dataset with True 2476D Observations")
-    parser.add_argument("--min-vp", type=int, default=140, help="Minimum winning score threshold")
-    parser.add_argument("--max-games", type=int, default=None, help="Limit number of games for quick test")
+    parser = argparse.ArgumentParser(description="Rebuild Authentic Grandmaster Dataset with True 2476D Observations")
+    parser.add_argument("--min-gm-vp", type=int, default=175, help="Minimum individual GM score threshold (default: 175)")
+    parser.add_argument("--min-table-vp", type=int, default=110, help="Minimum table score threshold (default: 110)")
+    parser.add_argument("--max-games", type=int, default=None, help="Limit number of games for testing")
+    parser.add_argument("--workers", type=int, default=8, help="Number of parallel worker processes (default: 8)")
     args = parser.parse_args()
 
     build_authentic_dataset(
-        min_winning_score=args.min_vp,
+        min_gm_vp=args.min_gm_vp,
+        min_table_vp=args.min_table_vp,
         max_games=args.max_games,
+        workers=args.workers,
     )
