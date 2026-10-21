@@ -79,7 +79,7 @@ echo "--------------------------------------------------------------------------
 # Show header and recent epochs
 if [ -f "$LOG_FILE" ]; then
     grep -E "Époque|Cadence|---" "$LOG_FILE" | tail -n 2
-    grep -E "^\[[0-9]{4}/" "$LOG_FILE" | tail -n 15
+    sed 's/\r/\n/g' "$LOG_FILE" | grep -E '^\[[0-9]{4}/' | tail -n 15
 else
     echo "  Fichier log introuvable: $LOG_FILE"
 fi

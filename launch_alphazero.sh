@@ -6,10 +6,11 @@ export PYTHONPATH="training the model":scraper:$PYTHONPATH
 # Clean restart from supervised tournament bootstrap requested by user
 RESUME_CKPT="checkpoints/gaia_supervised_tournament_ultra.pt"
 
-# Archive previous run log if present
-if [ -f "az_run.log" ]; then
+# Archive previous run log if present and non-empty
+if [ -s "az_run.log" ]; then
     ARCHIVE_NAME="az_run_archive_$(date +%Y%m%d_%H%M%S).log"
-    mv az_run.log "$ARCHIVE_NAME"
+    cp az_run.log "$ARCHIVE_NAME"
+    > az_run.log
     echo "[Launcher] Archived previous log to $ARCHIVE_NAME"
 fi
 
@@ -36,4 +37,4 @@ echo "[Launcher] League Pool: 1 initial snapshot (Snapshot_Epoch_0000_Bootstrap 
     --reset-epoch \
     --actors 8 \
     --sims 128 \
-    --epochs 10000
+    --epochs 10000 2>&1 | tee -a az_run.log
