@@ -133,6 +133,11 @@ def parse_args():
         default=500,
         help="Époque d'activation de RGSC Go-Exploit",
     )
+    parser.add_argument(
+        "--reset-epoch",
+        action="store_true",
+        help="Reset current epoch counter to 0 (starts training fresh from Epoch 1)",
+    )
     return parser.parse_args()
 
 
@@ -326,7 +331,7 @@ def main():
 
         if resume_target and os.path.exists(resume_target):
             resumed_epoch = trainer.resume_from_checkpoint(resume_target)
-            if "supervised_pretrained" in os.path.basename(resume_target):
+            if getattr(args, "reset_epoch", False) or "supervised" in os.path.basename(resume_target):
                 print(f"  🌟 [Pre-training Bootstrapped] Initialisé avec succès à partir du modèle supervisé ({os.path.basename(resume_target)}) !")
                 # For AlphaZero RL, start fresh at Epoch 1 with the pretrained weights
                 trainer.current_epoch = 0

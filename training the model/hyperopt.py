@@ -633,6 +633,14 @@ def apply_params_to_config(cfg: AppConfig, params: Dict[str, Any], mode: str = "
         cfg.mcts.num_simulations = int(params["az_num_simulations"])
     if "az_gumbel_candidates" in params:
         cfg.alphazero.gumbel_candidates = int(params["az_gumbel_candidates"])
+        cfg.mcts.gumbel_candidates = int(params["az_gumbel_candidates"])
+    elif "gumbel_candidates" in params:
+        cfg.alphazero.gumbel_candidates = int(params["gumbel_candidates"])
+        cfg.mcts.gumbel_candidates = int(params["gumbel_candidates"])
+    if "games_per_epoch" in params:
+        cfg.alphazero.games_per_epoch = int(params["games_per_epoch"])
+    elif "az_games_per_epoch" in params:
+        cfg.alphazero.games_per_epoch = int(params["az_games_per_epoch"])
     if "az_c_puct" in params:
         cfg.mcts.c_puct = float(params["az_c_puct"])
     if "az_optimism_power" in params:

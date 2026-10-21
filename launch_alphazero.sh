@@ -22,9 +22,8 @@ fi
 
 # Ensure league has ONLY the bootstrap snapshot at start
 mkdir -p league_checkpoints
-if [ ! -f "league_checkpoints/Snapshot_Epoch_0000_Bootstrap.pt" ]; then
-    cp "$RESUME_CKPT" "league_checkpoints/Snapshot_Epoch_0000_Bootstrap.pt"
-fi
+rm -f league_checkpoints/Snapshot_Epoch_*.pt
+cp "$RESUME_CKPT" "league_checkpoints/Snapshot_Epoch_0000_Bootstrap.pt"
 
 echo "[Launcher] Resuming clean from bootstrap: $RESUME_CKPT"
 echo "[Launcher] Hyperparameters: N=128 simulations, k=12 candidates, 8 games/epoch, 8 workers"
@@ -34,6 +33,7 @@ echo "[Launcher] League Pool: 1 initial snapshot (Snapshot_Epoch_0000_Bootstrap 
     --algo alphazero \
     --hyperparams runs/best_hyperparams_calibrated.json \
     --resume "$RESUME_CKPT" \
+    --reset-epoch \
     --actors 8 \
     --sims 128 \
     --epochs 10000
