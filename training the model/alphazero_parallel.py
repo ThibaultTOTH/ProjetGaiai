@@ -244,7 +244,16 @@ def alpha_zero_worker_process(
                         logged_won = False
 
                     final_history = [
-                        (obs_s, mask_s, probs_s, compute_competitive_value(raw_vps, p, epoch=current_epoch_num), p)
+                        (
+                            obs_s,
+                            mask_s,
+                            probs_s,
+                            np.array([
+                                compute_competitive_value(raw_vps, (p + rel_s) % num_players, epoch=current_epoch_num)
+                                for rel_s in range(4)
+                            ], dtype=np.float32),
+                            p,
+                        )
                         for p, obs_s, mask_s, probs_s in history
                     ]
 
@@ -688,8 +697,8 @@ class ParallelAlphaZeroTrainer(AlphaZeroTrainer):
                                     device_type = "cuda" if obs_t.is_cuda else "cpu"
                                     with torch.amp.autocast(device_type=device_type, enabled=obs_t.is_cuda):
                                         feat = self.agent.shared_backbone(obs_t)
-                                        vals_t = torch.tanh(self.agent.score_net.head(feat).squeeze(-1))
-                                        if vals_t.dim() == 0:
+                                        vals_t = torch.tanh(self.agent.score_net.head(feat))
+                                        if vals_t.dim() == 1:
                                             vals_t = vals_t.unsqueeze(0)
                                         logits = member.policy_net(obs_t, mask_t)
                                         neg_val = -6e4 if logits.dtype == torch.float16 else -1e9

@@ -28,13 +28,41 @@ class AlphaZeroReplayBuffer:
     3. Hybrid Balanced Sampling: Blends fresh self-play exploration (75%) with permanent
        mastery of breakthrough high-VP winning trajectories (25%).
     """
-    def __init__(self, capacity: int = 50_000, elite_capacity: int = 25_000):
+    def __init__(
+        self,
+        capacity: int = 50_000,
+        elite_capacity: int = 25_000,
+        expert_dataset_path: Optional[str] = None,
+    ):
         self.capacity = capacity
         self.elite_capacity = elite_capacity
         self.buffer = []
         self.position = 0
-        self.elite_buffer: List[Tuple[np.ndarray, np.ndarray, np.ndarray, float, float]] = []
+        self.elite_buffer = []
         self.winning_vps: List[float] = []
+        self.expert_obs = None
+        self.expert_masks = None
+        self.expert_acts = None
+        self.expert_vals = None
+        self.num_expert_samples = 0
+
+        # Load Grandmaster Expert Anchor Dataset if present
+        if expert_dataset_path and os.path.exists(expert_dataset_path):
+            try:
+                print(f"  📖 [Replay Buffer] Loading Grandmaster Expert Anchor from {expert_dataset_path}...", flush=True)
+                d = torch.load(expert_dataset_path, map_location="cpu", weights_only=False)
+                self.expert_obs = d["observations"]
+                self.expert_masks = d["action_masks"]
+                self.expert_acts = d["actions"]
+                self.expert_vals = d["values"]
+                self.num_expert_samples = len(self.expert_acts)
+                print(
+                    f"  ✨ [Replay Buffer] Loaded {self.num_expert_samples:,} Grandmaster transitions "
+                    f"(Avg GM score: {d.get('avg_gm_score', 178):.1f} VP)!",
+                    flush=True,
+                )
+            except Exception as e:
+                print(f"  ⚠️ [Replay Buffer Warning] Could not load expert dataset: {e}", flush=True)
 
     def get_elite_threshold(self) -> float:
         """Computes dynamic top 0.01% (99.99th percentile) winning VP threshold.
@@ -50,9 +78,17 @@ class AlphaZeroReplayBuffer:
         p_elite = float(np.percentile(self.winning_vps, 99.99))
         return max(MIN_ELITE_BAR, p_elite)
 
-    def add(self, obs: np.ndarray, action_mask: np.ndarray, mcts_policy: np.ndarray, value_target: np.ndarray):
+    def add(
+        self,
+        obs: np.ndarray,
+        action_mask: np.ndarray,
+        mcts_policy: np.ndarray,
+        value_target: np.ndarray,
+        value_weight: Optional[np.ndarray] = None,
+    ):
         """Appends a single transition to the sliding FIFO buffer."""
-        data = (obs, action_mask, mcts_policy, value_target)
+        w = value_weight if value_weight is not None else np.ones(4, dtype=np.float32)
+        data = (obs, action_mask, mcts_policy, value_target, w)
         if len(self.buffer) < self.capacity:
             self.buffer.append(data)
         else:
@@ -89,18 +125,19 @@ class AlphaZeroReplayBuffer:
             probs = step_data[2]
             z_val = step_data[3]
             seat = step_data[4] if len(step_data) > 4 else None
+            w = np.ones(4, dtype=np.float32)
 
             # 1. Add to sliding FIFO buffer
-            self.add(obs, mask, probs, z_val)
+            self.add(obs, mask, probs, z_val, w)
 
             # 2. If game is top 0.1% winner, preserve decisive moves of the winner in Elite Reservoir!
             if is_elite_game and seat == winner_seat:
-                elite_entry = (obs, mask, probs, z_val, winner_vp)
+                elite_entry = (obs, mask, probs, z_val, w, winner_vp)
                 if len(self.elite_buffer) < self.elite_capacity:
                     self.elite_buffer.append(elite_entry)
                 else:
-                    min_idx = int(np.argmin([x[4] for x in self.elite_buffer]))
-                    if winner_vp > self.elite_buffer[min_idx][4]:
+                    min_idx = int(np.argmin([x[5] for x in self.elite_buffer]))
+                    if winner_vp > self.elite_buffer[min_idx][5]:
                         self.elite_buffer[min_idx] = elite_entry
                 n_elite_added += 1
 
@@ -116,58 +153,101 @@ class AlphaZeroReplayBuffer:
         batch_size: int,
         optimism_power: float = 1.0,
         elite_ratio: float = 0.25,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        if len(self.buffer) == 0 and len(self.elite_buffer) == 0:
+        expert_ratio: float = 0.25,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if len(self.buffer) == 0 and len(self.elite_buffer) == 0 and self.num_expert_samples == 0:
             raise ValueError("Cannot sample from empty replay buffer")
-
-        # Determine split between elite reservoir and recent sliding buffer
-        n_elite = int(batch_size * elite_ratio) if len(self.elite_buffer) >= 32 else 0
-        n_recent = batch_size - n_elite
 
         batch = []
 
-        # 1. Sample from Elite Reservoir (permanent decisive moves of highest-VP games)
-        if n_elite > 0:
-            if len(self.elite_buffer) < n_elite:
-                elite_indices = np.random.choice(len(self.elite_buffer), size=n_elite, replace=True)
-            else:
-                elite_indices = np.random.choice(len(self.elite_buffer), size=n_elite, replace=False)
-            for idx in elite_indices:
-                x = self.elite_buffer[idx]
-                batch.append((x[0], x[1], x[2], x[3]))
+        # If self-play buffer is still empty or minimal, sample 100% from Grandmaster expert dataset
+        if len(self.buffer) < 32 and self.num_expert_samples > 0:
+            exp_indices = np.random.choice(self.num_expert_samples, size=batch_size, replace=False)
+            for idx in exp_indices:
+                obs_np = self.expert_obs[idx].float().numpy()
+                mask_np = self.expert_masks[idx].numpy()
+                act_idx = int(self.expert_acts[idx].item())
+                probs_np = np.zeros(3130, dtype=np.float32)
+                if 0 <= act_idx < 3130:
+                    probs_np[act_idx] = 1.0
+                vals_np = np.zeros(4, dtype=np.float32)
+                vals_np[0] = float(self.expert_vals[idx].item())
+                weight_np = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+                batch.append((obs_np, mask_np, probs_np, vals_np, weight_np))
+        else:
+            # Balanced Tri-Hybrid Sampling: Self-Play (50-75%), Elite Reservoir (optional), Grandmaster Anchor (25%)
+            n_expert = int(batch_size * expert_ratio) if self.num_expert_samples > 0 else 0
+            n_remaining = batch_size - n_expert
+            n_elite = int(n_remaining * elite_ratio) if len(self.elite_buffer) >= 32 else 0
+            n_recent = n_remaining - n_elite
 
-        # 2. Sample from Sliding Buffer (with optimistic weighting)
-        if n_recent > 0 and len(self.buffer) > 0:
-            if len(self.buffer) < n_recent:
-                indices = np.random.choice(len(self.buffer), size=n_recent, replace=True)
-                batch.extend([self.buffer[i] for i in indices])
-            else:
-                vps = np.array(
-                    [float(x[3]) if not hasattr(x[3], '__iter__') else float(np.max(x[3])) for x in self.buffer],
-                    dtype=np.float32,
-                )
-                v_min = float(np.min(vps))
-                v_max = float(np.max(vps))
-                if v_max > v_min and optimism_power > 0.0:
-                    normalized = (vps - v_min) / (v_max - v_min)
-                    weights = (0.2 + 0.8 * normalized) ** optimism_power
-                    probs = weights / weights.sum()
-                    indices = np.random.choice(len(self.buffer), size=n_recent, replace=False, p=probs)
+            # 1. Sample from Grandmaster Expert Dataset
+            if n_expert > 0:
+                exp_indices = np.random.choice(self.num_expert_samples, size=n_expert, replace=False)
+                for idx in exp_indices:
+                    obs_np = self.expert_obs[idx].float().numpy()
+                    mask_np = self.expert_masks[idx].numpy()
+                    act_idx = int(self.expert_acts[idx].item())
+                    probs_np = np.zeros(3130, dtype=np.float32)
+                    if 0 <= act_idx < 3130:
+                        probs_np[act_idx] = 1.0
+                    vals_np = np.zeros(4, dtype=np.float32)
+                    vals_np[0] = float(self.expert_vals[idx].item())
+                    weight_np = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+                    batch.append((obs_np, mask_np, probs_np, vals_np, weight_np))
+
+            # 2. Sample from Elite Reservoir
+            if n_elite > 0:
+                if len(self.elite_buffer) < n_elite:
+                    elite_indices = np.random.choice(len(self.elite_buffer), size=n_elite, replace=True)
+                else:
+                    elite_indices = np.random.choice(len(self.elite_buffer), size=n_elite, replace=False)
+                for idx in elite_indices:
+                    x = self.elite_buffer[idx]
+                    batch.append((x[0], x[1], x[2], x[3], x[4]))
+
+            # 3. Sample from Sliding Buffer
+            if n_recent > 0 and len(self.buffer) > 0:
+                if len(self.buffer) < n_recent:
+                    indices = np.random.choice(len(self.buffer), size=n_recent, replace=True)
                     batch.extend([self.buffer[i] for i in indices])
                 else:
-                    batch.extend(random.sample(self.buffer, n_recent))
-        elif n_recent > 0 and len(self.elite_buffer) > 0:
-            extra_idx = np.random.choice(len(self.elite_buffer), size=n_recent, replace=True)
-            for idx in extra_idx:
-                x = self.elite_buffer[idx]
-                batch.append((x[0], x[1], x[2], x[3]))
+                    vps = np.array(
+                        [float(np.max(x[3])) if hasattr(x[3], '__iter__') else float(x[3]) for x in self.buffer],
+                        dtype=np.float32,
+                    )
+                    v_min = float(np.min(vps))
+                    v_max = float(np.max(vps))
+                    if v_max > v_min and optimism_power > 0.0:
+                        normalized = (vps - v_min) / (v_max - v_min)
+                        weights = (0.2 + 0.8 * normalized) ** optimism_power
+                        probs = weights / weights.sum()
+                        indices = np.random.choice(len(self.buffer), size=n_recent, replace=False, p=probs)
+                        batch.extend([self.buffer[i] for i in indices])
+                    else:
+                        batch.extend(random.sample(self.buffer, n_recent))
+            elif n_recent > 0 and self.num_expert_samples > 0:
+                # Fallback to expert if buffer has insufficient items
+                extra_exp = np.random.choice(self.num_expert_samples, size=n_recent, replace=True)
+                for idx in extra_exp:
+                    obs_np = self.expert_obs[idx].float().numpy()
+                    mask_np = self.expert_masks[idx].numpy()
+                    act_idx = int(self.expert_acts[idx].item())
+                    probs_np = np.zeros(3130, dtype=np.float32)
+                    if 0 <= act_idx < 3130:
+                        probs_np[act_idx] = 1.0
+                    vals_np = np.zeros(4, dtype=np.float32)
+                    vals_np[0] = float(self.expert_vals[idx].item())
+                    weight_np = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+                    batch.append((obs_np, mask_np, probs_np, vals_np, weight_np))
 
-        obs, action_mask, mcts_policy, value_target = zip(*batch)
+        obs, action_mask, mcts_policy, value_target, value_weight = zip(*batch)
         return (
             np.stack(obs),
             np.stack(action_mask),
             np.stack(mcts_policy),
             np.array(value_target, dtype=np.float32),
+            np.array(value_weight, dtype=np.float32),
         )
 
     def __len__(self):
@@ -206,7 +286,12 @@ class AlphaZeroTrainer:
             self.agent = agent.to(self.device)
             
         self.mcts = MultiPlayerMCTS(self.agent, config.mcts, self.device)
-        self.replay_buffer = AlphaZeroReplayBuffer(self.az_config.replay_buffer_size)
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        expert_ds_path = os.path.join(project_root, "scraper", "data", "dataset", "gaia_certified_expert_dataset.pt")
+        self.replay_buffer = AlphaZeroReplayBuffer(
+            self.az_config.replay_buffer_size,
+            expert_dataset_path=expert_ds_path,
+        )
 
         # Population-Based League Training (Fictitious Self-Play)
         self.league_manager = None
@@ -433,20 +518,30 @@ class AlphaZeroTrainer:
         ):
             self.league_manager.update_match_results(participants, raw_vps)
 
-        # Store bounded competitive value Z_p in [-1, +1]
+        # Store bounded 4-player competitive value vector Z in [-1, +1]
         final_history = [
-            (obs, mask, probs, compute_competitive_value(raw_vps, p, epoch=getattr(self, "current_epoch", 0)))
+            (
+                obs,
+                mask,
+                probs,
+                np.array([
+                    compute_competitive_value(raw_vps, (p + rel_s) % 4, epoch=getattr(self, "current_epoch", 0))
+                    for rel_s in range(4)
+                ], dtype=np.float32),
+                p,
+            )
             for p, obs, mask, probs in history
         ]
         return final_history, p0_vp, p0_won, move_count
 
-    def train_on_batch(self, batch: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> Tuple[float, float, float, float]:
-        obs_b, mask_b, policy_b, value_b = batch
+    def train_on_batch(self, batch: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> Tuple[float, float, float, float]:
+        obs_b, mask_b, policy_b, value_b, weight_b = batch
         
         obs_t = torch.from_numpy(obs_b).float().to(self.device)
         mask_t = torch.from_numpy(mask_b).bool().to(self.device)
         policy_t = torch.from_numpy(policy_b).float().to(self.device)
         value_t = torch.from_numpy(value_b).float().to(self.device)
+        weight_t = torch.from_numpy(weight_b).float().to(self.device)
         
         self.optimizer.zero_grad(set_to_none=True)
         
@@ -455,8 +550,9 @@ class AlphaZeroTrainer:
             pred_values = self.agent.score_net(obs_t)
             logits = self.agent.action_net(obs_t, mask_t)
             
-            # Smooth L1 loss on bounded [-1.0, +1.0] competitive values
-            value_loss = F.smooth_l1_loss(pred_values.view(-1), value_t.view(-1))
+            # Smooth L1 loss on bounded 4-player values weighted across active seats
+            elem_loss = F.smooth_l1_loss(pred_values, value_t, reduction="none")
+            value_loss = (elem_loss * weight_t).sum() / (weight_t.sum() + 1e-8)
             
             # Safe Cross-Entropy / Policy Loss:
             # 1. Normalize target policy over legal actions only

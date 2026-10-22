@@ -233,11 +233,11 @@ def train_supervised(
                 # In supervised BC, compute policy loss on unmasked logits to prevent log(0) / inf
                 # if the expert action falls outside a noisy simulated mask
                 logits_unmasked = agent.action_net(batch_obs, action_mask=None)
-                pred_val = agent.score_net(batch_obs).view(-1)
+                pred_val = agent.score_net(batch_obs)
                 target_val = torch.tanh(batch_val.view(-1))
 
                 loss_p = criterion_policy(logits_unmasked, batch_act)
-                loss_v = criterion_value(pred_val, target_val)
+                loss_v = criterion_value(pred_val[:, 0], target_val)
                 loss = loss_p + 0.5 * loss_v
 
             scaler.scale(loss).backward()

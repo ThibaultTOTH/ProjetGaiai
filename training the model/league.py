@@ -363,43 +363,54 @@ class LeagueManager:
                 state_dict = ckpt.get("action_net_state")
                 cfg_obj = ckpt.get("model_config", model_config)
 
-                if state_dict is None and "agent_state_dict" in ckpt:
-                    full_sd = ckpt["agent_state_dict"]
-                    state_dict = {
-                        k.replace("action_net.", ""): v
-                        for k, v in full_sd.items()
-                        if k.startswith("action_net.") or k.startswith("shared_backbone.")
-                    }
-
-                if cfg_obj is not None:
-                    policy = ActionOptimizerNet(
-                        obs_dim=getattr(cfg_obj, "obs_dim", obs_dim),
-                        action_dim=getattr(cfg_obj, "action_dim", action_dim),
-                        hidden_layers=getattr(cfg_obj, "policy_hidden_layers", None),
-                        dropout=getattr(cfg_obj, "policy_dropout", 0.05),
-                        activation=getattr(cfg_obj, "policy_activation", "silu"),
-                        block_type=getattr(cfg_obj, "block_type", "swiglu"),
-                        use_input_norm=getattr(cfg_obj, "use_input_norm", True),
-                        use_gnn_map=getattr(cfg_obj, "use_gnn_map", True),
-                        gnn_hidden_dim=getattr(cfg_obj, "gnn_hidden_dim", 64),
-                        gnn_layers=getattr(cfg_obj, "gnn_layers", 3),
-                    ).to(self.device)
-                else:
-                    policy = ActionOptimizerNet(obs_dim=obs_dim, action_dim=action_dim).to(self.device)
-
-                policy.load_state_dict(state_dict, strict=False)
-                policy.eval()
-
                 agent_instance = None
-                if "agent_state_dict" in ckpt and ckpt["agent_state_dict"] is not None:
-                    try:
-                        agent_instance = DualGaiaAgent(cfg_obj or ModelConfig()).to(self.device)
-                        agent_instance.load_state_dict(ckpt["agent_state_dict"], strict=False)
-                        agent_instance.eval()
-                        for p in agent_instance.parameters():
-                            p.requires_grad = False
-                    except Exception:
+                policy = None
+                try:
+                    agent_instance = DualGaiaAgent(cfg_obj or ModelConfig()).to(self.device)
+                    agent_instance.load_checkpoint(fpath, device=self.device)
+                    agent_instance.eval()
+                    for p in agent_instance.parameters():
+                        p.requires_grad = False
+                    policy = agent_instance.action_net
+                    policy.eval()
+                except Exception:
+                    if state_dict is None and "agent_state_dict" in ckpt:
+                        full_sd = ckpt["agent_state_dict"]
+                        state_dict = {
+                            k.replace("action_net.", ""): v
+                            for k, v in full_sd.items()
+                            if k.startswith("action_net.") or k.startswith("shared_backbone.")
+                        }
+
+                    if state_dict is not None:
+                        actual_gnn_dim = 64
+                        if "backbone.map_encoder.convs.0.fc.weight" in state_dict:
+                            actual_gnn_dim = state_dict["backbone.map_encoder.convs.0.fc.weight"].shape[0]
+                        elif cfg_obj is not None:
+                            actual_gnn_dim = getattr(cfg_obj, "gnn_hidden_dim", 64)
+
+                        if cfg_obj is not None:
+                            policy = ActionOptimizerNet(
+                                obs_dim=getattr(cfg_obj, "obs_dim", obs_dim),
+                                action_dim=getattr(cfg_obj, "action_dim", action_dim),
+                                hidden_layers=getattr(cfg_obj, "policy_hidden_layers", None),
+                                dropout=getattr(cfg_obj, "policy_dropout", 0.05),
+                                activation=getattr(cfg_obj, "policy_activation", "silu"),
+                                block_type=getattr(cfg_obj, "block_type", "swiglu"),
+                                use_input_norm=getattr(cfg_obj, "use_input_norm", True),
+                                use_gnn_map=getattr(cfg_obj, "use_gnn_map", True),
+                                gnn_hidden_dim=actual_gnn_dim,
+                                gnn_layers=getattr(cfg_obj, "gnn_layers", 3),
+                            ).to(self.device)
+                        else:
+                            policy = ActionOptimizerNet(obs_dim=obs_dim, action_dim=action_dim, gnn_hidden_dim=actual_gnn_dim).to(self.device)
+
+                        policy.load_state_dict(state_dict, strict=False)
+                        policy.eval()
                         agent_instance = None
+
+                if policy is None:
+                    continue
 
                 name = ckpt.get("name", os.path.splitext(os.path.basename(fpath))[0])
                 epoch = int(ckpt.get("epoch", 0))

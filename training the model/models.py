@@ -369,10 +369,11 @@ class ScorePredictorNet(nn.Module):
                 use_gnn_map=self.use_gnn_map,
             )
 
+        self.num_players = getattr(backbone, "num_players", 4) if backbone is not None else 4
         self.head = nn.Sequential(
             nn.Linear(self.backbone.output_dim, 128),
             get_activation(activation),
-            nn.Linear(128, 1),
+            nn.Linear(128, self.num_players),
         )
 
         self._init_weights()
@@ -397,28 +398,27 @@ class ScorePredictorNet(nn.Module):
     def forward(self, obs: torch.Tensor, adj_norm: Optional[torch.Tensor] = None) -> torch.Tensor:
         feat = self.backbone(obs, adj_norm=adj_norm) if hasattr(self.backbone, "forward") else self.backbone(obs)
         score = self.head(feat)
-        return torch.tanh(score.squeeze(-1))
+        return torch.tanh(score)
 
     @torch.no_grad()
-    def predict_score(self, obs: torch.Tensor) -> float:
+    def predict_score(self, obs: torch.Tensor) -> np.ndarray:
         self.eval()
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
         val = self.forward(obs)
-        return float(val.item())
+        return val.squeeze(0).cpu().numpy()
 
     @torch.no_grad()
     def predict_score_with_uncertainty(
         self, obs: torch.Tensor, num_passes: int = 4
-    ) -> Tuple[float, float]:
-        """Estimates expected score and epistemic uncertainty sigma_V via parallel MC-Dropout passes.
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Estimates expected 4-player score vector and epistemic uncertainty sigma_V via parallel MC-Dropout passes.
 
-        Dropout layers are set to train mode while LayerNorms remain frozen in eval mode.
-        Returns (mean_score, std_score).
+        Returns (mean_scores (4,), std_scores (4,)).
         """
         if num_passes <= 1:
             val = self.predict_score(obs)
-            return val, 0.0
+            return val, np.zeros_like(val)
 
         if obs.dim() == 1:
             obs = obs.unsqueeze(0)
@@ -431,9 +431,9 @@ class ScorePredictorNet(nn.Module):
         self.apply(_set_dropout_train)
         try:
             repeated = obs.repeat(num_passes, 1)
-            scores = self.forward(repeated)  # shape (num_passes,)
-            mean_val = float(scores.mean().item())
-            std_val = float(scores.std().item())
+            scores = self.forward(repeated)  # shape (num_passes, 4)
+            mean_val = scores.mean(dim=0).cpu().numpy()
+            std_val = scores.std(dim=0).cpu().numpy()
         finally:
             self.eval()
 
@@ -785,10 +785,11 @@ class DualGaiaAgent(nn.Module):
 
             log_prob = dist.log_prob(action)
 
+        sc_scalar = float(score_val[0, 0].item()) if score_val.dim() > 1 else float(score_val[0].item())
         return (
             int(action.item()),
             float(log_prob.item()),
-            float(score_val.item()),
+            sc_scalar,
             probs.squeeze(0),
         )
 
@@ -964,8 +965,8 @@ class DualGaiaAgent(nn.Module):
         device_type = "cuda" if obs.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=obs.is_cuda):
             feat = self.shared_backbone(obs)
-            vals = torch.tanh(self.score_net.head(feat).squeeze(-1))
-            if vals.dim() == 0:
+            vals = torch.tanh(self.score_net.head(feat))
+            if vals.dim() == 1:
                 vals = vals.unsqueeze(0)
 
             logits = self.action_net.policy_head(feat)
@@ -991,14 +992,14 @@ class DualGaiaAgent(nn.Module):
         obs: torch.Tensor,
         action_mask: Optional[torch.Tensor] = None,
         leaf_actor: int = 0,
-    ) -> Tuple[float, np.ndarray]:
-        """Ultra-fast single-leaf evaluation (calls evaluate_leaf_batch for 100% parity)."""
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Ultra-fast single-leaf evaluation returning (4-player values (4,), action_priors (action_dim,))."""
         vals, priors = self.evaluate_leaf_batch(
             obs,
             action_masks=action_mask,
             leaf_actors=[leaf_actor],
         )
-        return float(vals[0]), priors[0]
+        return vals[0], priors[0]
 
     def predict_score_with_uncertainty(
         self, obs: torch.Tensor, num_passes: int = 4
@@ -1054,8 +1055,24 @@ class DualGaiaAgent(nn.Module):
         if isinstance(checkpoint, dict):
             config_obj = checkpoint.get("config", None) or checkpoint.get("model_config", None)
 
+        def _adapt_score_head(sd):
+            for k in list(sd.keys()):
+                if "score_net.head.2.weight" in k or (k == "head.2.weight" and "score_net" not in k):
+                    w = sd[k]
+                    if w.dim() >= 2 and w.shape[0] == 1 and self.score_net.head[-1].weight.shape[0] == 4:
+                        new_w = self.score_net.head[-1].weight.data.clone()
+                        new_w[0] = w[0]
+                        sd[k] = new_w
+                if "score_net.head.2.bias" in k or (k == "head.2.bias" and "score_net" not in k):
+                    b = sd[k]
+                    if b.dim() >= 1 and b.shape[0] == 1 and self.score_net.head[-1].bias.shape[0] == 4:
+                        new_b = self.score_net.head[-1].bias.data.clone()
+                        new_b[0] = b[0]
+                        sd[k] = new_b
+            return sd
+
         if isinstance(checkpoint, dict) and "agent_state_dict" in checkpoint:
-            state_dict = checkpoint["agent_state_dict"]
+            state_dict = _adapt_score_head(checkpoint["agent_state_dict"])
             self._adapt_architecture_from_state_dict(state_dict, config_obj)
             try:
                 self.load_state_dict(state_dict, strict=True)
@@ -1064,7 +1081,7 @@ class DualGaiaAgent(nn.Module):
                 if missing or unexpected:
                     print(f"  ⚠️ [Checkpoint Notice] Loaded with strict=False (missing: {len(missing)}, unexpected: {len(unexpected)})")
         elif isinstance(checkpoint, dict) and "score_net_state" in checkpoint and "action_net_state" in checkpoint:
-            score_state = checkpoint["score_net_state"]
+            score_state = _adapt_score_head(checkpoint["score_net_state"])
             action_state = checkpoint["action_net_state"]
             self._adapt_architecture_from_state_dict(score_state, config_obj)
             self.score_net.load_state_dict(score_state, strict=False)

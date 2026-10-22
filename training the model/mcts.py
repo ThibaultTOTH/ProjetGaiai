@@ -449,7 +449,7 @@ class BatchedNeuralEvaluator:
                 leaf_priors_list.append(l_p)
 
         for i, req in enumerate(batch):
-            req.score = float(pred_scores[i])
+            req.score = pred_scores[i]
             req.priors = leaf_priors_list[i]
             req.uncertainty = float(leaf_uncs[i])
             req.event.set()
@@ -778,7 +778,7 @@ class MultiPlayerMCTS:
                             stacked_obs, stacked_masks, leaf_actors=actors_list
                         )
                         for i_nt, nt_idx in enumerate(non_terminal_indices):
-                            rollout_items[nt_idx]["pred_score"] = float(pred_scores[i_nt])
+                            rollout_items[nt_idx]["pred_score"] = pred_scores[i_nt]
                             rollout_items[nt_idx]["leaf_priors"] = leaf_priors_list[i_nt]
                             rollout_items[nt_idx]["leaf_unc"] = 0.0
                     elif self.evaluator is not None:
@@ -838,15 +838,17 @@ class MultiPlayerMCTS:
                                     )
                                 node.is_expanded = True
 
-                        num_p = max(1, len(root_vps))
                         value_vector = np.zeros(4, dtype=np.float32)
-                        value_vector[leaf_actor] = float(np.clip(pred_score, -1.0, 1.0))
-                        opp_scale = 1.0 / max(1.0, float(num_p - 1))
-                        for i in range(min(4, num_p)):
-                            if i != leaf_actor:
-                                rel_delta = float(root_vps[i] - root_vps[leaf_actor]) / 25.0
-                                v_opp = -opp_scale * pred_score + opp_scale * math.tanh(rel_delta)
-                                value_vector[i] = float(np.clip(v_opp, -1.0, 1.0))
+                        if isinstance(pred_score, (np.ndarray, list)) and len(pred_score) >= 4:
+                            for act_s in range(4):
+                                rel_s = (act_s + 4 - (leaf_actor % 4)) % 4
+                                value_vector[act_s] = float(np.clip(pred_score[rel_s], -1.0, 1.0))
+                        else:
+                            sc = float(pred_score[0] if isinstance(pred_score, (np.ndarray, list)) else pred_score)
+                            value_vector[leaf_actor] = float(np.clip(sc, -1.0, 1.0))
+                            for i in range(4):
+                                if i != leaf_actor:
+                                    value_vector[i] = float(np.clip(-sc / 3.0, -1.0, 1.0))
 
                     for n in reversed(search_path):
                         n.add_real_visit_and_value(value_vector, leaf_unc)
@@ -1091,15 +1093,17 @@ class MultiPlayerMCTS:
                                 )
                             node.is_expanded = True
 
-                    num_p = max(1, len(root_vps))
                     value_vector = np.zeros(4, dtype=np.float32)
-                    value_vector[leaf_actor] = float(np.clip(pred_score, -1.0, 1.0))
-                    opp_scale = 1.0 / max(1.0, float(num_p - 1))
-                    for i in range(min(4, num_p)):
-                        if i != leaf_actor:
-                            rel_delta = float(root_vps[i] - root_vps[leaf_actor]) / 25.0
-                            v_opp = -opp_scale * pred_score + opp_scale * math.tanh(rel_delta)
-                            value_vector[i] = float(np.clip(v_opp, -1.0, 1.0))
+                    if isinstance(pred_score, (np.ndarray, list)) and len(pred_score) >= 4:
+                        for act_s in range(4):
+                            rel_s = (act_s + 4 - (leaf_actor % 4)) % 4
+                            value_vector[act_s] = float(np.clip(pred_score[rel_s], -1.0, 1.0))
+                    else:
+                        sc = float(pred_score[0] if isinstance(pred_score, (np.ndarray, list)) else pred_score)
+                        value_vector[leaf_actor] = float(np.clip(sc, -1.0, 1.0))
+                        for i in range(4):
+                            if i != leaf_actor:
+                                value_vector[i] = float(np.clip(-sc / 3.0, -1.0, 1.0))
 
                 # 3. REVERT virtual loss and BACKPROPAGATE real visit & values
                 for n in reversed(search_path):
